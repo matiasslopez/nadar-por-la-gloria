@@ -144,7 +144,7 @@ function stepRace(race, dt, input) {
     if (!blocked) {
       if (ch.complains && race.t > r.complainAt) { say(r, pick(COMPLAINTS), 1.8); r.boost = 1.8; r.boostMult = 1.25; r.complainAt = race.t + rnd(7, 11); }
       if (ch.cramps && r.x > 20 && Math.random() < dt * 0.045) { r.cramp = 1.1; say(r, "¡CALAMBRE!"); }
-      if (ch.lazy && r.x > 10 && Math.random() < dt * 0.03) { r.plancha = 1.5; say(r, "plancha..."); }
+      if (ch.lazy && r.x > 10 && Math.random() < dt * 0.03) { r.plancha = 1.2; say(r, "plancha..."); }
       if (ch.drowns && r.x > 15 && Math.random() < dt * 0.02) { r.drown = 1.8; say(r, "¡AYUDA!", 1.8); }
     }
 
@@ -160,8 +160,8 @@ function stepRace(race, dt, input) {
     if (ch.slowStart && race.t < 4) mult *= 0.75;
     if (ch.fade) mult *= 1 - 0.12 * clamp(r.x / RACE_M, 0, 1);
     if (r.boost > 0) mult *= r.boostMult;
-    if (ch.lazy && r.x < 12) mult *= 1.12; // Mati arranca a full
-    if (r.plancha > 0) mult *= 0.45;
+    if (ch.lazy && r.x < 25) mult *= 1.12; // Mati arranca a full
+    if (r.plancha > 0) mult *= 0.6;
     if (blocked) mult = r.drown ? 0 : 0.12;
     if (race.bullet > 0 && race.bulletOwner !== r) mult *= 0.5;
     if (!r.isPlayer) mult *= 1 + clamp((player.x - r.x) / 30, -0.08, 0.1); // que la carrera venga pareja
