@@ -321,10 +321,18 @@ function drawItem(ctx, kind, x, y, s) {
   } else if (kind === "manoplas") {
     ctx.fillStyle = "#FF8A2A";
     for (const d of [-1, 1]) { ctx.beginPath(); ctx.roundRect(d * s * 0.5 - s * 0.38, -s * 0.6, s * 0.76, s * 1.2, s * 0.3); ctx.fill(); ctx.stroke(); }
-  } else if (kind === "antiparras") {
-    ctx.fillStyle = "#2B2B33"; ctx.fillRect(-s, -s * 0.08, s * 2, s * 0.16);
-    ctx.fillStyle = "#7FE0FF";
-    for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(d * s * 0.42, 0, s * 0.38, s * 0.3, 0, 0, 7); ctx.fill(); ctx.stroke(); }
+  } else if (kind === "latita") {
+    // lata azul y plateada con un rayo
+    ctx.fillStyle = "#2F5FD0"; ctx.beginPath(); ctx.roundRect(-s * 0.42, -s * 0.8, s * 0.84, s * 1.6, s * 0.18); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#C9D3DE"; ctx.fillRect(-s * 0.42, -s * 0.8, s * 0.84, s * 0.22); ctx.fillRect(-s * 0.42, s * 0.6, s * 0.84, s * 0.2);
+    ctx.fillStyle = "#FFD23A"; ctx.beginPath();
+    ctx.moveTo(s * 0.12, -s * 0.5); ctx.lineTo(-s * 0.22, s * 0.05); ctx.lineTo(0, s * 0.05); ctx.lineTo(-s * 0.1, s * 0.45); ctx.lineTo(s * 0.24, -s * 0.08); ctx.lineTo(s * 0.02, -s * 0.08); ctx.closePath(); ctx.fill();
+  } else if (kind === "dulce") {
+    // pote de dulce de leche: tapa blanca, frasco marrón, etiqueta
+    ctx.fillStyle = "#8B5A2B"; ctx.beginPath(); ctx.roundRect(-s * 0.62, -s * 0.5, s * 1.24, s * 1.25, s * 0.25); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.roundRect(-s * 0.7, -s * 0.82, s * 1.4, s * 0.38, s * 0.12); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#F4E3B5"; ctx.fillRect(-s * 0.62, -s * 0.12, s * 1.24, s * 0.46);
+    ctx.fillStyle = "#C0392B"; ctx.beginPath(); ctx.ellipse(0, s * 0.11, s * 0.3, s * 0.15, 0, 0, 7); ctx.fill();
   } else if (kind === "paracaidas") {
     ctx.fillStyle = "#E23B3B";
     ctx.beginPath(); ctx.arc(0, 0, s * 0.85, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();

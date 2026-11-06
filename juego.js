@@ -129,7 +129,7 @@ const store = {
   function drawScreen() {
     const draft = newRace(chosen);
     const [p, a, b] = draft.racers;
-    const legend = Object.keys(ITEMS).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}</span>`).join("");
+    const legend = Object.keys(ITEMS).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air ? " +AIRE" : ""}</span>`).join("");
     show(`<p class="sub">Sorteo de rivales</p>
       <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${faceImg(r.ch, 52, i ? "normal" : "happy")}<b>${r.ch.name}${i ? "" : " (vos)"}</b><small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
       <p class="help">${say2("Nadás crol solo. MARIPOSA acelera pero gasta aire. Tocá RESPIRAR cuando se ilumina.", "↑ ↓ moverte · → (mantener) mariposa · ESPACIO respirar · ← especial · P pausa")}</p>

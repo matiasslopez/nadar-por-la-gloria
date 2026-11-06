@@ -25,7 +25,8 @@ const COMPLAINTS = ["¡ESTÁ HELADA!", "¿QUIÉN ARMÓ ESTA SERIE?", "ME DUELE E
 const ITEMS = {
   patas:      { name: "PATAS",      mult: 1.6,  secs: 2.5, good: true,  weight: 10 },
   manoplas:   { name: "MANOPLAS",   mult: 1.35, secs: 3,   good: true,  weight: 18 },
-  antiparras: { name: "ANTIPARRAS", mult: 1.15, secs: 4,   good: true,  weight: 24 },
+  latita:     { name: "LATITA",     mult: 1.3,  secs: 3,   good: true,  weight: 16, air: 0.15 }, // energía: acelera y da un poco de aire
+  dulce:      { name: "DULCE DE LECHE", mult: 1.2, secs: 2.5, good: true, weight: 7, air: 1 },  // premio raro: te llena el aire
   paracaidas: { name: "PARACAÍDAS", mult: 0.6,  secs: 3,   good: false, weight: 26 },
   tablita:    { name: "TABLITA",    mult: 0.4,  secs: 3,   good: false, weight: 22 }
 };
@@ -222,6 +223,7 @@ function stepRace(race, dt, input) {
       // a Pablo, que es una losa, lo que frena le hace menos
       const mult = !it.good && ch.heavy ? 1 - (1 - it.mult) * 0.75 : it.mult;
       o.gone = true; r.objKind = o.kind; r.objMult = mult; r.objT = it.secs;
+      if (it.air) { r.air = Math.min(1, r.air + it.air); r.noAir = 0; }
       say(r, it.name + (it.good ? " ▲" : " ▼"), 1.2);
       emit(race, r, it.good ? "good" : "bad");
     }
