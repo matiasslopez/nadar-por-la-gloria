@@ -160,49 +160,159 @@ function drawConfetti(ctx, race, W, H, dt) {
   FX.confetti = FX.confetti.filter((c) => c.y < H + 10);
 }
 
+// Aclara (k > 0) u oscurece (k < 0) un color "#rrggbb".
+function shade(hex, k) {
+  const n = parseInt(hex.slice(1), 16), f = (c) => Math.round(k > 0 ? c + (255 - c) * k : c * (1 + k));
+  return `rgb(${f(n >> 16)},${f((n >> 8) & 255)},${f(n & 255)})`;
+}
+
+// Dónde está la mano en cada momento de la brazada (en metros, mirando hacia +x).
+// De 0 a 0,6 tira por abajo del agua; de 0,6 a 1 vuelve por arriba. En mariposa el recobro es bien abierto.
+function armPose(ph, side, fly) {
+  const S = { x: 0.52, y: side * 0.19 };
+  let hx, hy, above;
+  if (ph < 0.6) {
+    const q = ph / 0.6, e = q * q * (3 - 2 * q);
+    hx = 1.18 - e * 1.22; hy = side * (fly ? 0.2 + 0.16 * Math.sin(Math.PI * q) : 0.11 + 0.07 * Math.sin(Math.PI * q));
+    above = false;
+  } else {
+    const q = (ph - 0.6) / 0.4;
+    hx = -0.04 + q * 1.22; hy = side * (0.2 + (fly ? 0.5 : 0.16) * Math.sin(Math.PI * q));
+    above = true;
+  }
+  // el codo queda hacia afuera; en el recobro de crol, bien alto (se ve más afuera)
+  const out = above ? (fly ? 0.1 : 0.13) : 0.05;
+  const E = { x: (S.x + hx) / 2, y: (S.y + hy) / 2 + side * out };
+  return { S, E, H: { x: hx, y: hy }, above };
+}
+
 function drawSwimmer(ctx, r, x, y, ppm, t) {
-  const L = ppm * 1.8, ch = r.ch, O = "rgba(20,30,50,0.55)";
+  const ch = r.ch, k = ppm * 1.4, skin = ch.skin;
+  const back = r.plancha > 0, flying = flyingNow(r), still = r.stun > 0 || back || r.finished;
+  const P = (px, py) => [px * k, py * k];
   ctx.save(); ctx.translate(x, y);
   if (r.dive) ctx.globalAlpha = 0.35;
   else if (r.immune > 0 && Math.floor(t * 10) % 2) ctx.globalAlpha = 0.6;
-  const back = r.plancha > 0, flying = flyingNow(r);
   // estela: más larga en mariposa
   if (r.v > 0.8) {
-    ctx.fillStyle = "rgba(255,255,255,0.4)";
-    ctx.beginPath(); ctx.ellipse(-L * 0.7, 0, L * (flying ? 0.6 : 0.38) * Math.min(1.6, r.v / 2.4), L * (flying ? 0.2 : 0.14), 0, 0, 7); ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.beginPath(); ctx.ellipse(-k * 1.05, 0, k * (flying ? 0.7 : 0.45) * Math.min(1.6, r.v / 2.4), k * (flying ? 0.24 : 0.16), 0, 0, 7); ctx.fill();
   }
-  // sombra en el fondo
-  ctx.fillStyle = "rgba(0,50,110,0.2)"; ctx.beginPath(); ctx.ellipse(L * 0.06, L * 0.12, L * 0.5, L * 0.2, 0, 0, 7); ctx.fill();
-  // en mariposa el cuerpo ondula
-  if (flying) ctx.rotate(Math.sin(t * 9 + r.x) * 0.03);
-  // piernas: crol patea alternado, mariposa las dos juntas
-  const kick = Math.sin(t * (flying ? 9 : 14) + r.x) * L * 0.06;
-  ctx.lineCap = "round";
-  for (const pass of [0, 1]) {
-    ctx.strokeStyle = pass ? ch.skin : O; ctx.lineWidth = L * (pass ? 0.09 : 0.13);
-    ctx.beginPath();
-    ctx.moveTo(-L * 0.3, -L * 0.06); ctx.lineTo(-L * 0.62, -L * 0.07 + kick);
-    ctx.moveTo(-L * 0.3, L * 0.06); ctx.lineTo(-L * 0.62, L * 0.07 + (flying ? kick : -kick));
-    ctx.stroke();
-  }
-  // espalda y malla
-  ctx.fillStyle = ch.skin; ctx.strokeStyle = O; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.ellipse(L * 0.08, 0, L * 0.2, L * 0.17, 0, 0, 7); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = ch.suit; ctx.beginPath(); ctx.ellipse(-L * 0.12, 0, L * 0.22, L * 0.15, 0, 0, 7); ctx.fill(); ctx.stroke();
-  // brazos: crol alternado, mariposa los dos juntos y bien abiertos
-  const phase = r.stun || back ? 0 : t * (flying ? 9 : 6) + r.x;
-  for (const s of [-1, 1]) {
-    const a = phase + (s > 0 && !flying ? Math.PI : 0), reach = Math.cos(a);
-    const ex = L * 0.15 + reach * L * 0.4, ey = s * L * ((flying ? 0.24 : 0.18) + (flying ? 0.14 : 0.08) * Math.sin(a));
-    for (const pass of [0, 1]) {
-      ctx.strokeStyle = pass ? ch.skin : O; ctx.lineWidth = L * (pass ? 0.08 : 0.12);
-      ctx.beginPath(); ctx.moveTo(L * 0.15, s * L * 0.13); ctx.lineTo(ex, ey); ctx.stroke();
+  // sombra en el fondo de la pileta
+  ctx.fillStyle = "rgba(0,45,100,0.22)";
+  ctx.beginPath(); ctx.ellipse(k * 0.12, k * 0.16, k * 0.95, k * 0.24, 0, 0, 7); ctx.fill();
+
+  const rate = flying ? 1.25 : 0.95;                 // brazadas por segundo
+  const base = still ? 0.15 : (t * rate + r.x * 0.07) % 1;
+  const arms = [-1, 1].map((s) => armPose(still ? (back ? 0.15 : 0.05) : flying ? base : (base + (s > 0 ? 0.5 : 0)) % 1, s, flying));
+  if (back) for (const a of arms) { a.H = { x: 0.2, y: a.S.y * 3.2 }; a.E = { x: 0.4, y: a.S.y * 2.1 }; a.above = true; }
+
+  const drawArm = (a) => {
+    const [sx, sy] = P(a.S.x, a.S.y), [ex, ey] = P(a.E.x, a.E.y), [hx, hy] = P(a.H.x, a.H.y);
+    const thick = a.above ? 1.12 : 1;
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(20,30,50,0.35)"; ctx.lineWidth = k * 0.15 * thick;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+    ctx.strokeStyle = shade(skin, -0.08); ctx.lineWidth = k * 0.12 * thick;
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke();
+    ctx.lineWidth = k * 0.1 * thick;
+    ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+    // luz arriba del brazo
+    ctx.strokeStyle = shade(skin, 0.25); ctx.lineWidth = k * 0.03;
+    ctx.beginPath(); ctx.moveTo(sx, sy - k * 0.02); ctx.lineTo(ex, ey - k * 0.02); ctx.lineTo(hx, hy - k * 0.015); ctx.stroke();
+    // mano
+    const ang = Math.atan2(hy - ey, hx - ex);
+    ctx.fillStyle = shade(skin, -0.05);
+    ctx.beginPath(); ctx.ellipse(hx + Math.cos(ang) * k * 0.05, hy + Math.sin(ang) * k * 0.05, k * 0.085, k * 0.055, ang, 0, 7); ctx.fill();
+    if (a.above && !back && !still) { // gotas que caen de la mano
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      for (let i = 0; i < 2; i++) { ctx.beginPath(); ctx.arc(hx - k * 0.05 * i, hy + k * (0.06 + 0.04 * i), k * 0.02, 0, 7); ctx.fill(); }
     }
+  };
+  // brazos que tiran por abajo del agua: se ven apagados
+  ctx.save(); ctx.globalAlpha *= 0.55;
+  for (const a of arms) if (!a.above) drawArm(a);
+  ctx.restore();
+
+  // piernas: crol patea alternado; mariposa, las dos juntas
+  const kickT = t * (flying ? rate * 2 : 7) + r.x;
+  for (const s of [-1, 1]) {
+    const kk = still ? 0 : Math.sin(kickT + (flying || s < 0 ? 0 : Math.PI));
+    const hip = P(-0.14, s * 0.085), knee = P(-0.47, s * 0.085), ankle = P(-0.8 + kk * 0.03, s * (0.07 + kk * 0.012));
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(20,30,50,0.25)"; ctx.lineWidth = k * 0.17;
+    ctx.beginPath(); ctx.moveTo(...hip); ctx.lineTo(...knee); ctx.lineTo(...ankle); ctx.stroke();
+    ctx.strokeStyle = shade(skin, -0.04); ctx.lineWidth = k * 0.15;
+    ctx.beginPath(); ctx.moveTo(...hip); ctx.lineTo(...knee); ctx.stroke();
+    ctx.lineWidth = k * 0.11; ctx.beginPath(); ctx.moveTo(...knee); ctx.lineTo(...ankle); ctx.stroke();
+    // pie estirado hacia atrás
+    ctx.fillStyle = shade(skin, -0.08);
+    ctx.beginPath(); ctx.ellipse(ankle[0] - k * 0.07, ankle[1], k * (0.085 + kk * 0.015), k * 0.04, 0, 0, 7); ctx.fill();
   }
-  // cabeza con gorra y brillo
-  ctx.fillStyle = ch.cap; ctx.strokeStyle = r.isPlayer ? "#FFD84A" : "#fff"; ctx.lineWidth = r.isPlayer ? 3 : 2;
-  ctx.beginPath(); ctx.arc(L * 0.36, 0, L * 0.14, 0, 7); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,0.45)"; ctx.beginPath(); ctx.ellipse(L * 0.33, -L * 0.05, L * 0.05, L * 0.03, -0.4, 0, 7); ctx.fill();
+  // las piernas van más hundidas: un velo de agua encima
+  const gv = ctx.createLinearGradient(-k * 0.95, 0, -k * 0.2, 0);
+  gv.addColorStop(0, "rgba(41,182,238,0.4)"); gv.addColorStop(1, "rgba(41,182,238,0)");
+  ctx.fillStyle = gv; ctx.fillRect(-k * 0.98, -k * 0.2, k * 0.8, k * 0.4);
+
+  // torso: hombros anchos que se afinan hasta la cintura
+  const breathe = flying ? 1 + Math.max(0, Math.sin(base * Math.PI * 2)) * 0.06 : 1;
+  ctx.save(); ctx.scale(breathe, breathe);
+  ctx.beginPath();
+  ctx.moveTo(...P(0.66, 0));
+  ctx.bezierCurveTo(...P(0.66, -0.12), ...P(0.6, -0.24), ...P(0.48, -0.24));
+  ctx.bezierCurveTo(...P(0.3, -0.24), ...P(0.12, -0.16), ...P(0.02, -0.14));
+  ctx.bezierCurveTo(...P(-0.1, -0.15), ...P(-0.2, -0.15), ...P(-0.24, -0.1));
+  ctx.lineTo(...P(-0.24, 0.1));
+  ctx.bezierCurveTo(...P(-0.2, 0.15), ...P(-0.1, 0.15), ...P(0.02, 0.14));
+  ctx.bezierCurveTo(...P(0.12, 0.16), ...P(0.3, 0.24), ...P(0.48, 0.24));
+  ctx.bezierCurveTo(...P(0.6, 0.24), ...P(0.66, 0.12), ...P(0.66, 0));
+  ctx.closePath();
+  const g = ctx.createLinearGradient(0, -k * 0.24, 0, k * 0.24);
+  g.addColorStop(0, shade(skin, 0.18)); g.addColorStop(0.45, skin); g.addColorStop(1, shade(skin, -0.22));
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = "rgba(20,30,50,0.4)"; ctx.lineWidth = Math.max(1.5, k * 0.02); ctx.stroke();
+  // omóplatos y columna
+  ctx.strokeStyle = shade(skin, -0.2); ctx.lineWidth = Math.max(1, k * 0.015);
+  ctx.beginPath(); ctx.moveTo(...P(0.42, 0)); ctx.lineTo(...P(0.02, 0)); ctx.stroke();
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(...P(0.46, s * 0.06)); ctx.quadraticCurveTo(...P(0.36, s * 0.16), ...P(0.24, s * 0.1)); ctx.stroke(); }
+  // malla
+  ctx.beginPath();
+  ctx.moveTo(...P(0.0, -0.14)); ctx.bezierCurveTo(...P(-0.1, -0.15), ...P(-0.2, -0.15), ...P(-0.24, -0.1));
+  ctx.lineTo(...P(-0.24, 0.1)); ctx.bezierCurveTo(...P(-0.2, 0.15), ...P(-0.1, 0.15), ...P(0.0, 0.14));
+  ctx.closePath();
+  const gs = ctx.createLinearGradient(0, -k * 0.15, 0, k * 0.15);
+  gs.addColorStop(0, shade(ch.suit, 0.3)); gs.addColorStop(0.5, ch.suit); gs.addColorStop(1, shade(ch.suit, -0.3));
+  ctx.fillStyle = gs; ctx.fill(); ctx.stroke();
+
+  // cabeza con gorra, antiparras y la ola que hace al avanzar
+  const turn = !flying && !still ? Math.sin(base * Math.PI * 2) * 0.06 : 0; // en crol gira la cabeza para respirar
+  const [hx, hy] = P(0.8, turn);
+  if (!still && r.v > 0.8) {
+    ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = Math.max(1.5, k * 0.03);
+    ctx.beginPath(); ctx.arc(hx, hy, k * 0.19, -1.1, 1.1); ctx.stroke();
+  }
+  if (back) { // panza arriba: se le ve la cara
+    ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse(hx, hy, k * 0.14, k * 0.12, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = ch.cap; ctx.beginPath(); ctx.ellipse(hx - k * 0.05, hy, k * 0.1, k * 0.12, 0, Math.PI / 2, Math.PI * 1.5); ctx.fill();
+    ctx.fillStyle = "#2A1B14"; for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(hx + k * 0.05, hy + s * k * 0.045, k * 0.015, 0, 7); ctx.fill(); }
+    ctx.strokeStyle = "#2A1B14"; ctx.lineWidth = Math.max(1, k * 0.012); ctx.beginPath(); ctx.arc(hx + k * 0.07, hy, k * 0.03, -0.8, 0.8); ctx.stroke();
+  } else {
+    const gc = ctx.createRadialGradient(hx - k * 0.04, hy - k * 0.05, k * 0.01, hx, hy, k * 0.15);
+    gc.addColorStop(0, shade(ch.cap, 0.45)); gc.addColorStop(0.6, ch.cap); gc.addColorStop(1, shade(ch.cap, -0.35));
+    ctx.fillStyle = gc; ctx.strokeStyle = r.isPlayer ? "#FFD84A" : "rgba(255,255,255,0.9)"; ctx.lineWidth = r.isPlayer ? 3 : 2;
+    ctx.beginPath(); ctx.ellipse(hx, hy, k * 0.16, k * 0.135, 0, 0, 7); ctx.fill(); ctx.stroke();
+    // tira y vidrios de las antiparras
+    ctx.strokeStyle = "rgba(20,20,30,0.8)"; ctx.lineWidth = Math.max(1, k * 0.018);
+    ctx.beginPath(); ctx.ellipse(hx, hy, k * 0.11, k * 0.115, 0, -1.2, 1.2, true); ctx.stroke();
+    ctx.fillStyle = "#1B2A3A";
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(hx + k * 0.11, hy + s * k * 0.05, k * 0.03, k * 0.022, 0, 0, 7); ctx.fill(); }
+    ctx.fillStyle = "rgba(127,224,255,0.9)";
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(hx + k * 0.115, hy + s * k * 0.05 - k * 0.006, k * 0.009, 0, 7); ctx.fill(); }
+  }
+  ctx.restore();
+
+  // brazos en el aire, por encima de todo
+  for (const a of arms) if (a.above) drawArm(a);
   ctx.restore();
 }
 
