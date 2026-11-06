@@ -23,13 +23,13 @@ const store = {
 
   // ---------- controles ----------
   // En la compu se juega con las flechas y el espacio: ↑↓ moverse, → (mantener) mariposa,
-  // espacio respirar, ← especial. Enter sirve para los botones de las pantallas.
+  // espacio (mantener) respirar, ← especial. Enter sirve para los botones de las pantallas.
   const PC = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   document.body.classList.toggle("pc", PC);
   const say2 = (touch, pc) => (PC ? pc : touch);
-  const input = { up: false, down: false, fly: false, breathePressed: false, specialPressed: false };
-  const keys = { ArrowUp: "up", ArrowDown: "down", ArrowRight: "fly", w: "up", W: "up", s: "down", S: "down", d: "fly", D: "fly" };
-  const presses = { " ": "breathePressed", ArrowLeft: "specialPressed", a: "specialPressed", A: "specialPressed" };
+  const input = { up: false, down: false, fly: false, breathe: false, specialPressed: false };
+  const keys = { ArrowUp: "up", ArrowDown: "down", ArrowRight: "fly", w: "up", W: "up", s: "down", S: "down", d: "fly", D: "fly", " ": "breathe" };
+  const presses = { ArrowLeft: "specialPressed", a: "specialPressed", A: "specialPressed" };
   window.addEventListener("keydown", (e) => {
     Sound.unlock();
     if (scr.style.display !== "none") { // en las pantallas, Enter o espacio aprietan el botón amarillo
@@ -105,11 +105,11 @@ const store = {
   function guideStep(dt, events) {
     if (!guide.on || race.t < 0) return;
     const p = player;
-    if (guide.cur) { guide.cur.t -= dt; if (guide.cur.t <= 0 || (guide.cur.id === "breath" && !p.bOpen)) guide.cur = null; }
-    if (events.some((e) => e.r === p && e.kind === "breathOpen")) tip("breath", say2("¡SE ILUMINÓ! TOCÁ RESPIRAR ANTES DE QUE SE APAGUE", "¡RESPIRÁ! APRETÁ ESPACIO ANTES DE QUE SE APAGUE"), p.bLen, true);
+    if (guide.cur) { guide.cur.t -= dt; if (guide.cur.t <= 0 || (guide.cur.id === "breath" && p.breathing)) guide.cur = null; }
+    if (p.air < 0.45) tip("breath", say2("SE TE VA EL AIRE: MANTENÉ RESPIRAR PARA RECARGAR LA PILA", "SE TE VA EL AIRE: MANTENÉ ESPACIO PARA RECARGAR LA PILA"), 4, true);
     tip("move", say2("TOCÁ ARRIBA O ABAJO DE LA IZQUIERDA PARA MOVERTE", "USÁ LAS FLECHAS ↑ Y ↓ PARA MOVERTE"), 3.5);
     if (race.objs.some((o) => !o.gone && o.x - p.x > 0 && o.x - p.x < 7)) tip("items", "LO VERDE TE ACELERA, LO ROJO TE FRENA", 3);
-    if (guide.seen.has("breath") && race.t > 13) tip("fly", say2("MANTENÉ MARIPOSA PARA IR MÁS RÁPIDO: GASTA MUCHO AIRE", "MANTENÉ → PARA NADAR MARIPOSA: MÁS RÁPIDO, PERO GASTA AIRE"), 4);
+    if (guide.seen.has("breath") && race.t > 8) tip("fly", say2("MANTENÉ MARIPOSA: VAS MÁS RÁPIDO, PERO LA PILA BAJA MÁS RÁPIDO", "MANTENÉ →: MARIPOSA VA MÁS RÁPIDO, PERO LA PILA BAJA MÁS RÁPIDO"), 4);
     if (specialReady(p)) tip("special", say2("¡TU ESPECIAL ESTÁ LISTO! TOCÁ " + p.ch.special, "¡TU ESPECIAL ESTÁ LISTO! APRETÁ ← PARA " + p.ch.special), 3);
   }
 
@@ -138,8 +138,8 @@ const store = {
       </div>
       <div class="cols"><div class="how"><b>Cómo se juega</b>
         <span>🏊 Nadás crol solo. ${say2("Tocá arriba o abajo de la izquierda", "Con ↑ y ↓")} te movés.</span>
-        <span>🦋 ${say2("Mantené MARIPOSA", "Mantené →")} para ir mucho más rápido: gasta aire.</span>
-        <span>💨 ${say2("Tocá RESPIRAR", "Apretá ESPACIO")} cuando se ilumina, o tragás agua.</span>
+        <span>🔋 El aire es tu pila. En crol baja despacio; ${say2("manteniendo MARIPOSA", "manteniendo →")} vas mucho más rápido, pero baja rápido.</span>
+        <span>💨 ${say2("Mantené RESPIRAR", "Mantené ESPACIO")} para recargarla: mientras respirás vas más lento. Sin aire, casi no avanzás.</span>
         <span>🟢 Lo verde te acelera, 🔴 lo rojo te frena. El especial ${say2("", "(←) ")}se carga solo.</span>
         <span>🏅 En la copa: 1º suma 10, 2º suma 6, 3º suma 3. Extra: +2 si agarrás dulce de leche y +2 si nunca te quedás sin aire.</span>
       </div>
@@ -183,7 +183,7 @@ const store = {
     const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
     show(`<p class="sub">${head}</p><h1 class="small">${circ.name}</h1><p class="help">${circ.info}</p>
       <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${faceImg(r.ch, 52, i ? "normal" : "happy")}<b>${r.ch.name}${i ? "" : " (vos)"}</b>${pts(r)}<small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
-      <p class="help">${say2("Nadás crol solo. MARIPOSA acelera pero gasta aire. Tocá RESPIRAR cuando se ilumina.", "↑ ↓ moverte · → (mantener) mariposa · ESPACIO respirar · ← especial · P pausa")}</p>
+      <p class="help">${say2("Nadás crol solo. MARIPOSA va más rápido y gasta más pila. Mantené RESPIRAR para recargar.", "↑ ↓ moverte · → (mantener) mariposa · ESPACIO (mantener) respirar · ← especial · P pausa")}</p>
       <div class="legend">${legend}</div><button class="go">¡AL AGUA!</button>`);
     scr.querySelector(".go").onclick = () => {
       race = draft; player = race.racers[0]; lastCount = 99; endShown = false;
@@ -263,7 +263,7 @@ const store = {
       if (!paused) {
         stepRace(race, dt, input);
         const events = race.events; race.events = [];
-        input.breathePressed = false; input.specialPressed = false;
+        input.specialPressed = false;
         playEvents(events); guideStep(dt, events);
         const n = race.t < 0 ? Math.ceil(-race.t) : 0;
         if (n !== lastCount) { Sound.play(n ? "count" : "go"); lastCount = n; }
@@ -271,7 +271,7 @@ const store = {
       render(ctx, race, W, H);
       drawHud(ctx, race, W, H);
       if (guide.cur) drawTip(ctx, W, guide.cur.text, Math.min(1, guide.cur.t * 3));
-      setBtn("bbr", player.bOpen, player.bOpen ? player.bT / player.bLen : 0, player.bOpen ? "¡RESPIRÁ!" : "RESPIRAR");
+      setBtn("bbr", player.air < 0.3 && !player.breathing, player.air, player.breathing ? "RECARGANDO" : "RESPIRAR");
       setBtn("bsp", specialReady(player), player.charge, player.ch.special);
       if (race.over && !endShown && race.t - race.overT > 1.4) {
         endShown = true; Sound.play(standings(race)[0] === player ? "win" : "lose"); endScreen();

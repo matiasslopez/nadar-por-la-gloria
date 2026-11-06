@@ -3,10 +3,10 @@
 // Nadamos por la milanga, pero las ventajas y desventajas son de este juego.
 
 // Números de 1 a 5; todos suman 14. spd: velocidad en crol · air: cuánto aguanta ·
-// rec: cuánto da cada respirada y cuánto dura la ventana · fly: cuánto rinde la mariposa.
+// rec: qué tan rápido recarga el aire al respirar · fly: cuánto rinde la mariposa.
 const CHARS = [
   { id: "facu", name: "FACU", tag: "Guarda que te como", quirk: "Si tiene a alguien cerca adelante, se acelera solo y gasta un poco más de aire.",
-    special: "TE COMO", specialInfo: "agarra al de adelante y lo pasa", charge: 8, spd: 5, air: 2, rec: 3, fly: 4,
+    special: "TE COMO", specialInfo: "agarra al de adelante y lo pasa", charge: 18, spd: 5, air: 2, rec: 3, fly: 4,
     cap: "#1A1A1E", suit: "#1A1A1A", skin: "#EDBB95" },
   { id: "luis", name: "LUIS", tag: "El quejoso", quirk: "Arranca lento, y cada vez que se queja pega un tirón.",
     special: "SALTAR", specialInfo: "pasa por arriba de lo que tenga adelante", charge: 10, spd: 4, air: 3, rec: 2, fly: 5,
@@ -18,15 +18,15 @@ const CHARS = [
     special: "CAMINAR", specialInfo: "camina por el costado, esquiva todo y recupera el aire", charge: 12, spd: 3, air: 4, rec: 4, fly: 3,
     cap: "#F0BE98", suit: "#1F3F8F", skin: "#F0BE98", heavy: true }
 ];
-const STATS = [["spd", "Velocidad"], ["air", "Aire"], ["rec", "Recuperación"], ["fly", "Mariposa"]];
+const STATS = [["spd", "Velocidad"], ["air", "Aire"], ["rec", "Recarga"], ["fly", "Mariposa"]];
 const COMPLAINTS = ["¡ESTÁ HELADA!", "¿QUIÉN ARMÓ ESTA SERIE?", "ME DUELE EL HOMBRO", "¡LA PROFE ME ODIA!", "HAY MUCHA GENTE HOY", "¿SALE MILANGA HOY?"];
 
 // Objetos que flotan en la pileta: los buenos aceleran, los malos frenan, por unos segundos.
 const ITEMS = {
-  patas:      { name: "PATAS",      mult: 1.6,  secs: 2.5, good: true,  weight: 10 },
-  manoplas:   { name: "MANOPLAS",   mult: 1.35, secs: 3,   good: true,  weight: 18 },
-  latita:     { name: "LATITA",     mult: 1.3,  secs: 3,   good: true,  weight: 16, air: 0.15 }, // energía: acelera y da un poco de aire
-  dulce:      { name: "DULCE DE LECHE", mult: 1.2, secs: 2.5, good: true, weight: 7, air: 1 },  // premio raro: te llena el aire
+  patas:      { name: "PATAS",      mult: 1.9,  secs: 3,   good: true,  weight: 10 },
+  manoplas:   { name: "MANOPLAS",   mult: 1.6,  secs: 3.5, good: true,  weight: 18 },
+  latita:     { name: "LATITA",     mult: 1.5,  secs: 3.5, good: true,  weight: 16, air: 0.25 }, // energía: acelera y da un poco de aire
+  dulce:      { name: "DULCE DE LECHE", mult: 1.4, secs: 3, good: true, weight: 7, air: 1 },  // premio raro: te llena el aire
   paracaidas: { name: "PARACAÍDAS", mult: 0.6,  secs: 3,   good: false, weight: 26 },
   tablita:    { name: "TABLITA",    mult: 0.4,  secs: 3,   good: false, weight: 22 }
 };
@@ -45,18 +45,19 @@ const CIRCUITS = {
 const CUP = ["club", "olimpica", "abiertas"];
 const CUP_POINTS = [10, 6, 3];          // puntos por puesto en cada carrera de la copa
 const BONUS = { dulce: 2, air: 2 };     // extra por agarrar dulce de leche y por no quedarse nunca sin aire
-const BASE_V = 2.4;       // velocidad de crol de un nadador con velocidad 3, m/s
-const AIR_CROL = 0.06;    // aire que gasta el crol por segundo (aire 3)
-const AIR_FLY = 0.2;      // aire que gasta la mariposa por segundo (aire 3, mariposa 3)
-const AIR_WATER = 0.12;   // aire que perdés si tragás agua
+const BASE_V = 3.1;       // velocidad de crol de un nadador con velocidad 3, m/s
+// El aire es una pila: el crol la gasta despacio, la mariposa rápido, y mantener RESPIRAR la recarga
+// (mientras respirás vas más lento).
+const AIR_CROL = 0.07;    // aire que gasta el crol por segundo (aire 3)
+const AIR_FLY = 0.3;      // aire que gasta la mariposa por segundo (aire 3, mariposa 3)
+const BREATH_SLOW = 0.55; // velocidad mientras respirás
 
 // Lo que significa cada número en la pileta.
 const speedMult = (ch) => 1 + (ch.spd - 3) * 0.03;   // 0,94 a 1,06
 const airCap = (ch) => 0.7 + 0.12 * ch.air;          // aguante: 0,82 a 1,30
-const breathGain = (ch) => 0.2 + 0.07 * ch.rec;      // 0,34 a 0,55 de aire por respirada
-const breathWindow = (ch) => 0.9 + 0.2 * ch.rec;     // 1,1 a 1,9 segundos para tocar RESPIRAR
-const flyMult = (ch) => 1.38 + 0.08 * ch.fly;        // mariposa: 1,54 a 1,78 veces el crol
-const flyCost = (ch) => 1.36 - 0.12 * ch.fly;        // y su gasto de aire: 1,24 a 0,76
+const breathGain = (ch) => 0.3 + 0.1 * ch.rec;       // recarga: 0,5 a 0,8 de pila por segundo respirando
+const flyMult = (ch) => 1.45 + 0.06 * ch.fly;        // mariposa: 1,57 a 1,75 veces el crol
+const flyCost = (ch) => 1.3 - 0.08 * ch.fly;         // y su gasto de aire: 1,14 a 0,90
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -78,11 +79,10 @@ function newRace(playerCh, circ = CIRCUITS.olimpica, rivals = drawRivals(playerC
   const lanes = [0.5, 1 / 6, 5 / 6];
   const racers = chars.map((ch, i) => ({
     ch, isPlayer: i === 0, x: 1.5, u: lanes[i], v: 0, air: 1, fly: false, steer: 0,
-    nextBreath: rnd(2.5, 4), bOpen: false, bT: 0, bLen: 1,
-    stun: 0, plancha: 0, noAir: 0, gulp: 0, immune: 0, boost: 0, boostMult: 1,
+    breathing: false, stun: 0, plancha: 0, noAir: 0, immune: 0, boost: 0, boostMult: 1,
     objMult: 1, objT: 0, objKind: null, chaseSay: 0,
     dive: 0, lunge: 0, lungeTo: 0, lungeU: 0, charge: 1, bubble: null, finished: false, finishT: 0, mood: "normal", moodT: 0, gotDulce: false, ranOut: false,
-    ai: { breathAt: 0, useAt: 0, wantU: lanes[i] }, complainAt: rnd(5, 9)
+    ai: { useAt: 0, wantU: lanes[i] }, complainAt: rnd(5, 9)
   }));
   const objs = [];
   for (let x = 8; x < circ.len - 4; x += rnd(circ.gap[0], circ.gap[1])) {
@@ -102,7 +102,7 @@ function emit(race, r, kind) {
   const m = MOODS[kind]; if (m) { r.mood = m[0]; r.moodT = m[1]; }
 }
 // La cara que pone cada uno cuando le pasa algo (ver caras.js), y por cuántos segundos.
-const MOODS = { good: ["happy", 1], bad: ["hurt", 1], hit: ["dead", 1.6], gulp: ["gulp", 0.8], breath: ["gulp", 0.45],
+const MOODS = { good: ["happy", 1], bad: ["hurt", 1], hit: ["dead", 1.6], breath: ["gulp", 0.45],
   noAir: ["hurt", 1.2], special: ["happy", 1], finish: ["happy", 3] };
 const specialReady = (r) => r.charge >= 1;
 
@@ -126,7 +126,7 @@ function useSpecial(race, r) {
   switch (r.ch.id) {
     case "facu": { // se tira encima del de adelante, lo frena y sale por delante de él
       // siempre lo pasa; si el otro no está protegido por su especial, además lo deja frenado
-      const o = ahead(race, r, 20);
+      const o = ahead(race, r, 12);
       if (o) {
         if (hit(race, o, 1.4, "¡ME COMIÓ!")) emit(race, o, "hit"); else say(o, "¡EPA!", 1);
         r.lunge = 0.5; r.lungeTo = Math.min(race.len - 0.5, o.x + 1.6); r.lungeU = o.u; r.immune = 0.8;
@@ -139,29 +139,17 @@ function useSpecial(race, r) {
   }
 }
 
-function breathe(race, r) {
-  if (r.bOpen) {
-    r.bOpen = false; r.air = Math.min(1, r.air + breathGain(r.ch)); r.noAir = 0;
-    r.nextBreath = rnd(4.5, 6.5);
-    if (r.isPlayer) say(r, "¡AIRE!", 0.7);
-    emit(race, r, "breath");
-  } else if (r.gulp <= 0) { // respirar a destiempo: tragás agua
-    r.air = Math.max(0, r.air - AIR_WATER); r.gulp = 0.6; say(r, "¡GLUB!", 0.8);
-    emit(race, r, "gulp");
-  }
-}
 
 function aiThink(race, r) {
   const ai = r.ai, ch = r.ch;
-  // respirar: con un poco de reacción; a veces se les pasa (más a los que respiran mal)
-  if (r.bOpen) {
-    const miss = (0.2 - ch.rec * 0.03) * (1 - race.circ.level * 0.35); // en cada circuito se les pasa menos
-    if (!ai.breathAt) ai.breathAt = race.t + (Math.random() < miss ? 99 : rnd(0.15, 0.6));
-    if (race.t > ai.breathAt) { breathe(race, r); ai.breathAt = 0; }
-  } else ai.breathAt = 0;
-  // mariposa: mientras le sobre el aire, y a fondo en el final
-  const final = r.x > race.len - 15;
+  // respirar: cuando la pila está baja recargan hasta casi llenarla; en el final aguantan
+  // (en el primer circuito se dan cuenta tarde y a veces se quedan sin aire)
+  const final = r.x > race.len - 12;
   const careful = Math.max(0, 3 - ch.air) * 0.1; // los de poco aire se cuidan más
+  const low = [0.04, 0.12, 0.18][race.circ.level] + careful * 0.5;
+  if (r.breathing && (r.air > 0.9 || (final && r.air > 0.3))) r.breathing = false;
+  else if (!r.breathing && r.air < low && !final) r.breathing = true;
+  // mariposa: mientras le sobre el aire, y a fondo en el final
   if (r.fly && r.air < (final ? 0.08 : 0.3 + careful)) r.fly = false;
   else if (!r.fly && r.air > (final ? 0.3 : 0.55 + careful)) r.fly = true;
   // carril: esquivar lo que frena, buscar lo que acelera
@@ -177,8 +165,8 @@ function aiThink(race, r) {
   r.steer = Math.abs(want - r.u) > 0.03 ? Math.sign(want - r.u) : 0;
   // especial
   if (specialReady(r)) {
-    if (!ai.useAt) ai.useAt = race.t + rnd(0.6, 2.5);
-    if (race.t > ai.useAt && (ch.id !== "facu" || ahead(race, r, 25))) { useSpecial(race, r); ai.useAt = 0; }
+    if (!ai.useAt) ai.useAt = race.t + (ch.id === "facu" ? rnd(3, 7) : rnd(0.6, 2.5));
+    if (race.t > ai.useAt && (ch.id !== "facu" || ahead(race, r, 10))) { useSpecial(race, r); ai.useAt = 0; }
   }
 }
 
@@ -195,21 +183,13 @@ function stepRace(race, dt, input) {
     const ch = r.ch;
     if (r.bubble) { r.bubble.t -= dt; if (r.bubble.t <= 0) r.bubble = null; }
     if (r.finished) { r.v *= 1 - dt * 1.5; r.x += r.v * dt; continue; }
-    for (const k of ["stun", "plancha", "gulp", "immune", "boost", "dive", "lunge", "objT", "chaseSay", "moodT"]) r[k] = Math.max(0, r[k] - dt);
+    for (const k of ["stun", "plancha", "immune", "boost", "dive", "lunge", "objT", "chaseSay", "moodT"]) r[k] = Math.max(0, r[k] - dt);
     r.charge = Math.min(1, r.charge + dt / ch.charge);
-
-    // ventana para respirar, como en Nadamos por la milanga
-    if (r.bOpen) {
-      r.bT -= dt;
-      if (r.bT <= 0) { r.bOpen = false; r.air = Math.max(0, r.air - AIR_WATER); say(r, "¡TRAGUÉ AGUA!", 1); r.nextBreath = rnd(4.5, 6.5); emit(race, r, "gulp"); }
-    } else {
-      r.nextBreath -= dt;
-      if (r.nextBreath <= 0) { r.bOpen = true; r.bLen = breathWindow(ch); r.bT = r.bLen; emit(race, r, "breathOpen"); }
-    }
 
     if (r.isPlayer) {
       r.fly = input.fly; r.steer = (input.down ? 1 : 0) - (input.up ? 1 : 0);
-      if (input.breathePressed) breathe(race, r);
+      if (input.breathe && !r.breathing) emit(race, r, "breath");
+      r.breathing = input.breathe;
       if (input.specialPressed) useSpecial(race, r);
     } else aiThink(race, r);
 
@@ -227,13 +207,15 @@ function stepRace(race, dt, input) {
     if (r.plancha > 0) r.air = Math.min(1, r.air + dt * 0.3);
 
     // aire: el crol gasta poco, la mariposa mucho
-    const flying = r.fly && r.air > 0 && !blocked && !r.plancha;
-    if (!r.plancha) r.air -= dt * (flying ? AIR_FLY * flyCost(ch) : AIR_CROL) * drain / airCap(ch);
+    const breathing = r.breathing && !blocked && !r.dive;
+    const flying = r.fly && r.air > 0 && !blocked && !r.plancha && !breathing;
+    if (breathing) { r.air = Math.min(1, r.air + dt * breathGain(ch)); r.noAir = 0; }
+    else if (!r.plancha) r.air -= dt * (flying ? AIR_FLY * flyCost(ch) : AIR_CROL) * drain / airCap(ch);
     if (r.air <= 0) { if (!r.noAir) { say(r, "¡SIN AIRE!", 1.2); emit(race, r, "noAir"); r.ranOut = true; } r.air = 0; r.noAir = 1; } else r.noAir = 0;
 
     mult *= (flying ? flyMult(ch) : 1) * speedMult(ch);
     if (r.noAir) mult *= 0.45;
-    if (r.gulp > 0) mult *= 0.7;
+    if (breathing) mult *= BREATH_SLOW;
     if (ch.id === "luis" && race.t < 4) mult *= 0.75;
     if (r.boost > 0) mult *= r.boostMult;
     if (r.dive > 0) mult *= 1.3;
@@ -258,11 +240,10 @@ function stepRace(race, dt, input) {
       o.gone = true; r.objKind = o.kind; r.objMult = mult; r.objT = it.secs;
       if (it.air) { r.air = Math.min(1, r.air + it.air); r.noAir = 0; }
       if (o.kind === "dulce") r.gotDulce = true;
-      say(r, it.name + (it.good ? " ▲" : " ▼"), 1.2);
       emit(race, r, it.good ? "good" : "bad");
     }
 
-    if (r.x >= race.len) { r.finished = true; r.finishT = race.t; r.bOpen = false; emit(race, r, "finish"); }
+    if (r.x >= race.len) { r.finished = true; r.finishT = race.t; r.breathing = false; emit(race, r, "finish"); }
   }
   const done = race.racers.filter((r) => r.finished).length;
   if (!race.over && (player.finished || done >= 2)) { race.over = true; race.overT = race.t; }

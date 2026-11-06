@@ -110,6 +110,7 @@ function moodOf(r) {
   if (r.moodT > 0) return r.mood;
   if (r.stun > 0) return "dead";
   if (r.noAir) return "hurt";
+  if (r.breathing) return "gulp";
   if (r.bubble && r.ch.id === "luis" && r.boost > 0) return "talk";
   if (r.fly && r.air > 0 && !r.plancha) return "effort";
   if (r.plancha > 0) return "happy";

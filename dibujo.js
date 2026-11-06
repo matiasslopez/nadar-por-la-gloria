@@ -61,14 +61,14 @@ function render(ctx, race, W, H) {
   for (const r of race.racers) drawTags(ctx, r, sx(race.t < 0 ? 1.2 : pos(r)), sy(r.u), ppm, t, top); // antes de largar, las caras al lado del partidor
   drawStreaks(ctx, race, W, H, dt);
   drawConfetti(ctx, race, W, H, dt);
-  if (p.bOpen && !p.finished) { // el borde de la pantalla titila mientras podés respirar
+  if (p.air < 0.25 && !p.breathing && !p.finished && race.t > 0) { // el borde titila cuando queda poco aire
     const a = 0.6 + Math.sin(t * 16) * 0.2, e = Math.min(W, H) * 0.22;
     for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, e, 0, 0, top, e, H], [W, 0, W - e, 0, W - e, top, e, H], [0, H, 0, H - e, 0, H - e, W, e]]) {
       const g = ctx.createLinearGradient(x0, y0, x1, y1);
-      g.addColorStop(0, `rgba(255,255,255,${a.toFixed(2)})`); g.addColorStop(1, "rgba(255,255,255,0)");
+      g.addColorStop(0, `rgba(255,70,50,${(a * 0.7).toFixed(2)})`); g.addColorStop(1, "rgba(255,70,50,0)");
       ctx.fillStyle = g; ctx.fillRect(rx, ry, rw, rh);
     }
-    ctx.strokeStyle = Math.floor(t * 8) % 2 ? "#fff" : "#FFD84A"; ctx.lineWidth = 6;
+    ctx.strokeStyle = Math.floor(t * 8) % 2 ? "#fff" : "#FF4A3A"; ctx.lineWidth = 6;
     ctx.strokeRect(3, top + 3, W - 6, H - top - 6);
   }
 }
@@ -263,6 +263,8 @@ function stepFx(race, dt) {
       if (k + 1 > n && Math.random() > n - k) break;
       FX.parts.push({ x: r.x - HAND - 0.9 + rnd(-0.15, 0.15), u: r.u + rnd(-0.02, 0.02), vx: -rnd(0.2, 1), vu: rnd(-0.03, 0.03), life: 0, max: rnd(0.5, 0.9), s: rnd(2, 4), top: false });
     }
+    if (r.breathing) for (let k = 0; k < dt * 25; k++) // respirando: saca la cabeza y salpica al costado
+      FX.parts.push({ x: r.x - HAND + 1.1 + rnd(-0.2, 0.2), u: r.u + rnd(0.02, 0.06), vx: rnd(-0.5, 0.3), vu: rnd(0.02, 0.08), life: 0, max: rnd(0.3, 0.6), s: rnd(2, 4), top: true });
     if (r.dive) for (let k = 0; k < dt * 40; k++) // burbujas del que va por abajo del agua
       FX.parts.push({ x: r.x - HAND + rnd(-0.6, 0.9), u: r.u + rnd(-0.03, 0.03), vx: rnd(-0.3, 0.1), vu: rnd(-0.02, 0.02), life: 0, max: rnd(0.4, 0.8), s: rnd(1.5, 3.5), top: true });
     if (r.lunge > 0) for (let k = 0; k < dt * 80; k++) // Facu tirándose encima
@@ -356,6 +358,13 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
     ctx.fillStyle = "rgba(255,255,255,0.35)";
     ctx.beginPath(); ctx.ellipse(-k * 1.05, 0, k * (flying ? 0.7 : 0.45) * Math.min(1.6, r.v / 2.4), k * (flying ? 0.24 : 0.16), 0, 0, 7); ctx.fill();
   }
+  if (r.objT > 0 && r.objKind) {
+    const good = ITEMS[r.objKind].good, pul = 0.75 + Math.sin(t * 12) * 0.25;
+    const gl = ctx.createRadialGradient(k * 0.2, 0, k * 0.2, k * 0.2, 0, k * 1.2);
+    gl.addColorStop(0, good ? `rgba(124,252,106,${(0.55 * pul).toFixed(2)})` : `rgba(255,80,60,${(0.5 * pul).toFixed(2)})`);
+    gl.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.ellipse(k * 0.2, 0, k * 1.25, k * 0.55, 0, 0, 7); ctx.fill();
+  }
   // sombra en el fondo de la pileta
   ctx.fillStyle = "rgba(0,45,100,0.22)";
   ctx.beginPath(); ctx.ellipse(k * 0.12, k * 0.16, k * 0.95, k * 0.24, 0, 0, 7); ctx.fill();
@@ -443,7 +452,7 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   ctx.fillStyle = gs; ctx.fill(); ctx.stroke();
 
   // cabeza con gorra, antiparras y la ola que hace al avanzar
-  const turn = !flying && !still ? Math.sin(base * Math.PI * 2) * 0.06 : 0; // en crol gira la cabeza para respirar
+  const turn = r.breathing && !still ? 0.09 : !flying && !still ? Math.sin(base * Math.PI * 2) * 0.03 : 0; // gira la cabeza para respirar
   const [hx, hy] = P(0.8, turn);
   if (!still && r.v > 0.8) {
     ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = Math.max(1.5, k * 0.03);
@@ -488,15 +497,26 @@ function drawTags(ctx, r, x, y, ppm, t, top) {
   ctx.strokeText(label, fxp, ly); ctx.fillText(label, fxp, ly);
   if (r.stun) { ctx.fillStyle = "#FFD84A"; for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; ctx.beginPath(); ctx.arc(x + L * 0.36 + Math.cos(a) * 12, y + Math.sin(a) * 8, 3, 0, 7); ctx.fill(); } }
   if (r.objT > 0) drawItem(ctx, r.objKind, fxp - size / 2 - 10, fy, 7);
-  if (r.isPlayer && r.bOpen) {
-    const hx = x + ppm * 1.12, frac = r.bT / r.bLen, pulse = 1 + Math.sin(t * 16) * 0.08, R = ppm * 0.55 * pulse;
-    ctx.fillStyle = "rgba(143,227,255,0.25)"; ctx.beginPath(); ctx.arc(hx, y, R, 0, 7); ctx.fill();
+  if (r.isPlayer && !r.finished && (r.breathing || r.air < 0.3)) {
+    const hx = x + ppm * 1.12, pulse = 1 + Math.sin(t * 16) * 0.06, R = ppm * 0.55 * pulse;
+    ctx.fillStyle = r.breathing ? "rgba(143,227,255,0.25)" : "rgba(255,80,60,0.2)"; ctx.beginPath(); ctx.arc(hx, y, R, 0, 7); ctx.fill();
     ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(hx, y, R, 0, 7); ctx.stroke();
-    ctx.strokeStyle = frac < 0.35 ? "#FF8A5A" : "#8FE3FF"; ctx.lineWidth = 6; ctx.lineCap = "round";
-    ctx.beginPath(); ctx.arc(hx, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); ctx.stroke();
-    ctx.save(); ctx.translate(hx + R + 8, y); ctx.scale(pulse, pulse);
-    ctx.font = "bold 17px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.lineWidth = 4; ctx.strokeStyle = "#0E4C7E";
-    ctx.strokeText("¡RESPIRÁ!", 0, 0); ctx.fillStyle = "#fff"; ctx.fillText("¡RESPIRÁ!", 0, 0);
+    ctx.strokeStyle = r.breathing ? "#8FE3FF" : "#FF6A4A"; ctx.lineWidth = 6; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(hx, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.02, r.air)); ctx.stroke();
+    if (!r.breathing) {
+      ctx.save(); ctx.translate(hx + R + 8, y); ctx.scale(pulse, pulse);
+      ctx.font = "bold 16px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.lineWidth = 4; ctx.strokeStyle = "#0E4C7E";
+      ctx.strokeText("¡RESPIRÁ!", 0, 0); ctx.fillStyle = "#fff"; ctx.fillText("¡RESPIRÁ!", 0, 0);
+      ctx.restore();
+    }
+  }
+  // al agarrar un objeto, el nombre grande que sube
+  if (r.objT > 0 && r.objKind && r.objT > ITEMS[r.objKind].secs - 1) {
+    const it = ITEMS[r.objKind], q = 1 - (r.objT - (it.secs - 1)), sz = r.isPlayer ? 26 : 16;
+    ctx.save(); ctx.globalAlpha = 1 - q * 0.8; const py = y - ppm * 2.1 - q * 25; ctx.translate(x + ppm * 0.4, py < top + 20 ? y + ppm * 2 + q * 25 : py); ctx.scale(1 + (1 - q) * 0.4, 1 + (1 - q) * 0.4);
+    ctx.font = `bold ${sz}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.lineWidth = 5; ctx.strokeStyle = "#0E4C7E";
+    const s2 = (it.good ? "¡" + it.name + "! ▲" : it.name + " ▼");
+    ctx.strokeText(s2, 0, 0); ctx.fillStyle = it.good ? "#7CFC6A" : "#FF7A6A"; ctx.fillText(s2, 0, 0);
     ctx.restore();
   }
   ctx.restore();
@@ -522,28 +542,41 @@ function drawHud(ctx, race, W, H) {
   ctx.font = "bold 11px system-ui, sans-serif"; ctx.fillStyle = "#CFE9FF";
   ctx.fillText(Math.min(race.len, Math.floor(p.x)) + " / " + race.len + " m", 56, 46);
   // barra de progreso con las caras de los 3
-  const bx = 136, bw = W - bx - 200, by = 30;
+  const bx = 136, bw = W - bx - 210, by = 24;
   ctx.fillStyle = "#0005"; ctx.beginPath(); ctx.roundRect(bx, by - 4, bw, 8, 4); ctx.fill();
   ctx.fillStyle = "#fff"; ctx.fillRect(bx + bw - 2, by - 10, 4, 20);
   for (const r of race.racers.slice().reverse()) drawFaceBadge(ctx, r, bx + bw * clamp(r.x / race.len, 0, 1), by, r.isPlayer ? 22 : 18, race.t);
-  // aire, estilo y objeto activo
-  const ax = W - 150, aw = 138, flying = flyingNow(p) && !p.finished;
-  ctx.font = "bold 10px system-ui, sans-serif"; ctx.fillStyle = "#CFE9FF"; ctx.textAlign = "right"; ctx.fillText("AIRE", ax - 5, 16);
-  ctx.fillStyle = "#0006"; ctx.beginPath(); ctx.roundRect(ax, 9, aw, 14, 7); ctx.fill();
-  const blinkLow = p.air < 0.3 && Math.floor(race.t * 6) % 2;
-  ctx.fillStyle = p.noAir ? "#E84A4A" : p.air < 0.3 ? (blinkLow ? "#FF5A3A" : "#F0A030") : "#7FE0FF";
-  if (p.air > 0.02) { ctx.beginPath(); ctx.roundRect(ax + 2, 11, (aw - 4) * p.air, 10, 5); ctx.fill(); }
-  if (p.bOpen) { ctx.strokeStyle = Math.floor(race.t * 8) % 2 ? "#fff" : "#8FE3FF"; ctx.lineWidth = 3; ctx.beginPath(); ctx.roundRect(ax - 1, 8, aw + 2, 16, 8); ctx.stroke(); }
-  ctx.textAlign = "left"; ctx.strokeStyle = "#000a"; ctx.lineWidth = 3;
-  ctx.font = flying ? "bold 14px system-ui, sans-serif" : "bold 12px system-ui, sans-serif";
-  ctx.fillStyle = flying ? "#FFD84A" : "#fff";
-  const sty = flying ? "¡MARIPOSA! »»" : "CROL";
-  ctx.strokeText(sty, ax, 34); ctx.fillText(sty, ax, 34);
-  if (p.objT > 0) {
+  // la pila de aire: grande, por segmentos, y abajo cuánto gasta o si recarga
+  const bw2 = 150, bh2 = 26, ax = W - bw2 - 22, ay = 7, flying = flyingNow(p) && !p.finished && !p.breathing;
+  ctx.fillStyle = "#0008"; ctx.beginPath(); ctx.roundRect(ax, ay, bw2, bh2, 6); ctx.fill();
+  ctx.fillStyle = "#ffffffaa"; ctx.beginPath(); ctx.roundRect(ax + bw2 + 2, ay + 7, 6, bh2 - 14, 2); ctx.fill();
+  const col = p.air > 0.5 ? "#5FE36A" : p.air > 0.25 ? "#FFC83A" : (Math.floor(race.t * 6) % 2 ? "#FF4A3A" : "#C82A1A");
+  const segs = 10, sw = (bw2 - 6) / segs;
+  for (let i = 0; i < segs; i++) {
+    const f = clamp(p.air * segs - i, 0, 1); if (f <= 0) break;
+    ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(ax + 3 + i * sw + 1, ay + 3, (sw - 2) * f, bh2 - 6, 3); ctx.fill();
+  }
+  if (p.breathing) { // recargando: un brillo que corre por la pila
+    const gx = ax + ((race.t * 220) % bw2);
+    const gg = ctx.createLinearGradient(gx - 30, 0, gx + 30, 0);
+    gg.addColorStop(0, "rgba(255,255,255,0)"); gg.addColorStop(0.5, "rgba(255,255,255,0.7)"); gg.addColorStop(1, "rgba(255,255,255,0)");
+    ctx.fillStyle = gg; ctx.fillRect(ax + 3, ay + 3, bw2 - 6, bh2 - 6);
+  }
+  ctx.strokeStyle = p.breathing ? "#8FE3FF" : flying ? "#FFD84A" : "#ffffff88"; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.roundRect(ax, ay, bw2, bh2, 6); ctx.stroke();
+  ctx.font = "bold 13px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineWidth = 3; ctx.strokeStyle = "#000a";
+  ctx.fillStyle = "#fff"; ctx.strokeText("AIRE " + Math.round(p.air * 100) + "%", ax + bw2 / 2, ay + bh2 / 2 + 1); ctx.fillText("AIRE " + Math.round(p.air * 100) + "%", ax + bw2 / 2, ay + bh2 / 2 + 1);
+  const blink = Math.floor(race.t * 8) % 2;
+  const [txt, tc] = p.finished ? ["", "#fff"] : p.noAir ? ["¡SIN AIRE! RESPIRÁ", blink ? "#FF6A5A" : "#fff"]
+    : p.breathing ? ["RECARGANDO ▲▲▲", "#8FE3FF"] : p.plancha ? ["PLANCHA: RECARGA ▲", "#8FE3FF"]
+    : flying ? ["MARIPOSA: GASTA ▼▼▼", blink ? "#FFD84A" : "#FFB020"] : ["CROL: GASTA ▼", "#CFE9FF"];
+  ctx.font = "bold 12px system-ui, sans-serif"; ctx.fillStyle = tc;
+  ctx.strokeText(txt, ax + bw2 / 2, ay + bh2 + 13); ctx.fillText(txt, ax + bw2 / 2, ay + bh2 + 13);
+  if (p.objT > 0) { // objeto activo, abajo de la barra de la carrera
     const it = ITEMS[p.objKind];
-    ctx.font = "bold 11px system-ui, sans-serif"; ctx.fillStyle = it.good ? "#7CFC6A" : "#FF8A7A";
-    const s = it.name + " " + (it.good ? "▲" : "▼") + " " + p.objT.toFixed(1);
-    ctx.strokeText(s, ax, 49); ctx.fillText(s, ax, 49);
+    ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = it.good ? "#7CFC6A" : "#FF8A7A";
+    const s2 = it.name + " " + (it.good ? "▲" : "▼") + " " + p.objT.toFixed(1) + " s";
+    ctx.strokeText(s2, bx, by + 20); ctx.fillText(s2, bx, by + 20);
   }
   // largada: cada número aparece grande y se achica
   if (race.t < 0.6) {
