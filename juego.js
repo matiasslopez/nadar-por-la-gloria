@@ -19,15 +19,28 @@ const store = {
   // nada de menús ni zoom por tocar de más
   for (const ev of ["contextmenu", "gesturestart", "dblclick"]) document.addEventListener(ev, (e) => e.preventDefault());
 
+  const scr = document.getElementById("scr");
+
   // ---------- controles ----------
+  // En la compu se juega con las flechas y el espacio: ↑↓ moverse, → (mantener) mariposa,
+  // espacio respirar, ← especial. Enter sirve para los botones de las pantallas.
+  const PC = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  document.body.classList.toggle("pc", PC);
+  const say2 = (touch, pc) => (PC ? pc : touch);
   const input = { up: false, down: false, fly: false, breathePressed: false, specialPressed: false };
-  const keys = { ArrowUp: "up", ArrowDown: "down", w: "up", s: "down", c: "fly", C: "fly", Shift: "fly" };
-  const presses = { " ": "breathePressed", x: "specialPressed", X: "specialPressed" };
+  const keys = { ArrowUp: "up", ArrowDown: "down", ArrowRight: "fly", w: "up", W: "up", s: "down", S: "down", d: "fly", D: "fly" };
+  const presses = { " ": "breathePressed", ArrowLeft: "specialPressed", a: "specialPressed", A: "specialPressed" };
   window.addEventListener("keydown", (e) => {
     Sound.unlock();
+    if (scr.style.display !== "none") { // en las pantallas, Enter o espacio aprietan el botón amarillo
+      const go = scr.querySelector("button.go");
+      if ((e.key === "Enter" || e.key === " ") && go) { e.preventDefault(); go.click(); }
+      return;
+    }
     if (keys[e.key]) { input[keys[e.key]] = true; e.preventDefault(); }
     if (presses[e.key] && !e.repeat) { input[presses[e.key]] = true; e.preventDefault(); }
     if ((e.key === "p" || e.key === "P" || e.key === "Escape") && race && !race.over) setPaused(!paused);
+    else if (paused && !e.repeat) setPaused(false);
   });
   window.addEventListener("keyup", (e) => { if (keys[e.key]) input[keys[e.key]] = false; });
 
@@ -93,15 +106,14 @@ const store = {
     if (!guide.on || race.t < 0) return;
     const p = player;
     if (guide.cur) { guide.cur.t -= dt; if (guide.cur.t <= 0 || (guide.cur.id === "breath" && !p.bOpen)) guide.cur = null; }
-    if (events.some((e) => e.r === p && e.kind === "breathOpen")) tip("breath", "¡SE ILUMINÓ! TOCÁ RESPIRAR ANTES DE QUE SE APAGUE", p.bLen, true);
-    tip("move", "TOCÁ ARRIBA O ABAJO DE LA IZQUIERDA PARA MOVERTE", 3.5);
+    if (events.some((e) => e.r === p && e.kind === "breathOpen")) tip("breath", say2("¡SE ILUMINÓ! TOCÁ RESPIRAR ANTES DE QUE SE APAGUE", "¡RESPIRÁ! APRETÁ ESPACIO ANTES DE QUE SE APAGUE"), p.bLen, true);
+    tip("move", say2("TOCÁ ARRIBA O ABAJO DE LA IZQUIERDA PARA MOVERTE", "USÁ LAS FLECHAS ↑ Y ↓ PARA MOVERTE"), 3.5);
     if (race.objs.some((o) => !o.gone && o.x - p.x > 0 && o.x - p.x < 7)) tip("items", "LO VERDE TE ACELERA, LO ROJO TE FRENA", 3);
-    if (guide.seen.has("breath") && race.t > 13) tip("fly", "MANTENÉ MARIPOSA PARA IR MÁS RÁPIDO: GASTA MUCHO AIRE", 4);
-    if (specialReady(p)) tip("special", "¡TU ESPECIAL ESTÁ LISTO! TOCÁ " + p.ch.special, 3);
+    if (guide.seen.has("breath") && race.t > 13) tip("fly", say2("MANTENÉ MARIPOSA PARA IR MÁS RÁPIDO: GASTA MUCHO AIRE", "MANTENÉ → PARA NADAR MARIPOSA: MÁS RÁPIDO, PERO GASTA AIRE"), 4);
+    if (specialReady(p)) tip("special", say2("¡TU ESPECIAL ESTÁ LISTO! TOCÁ " + p.ch.special, "¡TU ESPECIAL ESTÁ LISTO! APRETÁ ← PARA " + p.ch.special), 3);
   }
 
   // ---------- pantallas ----------
-  const scr = document.getElementById("scr");
   let race = null, player = null, chosen = null, lastCount = 99, endShown = false;
 
   function show(html) { scr.innerHTML = html; scr.style.display = "flex"; pad.style.display = "none"; keepAwake(false); }
@@ -123,7 +135,7 @@ const store = {
     const legend = Object.keys(ITEMS).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}</span>`).join("");
     show(`<p class="sub">Sorteo de rivales</p>
       <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${face(r.ch, 32)}<b>${r.ch.name}${i ? "" : " (vos)"}</b><small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
-      <p class="help">Nadás crol solo. MARIPOSA acelera pero gasta aire. Tocá RESPIRAR cuando se ilumina. En compu: flechas, C, espacio y X.</p>
+      <p class="help">${say2("Nadás crol solo. MARIPOSA acelera pero gasta aire. Tocá RESPIRAR cuando se ilumina.", "↑ ↓ moverte · → (mantener) mariposa · ESPACIO respirar · ← especial · P pausa")}</p>
       <div class="legend">${legend}</div><button class="go">¡A LA PILETA!</button>`);
     scr.querySelector(".go").onclick = () => {
       race = draft; player = race.racers[0]; lastCount = 99; endShown = false;
