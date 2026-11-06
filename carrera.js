@@ -6,16 +6,16 @@
 // rec: cuánto da cada respirada y cuánto dura la ventana · fly: cuánto rinde la mariposa.
 const CHARS = [
   { id: "facu", name: "FACU", tag: "Guarda que te como", quirk: "Si tiene a alguien cerca adelante, se acelera solo y gasta un poco más de aire.",
-    special: "TE COMO", specialInfo: "frena al de adelante", charge: 8, spd: 5, air: 2, rec: 3, fly: 4,
+    special: "TE COMO", specialInfo: "agarra al de adelante y lo pasa", charge: 8, spd: 5, air: 2, rec: 3, fly: 4,
     cap: "#1A1A1E", suit: "#1A1A1A", skin: "#EDBB95" },
   { id: "luis", name: "LUIS", tag: "El quejoso", quirk: "Arranca lento, y cada vez que se queja pega un tirón.",
     special: "SALTAR", specialInfo: "pasa por arriba de lo que tenga adelante", charge: 10, spd: 4, air: 3, rec: 2, fly: 5,
     cap: "#4A5FD0", suit: "#D4A017", skin: "#E6B08A" },
   { id: "mati", name: "MATI", tag: "El diésel", quirk: "Cada tanto hace la plancha: frena, pero recupera aire.",
-    special: "SUMERGIR", specialInfo: "pasa por abajo de lo que frena", charge: 12, spd: 2, air: 5, rec: 5, fly: 2,
+    special: "SUMERGIR", specialInfo: "nada por abajo del agua rapidísimo y esquiva todo", charge: 12, spd: 2, air: 5, rec: 5, fly: 2,
     cap: "#E8C25A", suit: "#2E8B57", skin: "#F2C6A0" },
   { id: "pablo", name: "PABLO", tag: "La losa", quirk: "Es una losa: lo que frena le hace menos efecto, pero cambia de carril más lento.",
-    special: "CAMINAR", specialInfo: "camina por el costado y esquiva todo", charge: 12, spd: 3, air: 4, rec: 4, fly: 3,
+    special: "CAMINAR", specialInfo: "camina por el costado, esquiva todo y recupera el aire", charge: 12, spd: 3, air: 4, rec: 4, fly: 3,
     cap: "#F0BE98", suit: "#1F3F8F", skin: "#F0BE98", heavy: true }
 ];
 const STATS = [["spd", "Velocidad"], ["air", "Aire"], ["rec", "Recuperación"], ["fly", "Mariposa"]];
@@ -81,7 +81,7 @@ function newRace(playerCh, circ = CIRCUITS.olimpica, rivals = drawRivals(playerC
     nextBreath: rnd(2.5, 4), bOpen: false, bT: 0, bLen: 1,
     stun: 0, plancha: 0, noAir: 0, gulp: 0, immune: 0, boost: 0, boostMult: 1,
     objMult: 1, objT: 0, objKind: null, chaseSay: 0,
-    dive: 0, charge: 0, bubble: null, finished: false, finishT: 0, mood: "normal", moodT: 0, gotDulce: false, ranOut: false,
+    dive: 0, lunge: 0, lungeTo: 0, lungeU: 0, charge: 1, bubble: null, finished: false, finishT: 0, mood: "normal", moodT: 0, gotDulce: false, ranOut: false,
     ai: { breathAt: 0, useAt: 0, wantU: lanes[i] }, complainAt: rnd(5, 9)
   }));
   const objs = [];
@@ -124,10 +124,18 @@ function useSpecial(race, r) {
   say(r, r.ch.special + "!", 1.3);
   emit(race, r, "special");
   switch (r.ch.id) {
-    case "facu": { const o = ahead(race, r, 30); if (o && hit(race, o, 1.6, "¡ME COMIÓ!")) emit(race, o, "hit"); else { r.boost = 1; r.boostMult = 1.3; } break; }
+    case "facu": { // se tira encima del de adelante, lo frena y sale por delante de él
+      // siempre lo pasa; si el otro no está protegido por su especial, además lo deja frenado
+      const o = ahead(race, r, 20);
+      if (o) {
+        if (hit(race, o, 1.4, "¡ME COMIÓ!")) emit(race, o, "hit"); else say(o, "¡EPA!", 1);
+        r.lunge = 0.5; r.lungeTo = Math.min(race.len - 0.5, o.x + 1.6); r.lungeU = o.u; r.immune = 0.8;
+      } else { r.boost = 1.5; r.boostMult = 1.3; }
+      break;
+    }
     case "luis": r.immune = 1.2; r.x += 3; break;
-    case "mati": r.immune = 2.5; r.dive = 2.5; break;
-    case "pablo": r.immune = 3; r.boost = 3; r.boostMult = 1.04; break;
+    case "mati": r.immune = 2.5; r.dive = 2.5; r.boost = 4; r.boostMult = 1.12; r.v = Math.max(r.v, BASE_V * 1.6); break; // se hunde con envión y abajo del agua va más rápido
+    case "pablo": r.immune = 3; r.boost = 3; r.boostMult = 1.04; r.air = 1; r.noAir = 0; break;
   }
 }
 
@@ -187,7 +195,7 @@ function stepRace(race, dt, input) {
     const ch = r.ch;
     if (r.bubble) { r.bubble.t -= dt; if (r.bubble.t <= 0) r.bubble = null; }
     if (r.finished) { r.v *= 1 - dt * 1.5; r.x += r.v * dt; continue; }
-    for (const k of ["stun", "plancha", "gulp", "immune", "boost", "dive", "objT", "chaseSay", "moodT"]) r[k] = Math.max(0, r[k] - dt);
+    for (const k of ["stun", "plancha", "gulp", "immune", "boost", "dive", "lunge", "objT", "chaseSay", "moodT"]) r[k] = Math.max(0, r[k] - dt);
     r.charge = Math.min(1, r.charge + dt / ch.charge);
 
     // ventana para respirar, como en Nadamos por la milanga
@@ -228,6 +236,7 @@ function stepRace(race, dt, input) {
     if (r.gulp > 0) mult *= 0.7;
     if (ch.id === "luis" && race.t < 4) mult *= 0.75;
     if (r.boost > 0) mult *= r.boostMult;
+    if (r.dive > 0) mult *= 1.3;
     if (r.objT > 0) mult *= r.objMult;
     if (r.plancha > 0) mult *= 0.8;
     if (blocked) mult = 0.12;
@@ -235,6 +244,7 @@ function stepRace(race, dt, input) {
     const target = BASE_V * mult;
     r.v += (target - r.v) * Math.min(1, dt * (flying ? 4 : 2.5)); // la mariposa arranca con un tirón
     r.x += r.v * dt;
+    if (r.lunge > 0) { const k = Math.min(1, dt * 10); r.x += (r.lungeTo - r.x) * k; r.u += (r.lungeU - r.u) * k; }
     if (!blocked) r.u = clamp(r.u + r.steer * dt * 0.65 * (ch.heavy ? 0.6 : 1), 0.08, 0.92);
     if (race.cur) r.u = clamp(r.u + race.cur * dt * (ch.heavy ? 0.6 : 1), 0.08, 0.92); // la corriente del río
 

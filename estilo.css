@@ -76,7 +76,8 @@ input { user-select: text; -webkit-user-select: text; }
 .btn .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(255,255,255,0.35); pointer-events: none; }
 .btn span { position: relative; }
 .btn.br { width: 104px; height: 104px; right: 14px; bottom: 14px; font-size: 14px; background: rgba(93,120,145,0.5); }
-.btn.br.ready { background: rgba(143,227,255,0.85); border-color: #fff; color: #0b2633; }
+.btn.br.ready { background: rgba(143,227,255,0.9); border-color: #fff; color: #0b2633; animation: latido 0.45s ease-in-out infinite alternate; box-shadow: 0 0 22px #8FE3FF; }
+@keyframes latido { from { transform: scale(1); } to { transform: scale(1.12); } }
 .btn.fly { width: 84px; height: 84px; right: 128px; bottom: 14px; font-size: 13px; background: rgba(255,216,74,0.3); }
 .btn.fly.on { background: rgba(255,216,74,0.65); color: #10324F; }
 .btn.sp { width: 70px; height: 70px; right: 32px; bottom: 132px; font-size: 10px; }

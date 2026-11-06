@@ -61,6 +61,16 @@ function render(ctx, race, W, H) {
   for (const r of race.racers) drawTags(ctx, r, sx(race.t < 0 ? 1.2 : pos(r)), sy(r.u), ppm, t, top); // antes de largar, las caras al lado del partidor
   drawStreaks(ctx, race, W, H, dt);
   drawConfetti(ctx, race, W, H, dt);
+  if (p.bOpen && !p.finished) { // el borde de la pantalla titila mientras podés respirar
+    const a = 0.6 + Math.sin(t * 16) * 0.2, e = Math.min(W, H) * 0.22;
+    for (const [x0, y0, x1, y1, rx, ry, rw, rh] of [[0, 0, e, 0, 0, top, e, H], [W, 0, W - e, 0, W - e, top, e, H], [0, H, 0, H - e, 0, H - e, W, e]]) {
+      const g = ctx.createLinearGradient(x0, y0, x1, y1);
+      g.addColorStop(0, `rgba(255,255,255,${a.toFixed(2)})`); g.addColorStop(1, "rgba(255,255,255,0)");
+      ctx.fillStyle = g; ctx.fillRect(rx, ry, rw, rh);
+    }
+    ctx.strokeStyle = Math.floor(t * 8) % 2 ? "#fff" : "#FFD84A"; ctx.lineWidth = 6;
+    ctx.strokeRect(3, top + 3, W - 6, H - top - 6);
+  }
 }
 
 // Pileta: baldosas, corcheras, partidores en la salida y placas para tocar en la llegada.
@@ -246,13 +256,17 @@ function drawStanding(ctx, r, x, y, ppm) {
 // Espuma de las patadas y salpicones de los brazos; en mariposa salpica mucho más.
 function stepFx(race, dt) {
   for (const r of race.racers) {
-    if (r.finished || r.dive || r.stun || race.t < 0) continue;
+    if (r.finished || r.stun || race.t < 0) continue;
     const flying = flyingNow(r);
     const n = dt * (flying ? 34 : 14) * Math.min(1.5, r.v / 2.4);
     for (let k = 0; k < n; k++) {
       if (k + 1 > n && Math.random() > n - k) break;
       FX.parts.push({ x: r.x - HAND - 0.9 + rnd(-0.15, 0.15), u: r.u + rnd(-0.02, 0.02), vx: -rnd(0.2, 1), vu: rnd(-0.03, 0.03), life: 0, max: rnd(0.5, 0.9), s: rnd(2, 4), top: false });
     }
+    if (r.dive) for (let k = 0; k < dt * 40; k++) // burbujas del que va por abajo del agua
+      FX.parts.push({ x: r.x - HAND + rnd(-0.6, 0.9), u: r.u + rnd(-0.03, 0.03), vx: rnd(-0.3, 0.1), vu: rnd(-0.02, 0.02), life: 0, max: rnd(0.4, 0.8), s: rnd(1.5, 3.5), top: true });
+    if (r.lunge > 0) for (let k = 0; k < dt * 80; k++) // Facu tirándose encima
+      FX.parts.push({ x: r.x - HAND + rnd(-1, 1), u: r.u + rnd(-0.04, 0.04), vx: -rnd(2, 4), vu: rnd(-0.1, 0.1), life: 0, max: rnd(0.3, 0.5), s: rnd(3, 6), top: true });
     if (flying && Math.random() < dt * 9) for (const s of [-1, 1]) for (let k = 0; k < 4; k++) {
       FX.parts.push({ x: r.x - HAND + 0.3 + rnd(-0.2, 0.2), u: r.u + s * rnd(0.03, 0.05), vx: rnd(-0.5, 0.5), vu: s * rnd(0.05, 0.15), life: 0, max: rnd(0.35, 0.6), s: rnd(2.5, 5), top: true });
     }
@@ -335,7 +349,7 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   const back = r.plancha > 0, flying = flyingNow(r), still = r.stun > 0 || back || r.finished;
   const P = (px, py) => [px * k, py * k];
   ctx.save(); ctx.translate(x, y);
-  if (r.dive) ctx.globalAlpha = 0.35;
+  if (r.dive) { ctx.globalAlpha = 0.45; ctx.filter = "brightness(0.55) saturate(0.6)"; }
   else if (r.immune > 0 && Math.floor(t * 10) % 2) ctx.globalAlpha = 0.6;
   // estela: más larga en mariposa
   if (r.v > 0.8) {
@@ -475,10 +489,14 @@ function drawTags(ctx, r, x, y, ppm, t, top) {
   if (r.stun) { ctx.fillStyle = "#FFD84A"; for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; ctx.beginPath(); ctx.arc(x + L * 0.36 + Math.cos(a) * 12, y + Math.sin(a) * 8, 3, 0, 7); ctx.fill(); } }
   if (r.objT > 0) drawItem(ctx, r.objKind, fxp - size / 2 - 10, fy, 7);
   if (r.isPlayer && r.bOpen) {
-    const k = 1 + Math.sin(t * 14) * 0.08;
-    ctx.save(); ctx.translate(x + L * 0.58, y); ctx.scale(k, k);
-    ctx.font = "bold 13px system-ui, sans-serif"; ctx.textAlign = "left";
-    ctx.strokeText("¡RESPIRÁ!", 0, 0); ctx.fillStyle = "#8FE3FF"; ctx.fillText("¡RESPIRÁ!", 0, 0);
+    const hx = x + ppm * 1.12, frac = r.bT / r.bLen, pulse = 1 + Math.sin(t * 16) * 0.08, R = ppm * 0.55 * pulse;
+    ctx.fillStyle = "rgba(143,227,255,0.25)"; ctx.beginPath(); ctx.arc(hx, y, R, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(hx, y, R, 0, 7); ctx.stroke();
+    ctx.strokeStyle = frac < 0.35 ? "#FF8A5A" : "#8FE3FF"; ctx.lineWidth = 6; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.arc(hx, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * frac); ctx.stroke();
+    ctx.save(); ctx.translate(hx + R + 8, y); ctx.scale(pulse, pulse);
+    ctx.font = "bold 17px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.lineWidth = 4; ctx.strokeStyle = "#0E4C7E";
+    ctx.strokeText("¡RESPIRÁ!", 0, 0); ctx.fillStyle = "#fff"; ctx.fillText("¡RESPIRÁ!", 0, 0);
     ctx.restore();
   }
   ctx.restore();
@@ -515,6 +533,7 @@ function drawHud(ctx, race, W, H) {
   const blinkLow = p.air < 0.3 && Math.floor(race.t * 6) % 2;
   ctx.fillStyle = p.noAir ? "#E84A4A" : p.air < 0.3 ? (blinkLow ? "#FF5A3A" : "#F0A030") : "#7FE0FF";
   if (p.air > 0.02) { ctx.beginPath(); ctx.roundRect(ax + 2, 11, (aw - 4) * p.air, 10, 5); ctx.fill(); }
+  if (p.bOpen) { ctx.strokeStyle = Math.floor(race.t * 8) % 2 ? "#fff" : "#8FE3FF"; ctx.lineWidth = 3; ctx.beginPath(); ctx.roundRect(ax - 1, 8, aw + 2, 16, 8); ctx.stroke(); }
   ctx.textAlign = "left"; ctx.strokeStyle = "#000a"; ctx.lineWidth = 3;
   ctx.font = flying ? "bold 14px system-ui, sans-serif" : "bold 12px system-ui, sans-serif";
   ctx.fillStyle = flying ? "#FFD84A" : "#fff";
