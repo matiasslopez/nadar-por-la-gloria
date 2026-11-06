@@ -8,88 +8,26 @@ const FX = { parts: [], streaks: [], confetti: [], lastT: null, lead: 0.32, part
 const CONFETTI = ["#FFD84A", "#FF6FB0", "#7CFC6A", "#5FD0F5", "#FF8A2A", "#fff"];
 const flyingNow = (r) => r.fly && r.air > 0 && !r.plancha && !r.stun;
 
+// Dónde se dibuja cada nadador: r.x es la punta de la mano, así al llegar la mano toca la pared.
+const HAND = 1.5;
+const LANES = [1 / 6, 0.5, 5 / 6];
+
 function render(ctx, race, W, H) {
   const top = POOL_TOP, ph = H - top - 8;
   const ppm = Math.max(26, W / 22);                 // píxeles por metro
   const p = race ? race.racers[0] : { x: 0 };
   const t = race ? race.t : performance.now() / 1000;
+  const len = race ? race.len : RACE_M, open = race && race.circ.open;
   const dt = FX.lastT === null ? 0 : clamp(t - FX.lastT, 0, 0.05); FX.lastT = t;
   // en mariposa la cámara se adelanta un poco, para que se sienta el tirón
   const lead = race && flyingNow(p) ? 0.26 : 0.32;
   FX.lead += (lead - FX.lead) * Math.min(1, dt * 3);
-  const camX = p.x - (W * FX.lead) / ppm;
+  const camX = Math.max(p.x - HAND, 0) - (W * FX.lead) / ppm + 1;
   const sx = (x) => (x - camX) * ppm, sy = (u) => top + u * ph;
+  const m0 = Math.floor(camX), m1 = camX + W / ppm + 1;
 
-  // borde de la pileta: baldosas claras al sol
-  ctx.fillStyle = "#F6E7C8"; ctx.fillRect(0, 0, W, H);
-  ctx.strokeStyle = "rgba(190,160,110,0.35)"; ctx.lineWidth = 1;
-  const tile = ppm * 0.8, off = -((camX * ppm) % tile);
-  ctx.beginPath();
-  for (let x = off; x < W; x += tile) { ctx.moveTo(x, top + ph + 2); ctx.lineTo(x, H); }
-  ctx.stroke();
-
-  // agua turquesa con baldosas en el fondo
-  const x0 = Math.max(0, sx(-1));
-  const g = ctx.createLinearGradient(0, top, 0, top + ph);
-  g.addColorStop(0, "#29B6EE"); g.addColorStop(0.5, "#45CCF5"); g.addColorStop(1, "#29B6EE");
-  ctx.fillStyle = g; ctx.fillRect(x0, top, W, ph);
-  ctx.strokeStyle = "rgba(255,255,255,0.13)"; ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let m = Math.max(-1, Math.floor(camX)); m < camX + W / ppm + 1; m++) { ctx.moveTo(sx(m), top); ctx.lineTo(sx(m), top + ph); }
-  for (let k = 1; k < 12; k++) { ctx.moveTo(x0, top + ph * k / 12); ctx.lineTo(W, top + ph * k / 12); }
-  ctx.stroke();
-  // luz que baila en el fondo
-  ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 2.5; ctx.lineCap = "round";
-  for (let i = 0; i < 34; i++) {
-    const wx = Math.floor(camX) + ((i * 7.3) % 26) - 1, wu = ((i * 0.137) % 0.9) + 0.05;
-    const x = sx(wx) + Math.sin(t * 1.1 + i) * 8, y = sy(wu) + Math.cos(t * 0.9 + i * 2) * 4;
-    if (x < x0) continue;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.bezierCurveTo(x + 10, y - 6 - Math.sin(t * 2 + i) * 3, x + 20, y + 6, x + 32, y); ctx.stroke();
-  }
-  // líneas del fondo (decorativas: se nada libre, como en un circuito)
-  for (const u of [1 / 6, 0.5, 5 / 6]) { ctx.fillStyle = "rgba(20,60,140,0.3)"; ctx.fillRect(x0, sy(u) - 4, W, 8); }
-  // corcheras de colores: rojas cerca de las paredes, amarillas y azules en el medio
-  for (const u of [1 / 3, 2 / 3]) {
-    for (let m = Math.max(-0.5, Math.floor(camX * 2) / 2); m < camX + W / ppm + 1; m += 0.5) {
-      const seg = Math.round(m * 2);
-      const col = m < 5 || m > RACE_M - 5 ? "#E8413C" : seg % 4 < 2 ? "#FFD23A" : "#2F6FE0";
-      const x = sx(m), y = sy(u) + Math.sin(t * 2 + m) * 1.2;
-      ctx.fillStyle = "rgba(0,30,70,0.22)"; ctx.beginPath(); ctx.ellipse(x + 2, y + 3, 7, 5, 0, 0, 7); ctx.fill();
-      ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y, 7, 5.5, 0, 0, 7); ctx.fill();
-      ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.beginPath(); ctx.ellipse(x - 2, y - 2, 2.5, 1.6, 0, 0, 7); ctx.fill();
-    }
-  }
-  // banderines a 5 m de cada punta
-  for (const m of [5, RACE_M - 5]) {
-    const x = sx(m); if (x < -20 || x > W + 20) continue;
-    ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + ph); ctx.stroke();
-    for (let i = 0, y = top + 4; y < top + ph - 10; i++, y += 16) {
-      ctx.fillStyle = CONFETTI[i % 5];
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 9 + Math.sin(t * 5 + i) * 2, y + 6); ctx.lineTo(x, y + 12); ctx.fill();
-    }
-  }
-  // marcas cada 10 m, salida y llegada
-  for (let m = 10; m < RACE_M; m += 10) {
-    const x = sx(m); if (x < -20 || x > W + 20) continue;
-    ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.fillRect(x - 1, top, 2, ph);
-    ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillStyle = "rgba(255,255,255,0.7)"; ctx.fillText(m + " m", x, top + ph - 12);
-  }
-  const fx = sx(RACE_M);
-  if (fx < W + 20) {
-    for (let i = 0; i < ph / 12; i++) for (let j = 0; j < 2; j++) {
-      ctx.fillStyle = (i + j) % 2 ? "#111" : "#fff"; ctx.fillRect(fx + j * 12, top + i * 12, 12, Math.min(12, top + ph - top - i * 12));
-    }
-    // después de la llegada está la pared
-    ctx.fillStyle = "#E9EEF2"; ctx.fillRect(fx + 24, top - 3, 12, ph + 6);
-    ctx.fillStyle = "#F6E7C8"; ctx.fillRect(fx + 36, top - 3, W, ph + 6);
-    ctx.save(); ctx.translate(fx + 60, top + ph / 2); ctx.rotate(-Math.PI / 2);
-    ctx.font = "bold 22px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#E8413C"; ctx.fillText("LLEGADA", 0, 0);
-    ctx.restore();
-  }
-  // bordes blancos del agua y pared de salida
-  ctx.fillStyle = "#fff"; ctx.fillRect(x0, top - 3, W, 4); ctx.fillRect(x0, top + ph - 1, W, 4);
-  ctx.fillStyle = "#E9EEF2"; ctx.fillRect(sx(-1) - 12, top - 3, 12, ph + 6);
+  if (open) drawRiver(ctx, race, W, H, top, ph, sx, sy, m0, m1, t, ppm);
+  else drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm);
 
   if (!race) return;
   for (const o of race.objs) {
@@ -99,14 +37,210 @@ function render(ctx, race, W, H) {
     ctx.fillStyle = "rgba(0,40,90,0.22)"; ctx.beginPath(); ctx.ellipse(x + 4, y + 6, ppm * 0.5, ppm * 0.3, 0, 0, 7); ctx.fill();
     drawItem(ctx, o.kind, x, y + bob, ppm * 0.5);
   }
+  // la largada: parados en el partidor (o en el muelle) y después el salto al agua
+  const block = -0.7, diveT = 0.35;
+  if (race.t >= 0.25 && !FX.splashed) {
+    FX.splashed = true;
+    for (const r of race.racers) for (let k = 0; k < 26; k++) {
+      const a = rnd(0, 7), v = rnd(0.4, 1.4);
+      FX.parts.push({ x: 0.6 + Math.cos(a) * 0.2, u: r.u + Math.sin(a) * 0.02, vx: Math.cos(a) * v, vu: Math.sin(a) * v * 0.08, life: 0, max: rnd(0.5, 0.9), s: rnd(3, 6), top: true });
+    }
+  }
   stepFx(race, dt);
   drawParts(ctx, sx, sy, false);
-  const rx = (r) => sx(Math.min(r.x, RACE_M - 0.5)); // al llegar, quedan tocando la pared
-  for (const r of race.racers) drawSwimmer(ctx, r, rx(r), sy(r.u), ppm, t);
+  const pos = (r) => Math.min(r.x, len) - HAND;
+  for (const r of race.racers) {
+    if (race.t < 0) drawStanding(ctx, r, sx(block), sy(r.u), ppm);
+    else if (race.t < diveT) {
+      const q = race.t / diveT, k = 1 + Math.sin(Math.PI * q) * 0.25;
+      ctx.save(); ctx.translate(sx(block + (pos(r) - block) * q), sy(r.u)); ctx.scale(k, k);
+      drawSwimmer(ctx, { ...r, stun: 1, v: 0 }, 0, 0, ppm, t); ctx.restore();
+    } else drawSwimmer(ctx, r, sx(pos(r)), sy(r.u), ppm, t);
+  }
   drawParts(ctx, sx, sy, true);
-  for (const r of race.racers) drawTags(ctx, r, rx(r), sy(r.u), ppm, t, top);
+  for (const r of race.racers) drawTags(ctx, r, sx(race.t < 0 ? 1.2 : pos(r)), sy(r.u), ppm, t, top); // antes de largar, las caras al lado del partidor
   drawStreaks(ctx, race, W, H, dt);
   drawConfetti(ctx, race, W, H, dt);
+}
+
+// Pileta: baldosas, corcheras, partidores en la salida y placas para tocar en la llegada.
+function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm) {
+  ctx.fillStyle = "#F6E7C8"; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = "rgba(190,160,110,0.35)"; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let m = Math.floor(m0 / 0.8) * 0.8; m < m1; m += 0.8) { const x = sx(m); ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+  ctx.stroke();
+  // agua turquesa con baldosas en el fondo, solo entre las dos paredes
+  const x0 = Math.max(0, sx(0)), x1 = Math.min(W, sx(len));
+  if (x1 > x0) {
+    ctx.save(); ctx.beginPath(); ctx.rect(x0, top, x1 - x0, ph); ctx.clip();
+    const g = ctx.createLinearGradient(0, top, 0, top + ph);
+    g.addColorStop(0, "#29B6EE"); g.addColorStop(0.5, "#45CCF5"); g.addColorStop(1, "#29B6EE");
+    ctx.fillStyle = g; ctx.fillRect(x0, top, x1 - x0, ph);
+    ctx.strokeStyle = "rgba(255,255,255,0.13)"; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let m = Math.max(0, m0); m < m1; m++) { ctx.moveTo(sx(m), top); ctx.lineTo(sx(m), top + ph); }
+    for (let k = 1; k < 12; k++) { ctx.moveTo(x0, top + ph * k / 12); ctx.lineTo(x1, top + ph * k / 12); }
+    ctx.stroke();
+    caustics(ctx, sx, sy, m0, t, "rgba(255,255,255,0.22)");
+    // líneas del fondo con la T antes de cada pared, y la cruz en las paredes
+    ctx.fillStyle = "rgba(20,60,140,0.35)";
+    for (const u of LANES) {
+      const y = sy(u);
+      ctx.fillRect(sx(2), y - 4, sx(len - 2) - sx(2), 8);
+      for (const m of [2, len - 2]) ctx.fillRect(sx(m) - 4, y - ppm * 0.5, 8, ppm);
+      for (const m of [0, len - 0.6]) { ctx.fillRect(sx(m), y - 4, ppm * 0.6, 8); ctx.fillRect(sx(m + 0.3) - 4, y - ppm * 0.3, 8, ppm * 0.6); }
+    }
+    // corcheras de colores: rojas cerca de las paredes, amarillas y azules en el medio
+    for (const u of [1 / 3, 2 / 3]) {
+      for (let m = Math.max(0.25, Math.floor(m0 * 2) / 2); m < Math.min(m1, len); m += 0.5) {
+        const seg = Math.round(m * 2);
+        const col = m < 5 || m > len - 5 ? "#E8413C" : seg % 4 < 2 ? "#FFD23A" : "#2F6FE0";
+        float(ctx, sx(m), sy(u) + Math.sin(t * 2 + m) * 1.2, col);
+      }
+    }
+    // banderines a 5 m de cada pared
+    for (const m of [5, len - 5]) {
+      const x = sx(m); if (x < -20 || x > W + 20) continue;
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, top + ph); ctx.stroke();
+      for (let i = 0, y = top + 4; y < top + ph - 10; i++, y += 16) {
+        ctx.fillStyle = CONFETTI[i % 5];
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 9 + Math.sin(t * 5 + i) * 2, y + 6); ctx.lineTo(x, y + 12); ctx.fill();
+      }
+    }
+    // marcas cada 10 m
+    ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (let m = 10; m < len; m += 10) {
+      const x = sx(m); if (x < -20 || x > W + 20) continue;
+      ctx.fillStyle = "rgba(255,255,255,0.3)"; ctx.fillRect(x - 1, top, 2, ph);
+      ctx.fillStyle = "rgba(255,255,255,0.75)"; ctx.fillText(m + " m", x, top + ph - 12);
+    }
+    ctx.restore();
+  }
+  // bordes del agua
+  ctx.fillStyle = "#fff";
+  if (x1 > x0) { ctx.fillRect(x0, top - 4, x1 - x0, 4); ctx.fillRect(x0, top + ph, x1 - x0, 4); }
+  // pared de salida con los partidores y el número de cada carril
+  const ws = sx(0);
+  if (ws > -ppm * 3) {
+    ctx.fillStyle = "#DCE3EA"; ctx.fillRect(ws - 8, top - 4, 8, ph + 8);
+    LANES.forEach((u, i) => {
+      const y = sy(u), bw = ppm * 0.9, bh = Math.min(ph / 3 - 14, ppm * 1.1);
+      ctx.fillStyle = "rgba(0,0,0,0.15)"; ctx.beginPath(); ctx.roundRect(ws - 8 - bw + 4, y - bh / 2 + 5, bw, bh, 6); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.roundRect(ws - 8 - bw, y - bh / 2, bw, bh, 6); ctx.fill();
+      ctx.fillStyle = "#2F6FE0"; ctx.fillRect(ws - 8 - bw, y - bh / 2 + bh * 0.72, bw, bh * 0.14);
+      ctx.fillStyle = "#10324F"; ctx.font = `bold ${Math.round(bh * 0.4)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(String(i + 1), ws - 8 - bw / 2, y - bh * 0.08);
+    });
+    ctx.save(); ctx.translate(ws - ppm * 1.6, top + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.font = "bold 20px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#2F6FE0"; ctx.fillText("SALIDA", 0, 0);
+    ctx.restore();
+  }
+  // pared de llegada: placas amarillas para tocar, y el cartel
+  const wf = sx(len);
+  if (wf < W + 40) {
+    ctx.fillStyle = "#DCE3EA"; ctx.fillRect(wf, top - 4, 10, ph + 8);
+    for (const u of LANES) { ctx.fillStyle = "#FFD23A"; ctx.fillRect(wf - 4, sy(u) - ph / 6 + 8, 6, ph / 3 - 16); }
+    for (let i = 0; i < ph / 12; i++) for (let j = 0; j < 2; j++) {
+      ctx.fillStyle = (i + j) % 2 ? "#111" : "#fff"; ctx.fillRect(wf + 18 + j * 12, top + i * 12, 12, Math.min(12, ph - i * 12));
+    }
+    ctx.save(); ctx.translate(wf + 70, top + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.font = "bold 22px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#E8413C"; ctx.fillText("LLEGADA", 0, 0);
+    ctx.restore();
+  }
+}
+
+// Aguas abiertas: río verdoso, boyas naranjas, muelle de salida y arco inflable de llegada.
+function drawRiver(ctx, race, W, H, top, ph, sx, sy, m0, m1, t, ppm) {
+  const len = race.len;
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, "#1C8CA6"); g.addColorStop(0.5, "#2AA5B5"); g.addColorStop(1, "#1C8CA6");
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // olitas
+  ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 2; ctx.lineCap = "round";
+  for (let i = 0; i < 40; i++) {
+    const wx = Math.floor(m0) + ((i * 5.7) % 24) - 1, wu = ((i * 0.173) % 1);
+    const x = sx(wx) + Math.sin(t * 1.4 + i) * 6, y = top + wu * ph;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 9, y - 5, x + 18, y); ctx.quadraticCurveTo(x + 27, y + 5, x + 36, y); ctx.stroke();
+  }
+  // la corriente: flechitas que se mueven hacia donde empuja
+  if (race.cur) {
+    ctx.strokeStyle = "rgba(220,255,250,0.4)"; ctx.lineWidth = 2;
+    const dir = Math.sign(race.cur), sp = Math.abs(race.cur) / race.circ.current;
+    for (let i = 0; i < 26; i++) {
+      const x = sx(Math.floor(m0) + ((i * 3.9) % 24)), base = (((i * 0.291 + t * 0.25 * dir * sp) % 1) + 1) % 1;
+      const y = top + base * ph, L = 18 * sp;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + dir * L); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - 4, y + dir * (L - 6)); ctx.lineTo(x, y + dir * L); ctx.lineTo(x + 4, y + dir * (L - 6)); ctx.stroke();
+    }
+  }
+  // boyas naranjas a los costados, con los metros cada 25
+  for (let m = 12.5; m < len; m += 12.5) {
+    const x = sx(m); if (x < -40 || x > W + 40) continue;
+    for (const u of [0.02, 0.98]) {
+      const y = sy(u);
+      ctx.fillStyle = "rgba(0,30,50,0.25)"; ctx.beginPath(); ctx.arc(x + 3, y + 4, ppm * 0.32, 0, 7); ctx.fill();
+      ctx.fillStyle = "#FF7A1A"; ctx.beginPath(); ctx.arc(x, y, ppm * 0.32, 0, 7); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.beginPath(); ctx.ellipse(x - ppm * 0.1, y - ppm * 0.12, ppm * 0.1, ppm * 0.06, -0.5, 0, 7); ctx.fill();
+    }
+    if (m % 25 === 0) {
+      ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#fff";
+      ctx.fillText(m + " m", x, sy(0.02) + ppm * 0.6);
+    }
+  }
+  // muelle de madera en la salida
+  const ws = sx(0);
+  if (ws > 0) {
+    ctx.fillStyle = "rgba(0,30,50,0.3)"; ctx.fillRect(0, top + 6, ws + 6, ph);
+    ctx.fillStyle = "#B07A45"; ctx.fillRect(0, top - 4, ws, ph + 8);
+    ctx.strokeStyle = "#8A5A30"; ctx.lineWidth = 2; ctx.beginPath();
+    for (let y = top; y < top + ph; y += ppm * 0.45) { ctx.moveTo(0, y); ctx.lineTo(ws, y); }
+    ctx.stroke();
+    ctx.save(); ctx.translate(ws - ppm * 1.6, top + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.font = "bold 20px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#FFE9C8"; ctx.fillText("SALIDA", 0, 0);
+    ctx.restore();
+  }
+  // arco inflable de llegada
+  const wf = sx(len);
+  if (wf < W + 60) {
+    ctx.fillStyle = "rgba(0,30,50,0.25)"; ctx.fillRect(wf + 6, top + 6, 30, ph);
+    ctx.fillStyle = "#E8413C"; ctx.fillRect(wf, top - 8, 30, ph + 16);
+    ctx.fillStyle = "rgba(255,255,255,0.35)"; ctx.fillRect(wf + 4, top - 8, 6, ph + 16);
+    ctx.save(); ctx.translate(wf + 15, top + ph / 2); ctx.rotate(-Math.PI / 2);
+    ctx.font = "bold 18px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#fff"; ctx.fillText("★ LLEGADA ★", 0, 0);
+    ctx.restore();
+  }
+}
+
+function caustics(ctx, sx, sy, m0, t, col) {
+  ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+  for (let i = 0; i < 34; i++) {
+    const wx = Math.floor(m0) + ((i * 7.3) % 26) - 1, wu = ((i * 0.137) % 0.9) + 0.05;
+    const x = sx(wx) + Math.sin(t * 1.1 + i) * 8, y = sy(wu) + Math.cos(t * 0.9 + i * 2) * 4;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.bezierCurveTo(x + 10, y - 6 - Math.sin(t * 2 + i) * 3, x + 20, y + 6, x + 32, y); ctx.stroke();
+  }
+}
+function float(ctx, x, y, col) {
+  ctx.fillStyle = "rgba(0,30,70,0.22)"; ctx.beginPath(); ctx.ellipse(x + 2, y + 3, 7, 5, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = col; ctx.beginPath(); ctx.ellipse(x, y, 7, 5.5, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.6)"; ctx.beginPath(); ctx.ellipse(x - 2, y - 2, 2.5, 1.6, 0, 0, 7); ctx.fill();
+}
+
+// Parado en el partidor antes de largar: visto desde arriba, agachado, con las manos adelante.
+function drawStanding(ctx, r, x, y, ppm) {
+  const k = ppm * 1.4, ch = r.ch;
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.beginPath(); ctx.ellipse(k * 0.05, k * 0.08, k * 0.32, k * 0.26, 0, 0, 7); ctx.fill();
+  ctx.lineCap = "round";
+  for (const s of [-1, 1]) {
+    ctx.strokeStyle = shade(ch.skin, -0.08); ctx.lineWidth = k * 0.1;
+    ctx.beginPath(); ctx.moveTo(0, s * k * 0.17); ctx.lineTo(k * 0.3, s * k * 0.12); ctx.stroke();
+  }
+  ctx.fillStyle = ch.skin; ctx.strokeStyle = "rgba(20,30,50,0.4)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(-k * 0.02, 0, k * 0.16, k * 0.24, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = ch.cap; ctx.strokeStyle = r.isPlayer ? "#FFD84A" : "#fff"; ctx.lineWidth = r.isPlayer ? 3 : 2;
+  ctx.beginPath(); ctx.arc(k * 0.14, 0, k * 0.13, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.restore();
 }
 
 // Espuma de las patadas y salpicones de los brazos; en mariposa salpica mucho más.
@@ -117,10 +251,10 @@ function stepFx(race, dt) {
     const n = dt * (flying ? 34 : 14) * Math.min(1.5, r.v / 2.4);
     for (let k = 0; k < n; k++) {
       if (k + 1 > n && Math.random() > n - k) break;
-      FX.parts.push({ x: r.x - 0.9 + rnd(-0.15, 0.15), u: r.u + rnd(-0.02, 0.02), vx: -rnd(0.2, 1), vu: rnd(-0.03, 0.03), life: 0, max: rnd(0.5, 0.9), s: rnd(2, 4), top: false });
+      FX.parts.push({ x: r.x - HAND - 0.9 + rnd(-0.15, 0.15), u: r.u + rnd(-0.02, 0.02), vx: -rnd(0.2, 1), vu: rnd(-0.03, 0.03), life: 0, max: rnd(0.5, 0.9), s: rnd(2, 4), top: false });
     }
     if (flying && Math.random() < dt * 9) for (const s of [-1, 1]) for (let k = 0; k < 4; k++) {
-      FX.parts.push({ x: r.x + 0.3 + rnd(-0.2, 0.2), u: r.u + s * rnd(0.03, 0.05), vx: rnd(-0.5, 0.5), vu: s * rnd(0.05, 0.15), life: 0, max: rnd(0.35, 0.6), s: rnd(2.5, 5), top: true });
+      FX.parts.push({ x: r.x - HAND + 0.3 + rnd(-0.2, 0.2), u: r.u + s * rnd(0.03, 0.05), vx: rnd(-0.5, 0.5), vu: s * rnd(0.05, 0.15), life: 0, max: rnd(0.35, 0.6), s: rnd(2.5, 5), top: true });
     }
   }
   for (const q of FX.parts) { q.life += dt; q.x += q.vx * dt; q.u += q.vu * dt; }
@@ -150,7 +284,7 @@ function drawStreaks(ctx, race, W, H, dt) {
 // Papelitos de colores cuando llegás primero.
 function drawConfetti(ctx, race, W, H, dt) {
   const p = race.racers[0];
-  if (FX.partyFor !== race) { FX.partyFor = race; FX.confetti = []; FX.parts = []; FX.streaks = []; }
+  if (FX.partyFor !== race) { FX.partyFor = race; FX.confetti = []; FX.parts = []; FX.streaks = []; FX.splashed = false; }
   if (p.finished && standings(race)[0] === p && race.t - p.finishT < 2.5)
     for (let k = 0; k < dt * 90; k++) FX.confetti.push({ x: rnd(0, W), y: -10, vx: rnd(-40, 40), vy: rnd(120, 260), a: rnd(0, 6), va: rnd(-8, 8), c: pick(CONFETTI) });
   for (const c of FX.confetti) {
@@ -168,22 +302,32 @@ function shade(hex, k) {
 
 // Dónde está la mano en cada momento de la brazada (en metros, mirando hacia +x).
 // De 0 a 0,6 tira por abajo del agua; de 0,6 a 1 vuelve por arriba. En mariposa el recobro es bien abierto.
+// Brazo y antebrazo miden siempre lo mismo: si la mano queda más cerca, el codo se dobla hacia afuera.
+const ARM = 0.3; // largo de brazo y de antebrazo
 function armPose(ph, side, fly) {
   const S = { x: 0.52, y: side * 0.19 };
   let hx, hy, above;
   if (ph < 0.6) {
     const q = ph / 0.6, e = q * q * (3 - 2 * q);
-    hx = 1.18 - e * 1.22; hy = side * (fly ? 0.2 + 0.16 * Math.sin(Math.PI * q) : 0.11 + 0.07 * Math.sin(Math.PI * q));
+    hx = 1.1 - e * 1.1; hy = side * (fly ? 0.22 + 0.16 * Math.sin(Math.PI * q) : 0.12 + 0.07 * Math.sin(Math.PI * q));
     above = false;
   } else {
-    const q = (ph - 0.6) / 0.4;
-    hx = -0.04 + q * 1.22; hy = side * (0.2 + (fly ? 0.5 : 0.16) * Math.sin(Math.PI * q));
+    // en el aire, vista desde arriba la mano va más cerca del hombro (el brazo está levantado)
+    const q = (ph - 0.6) / 0.4, lift = Math.sin(Math.PI * q);
+    hx = 0.0 + q * 1.1; hy = side * (0.2 + (fly ? 0.36 : 0.1) * lift);
+    hx = S.x + (hx - S.x) * (1 - 0.3 * lift); hy = S.y + (hy - S.y) * (1 - 0.3 * lift);
     above = true;
   }
-  // el codo queda hacia afuera; en el recobro de crol, bien alto (se ve más afuera)
-  const out = above ? (fly ? 0.1 : 0.13) : 0.05;
-  const E = { x: (S.x + hx) / 2, y: (S.y + hy) / 2 + side * out };
-  return { S, E, H: { x: hx, y: hy }, above };
+  // la mano nunca más lejos que el brazo estirado
+  let dx = hx - S.x, dy = hy - S.y, d = Math.hypot(dx, dy);
+  if (d > ARM * 2 * 0.99) { const f = ARM * 2 * 0.99 / d; dx *= f; dy *= f; d = ARM * 2 * 0.99; }
+  const H = { x: S.x + dx, y: S.y + dy };
+  // codo: a mitad de camino, corrido hacia afuera lo justo para que los dos tramos midan ARM
+  const h = Math.sqrt(Math.max(0, ARM * ARM - (d / 2) * (d / 2)));
+  let px = -dy / d, py = dx / d;
+  if (py * side < 0) { px = -px; py = -py; }
+  const E = { x: S.x + dx / 2 + px * h, y: S.y + dy / 2 + py * h };
+  return { S, E, H, above };
 }
 
 function drawSwimmer(ctx, r, x, y, ppm, t) {
@@ -205,7 +349,7 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   const rate = flying ? 1.25 : 0.95;                 // brazadas por segundo
   const base = still ? 0.15 : (t * rate + r.x * 0.07) % 1;
   const arms = [-1, 1].map((s) => armPose(still ? (back ? 0.15 : 0.05) : flying ? base : (base + (s > 0 ? 0.5 : 0)) % 1, s, flying));
-  if (back) for (const a of arms) { a.H = { x: 0.2, y: a.S.y * 3.2 }; a.E = { x: 0.4, y: a.S.y * 2.1 }; a.above = true; }
+  if (back) for (const a of arms) { a.E = { x: a.S.x - 0.05, y: a.S.y + Math.sign(a.S.y) * ARM }; a.H = { x: a.S.x - 0.12, y: a.S.y + Math.sign(a.S.y) * ARM * 1.95 }; a.above = true; }
 
   const drawArm = (a) => {
     const [sx, sy] = P(a.S.x, a.S.y), [ex, ey] = P(a.E.x, a.E.y), [hx, hy] = P(a.H.x, a.H.y);
@@ -358,12 +502,12 @@ function drawHud(ctx, race, W, H) {
   ctx.lineWidth = 5; ctx.strokeStyle = "#0008"; ctx.fillStyle = pos === 1 ? "#FFD84A" : "#fff";
   ctx.strokeText(pos + "º", 56, 22); ctx.fillText(pos + "º", 56, 22);
   ctx.font = "bold 11px system-ui, sans-serif"; ctx.fillStyle = "#CFE9FF";
-  ctx.fillText(Math.min(RACE_M, Math.floor(p.x)) + " / " + RACE_M + " m", 56, 46);
+  ctx.fillText(Math.min(race.len, Math.floor(p.x)) + " / " + race.len + " m", 56, 46);
   // barra de progreso con las caras de los 3
   const bx = 136, bw = W - bx - 200, by = 30;
   ctx.fillStyle = "#0005"; ctx.beginPath(); ctx.roundRect(bx, by - 4, bw, 8, 4); ctx.fill();
   ctx.fillStyle = "#fff"; ctx.fillRect(bx + bw - 2, by - 10, 4, 20);
-  for (const r of race.racers.slice().reverse()) drawFaceBadge(ctx, r, bx + bw * clamp(r.x / RACE_M, 0, 1), by, r.isPlayer ? 22 : 18, race.t);
+  for (const r of race.racers.slice().reverse()) drawFaceBadge(ctx, r, bx + bw * clamp(r.x / race.len, 0, 1), by, r.isPlayer ? 22 : 18, race.t);
   // aire, estilo y objeto activo
   const ax = W - 150, aw = 138, flying = flyingNow(p) && !p.finished;
   ctx.font = "bold 10px system-ui, sans-serif"; ctx.fillStyle = "#CFE9FF"; ctx.textAlign = "right"; ctx.fillText("AIRE", ax - 5, 16);

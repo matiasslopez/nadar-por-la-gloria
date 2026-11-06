@@ -31,7 +31,20 @@ const ITEMS = {
   tablita:    { name: "TABLITA",    mult: 0.4,  secs: 3,   good: false, weight: 22 }
 };
 
-const RACE_M = 100;       // largo de la carrera, en metros
+const RACE_M = 100;       // largo de la carrera si no se dice otro, en metros
+
+// Los tres circuitos de la copa. Cada uno cambia una regla y los rivales se ponen más difíciles.
+const CIRCUITS = {
+  club:     { id: "club", name: "PILETA DEL CLUB", len: 50, level: 0, gap: [4, 6],
+              info: "50 m cortitos: es un pique, la mariposa rinde a fondo." },
+  olimpica: { id: "olimpica", name: "PILETA OLÍMPICA", len: 100, level: 1, gap: [4, 7],
+              info: "100 m: hay que repartir el aire." },
+  abiertas: { id: "abiertas", name: "AGUAS ABIERTAS", len: 150, level: 2, gap: [5, 8], current: 0.07, open: true,
+              info: "150 m en el río: no hay corcheras y la corriente te lleva de costado." }
+};
+const CUP = ["club", "olimpica", "abiertas"];
+const CUP_POINTS = [10, 6, 3];          // puntos por puesto en cada carrera de la copa
+const BONUS = { dulce: 2, air: 2 };     // extra por agarrar dulce de leche y por no quedarse nunca sin aire
 const BASE_V = 2.4;       // velocidad de crol de un nadador con velocidad 3, m/s
 const AIR_CROL = 0.06;    // aire que gasta el crol por segundo (aire 3)
 const AIR_FLY = 0.2;      // aire que gasta la mariposa por segundo (aire 3, mariposa 3)
@@ -55,27 +68,31 @@ function pickItem() {
   return ks[0];
 }
 
-function newRace(playerCh) {
-  const others = CHARS.filter((c) => c.id !== playerCh.id).sort(() => Math.random() - 0.5);
-  const chars = [playerCh, others[0], others[1]];
-  const lanes = [0.5, 0.2, 0.8];
+// Sortea dos rivales distintos del jugador.
+function drawRivals(playerCh) {
+  return CHARS.filter((c) => c.id !== playerCh.id).sort(() => Math.random() - 0.5).slice(0, 2);
+}
+function newRace(playerCh, circ = CIRCUITS.olimpica, rivals = drawRivals(playerCh)) {
+  // x es la punta de la mano: al tirarse del partidor ya entran con el cuerpo en el agua
+  const chars = [playerCh, rivals[0], rivals[1]];
+  const lanes = [0.5, 1 / 6, 5 / 6];
   const racers = chars.map((ch, i) => ({
-    ch, isPlayer: i === 0, x: 0, u: lanes[i], v: 0, air: 1, fly: false, steer: 0,
+    ch, isPlayer: i === 0, x: 1.5, u: lanes[i], v: 0, air: 1, fly: false, steer: 0,
     nextBreath: rnd(2.5, 4), bOpen: false, bT: 0, bLen: 1,
     stun: 0, plancha: 0, noAir: 0, gulp: 0, immune: 0, boost: 0, boostMult: 1,
     objMult: 1, objT: 0, objKind: null, chaseSay: 0,
-    dive: 0, charge: 0, bubble: null, finished: false, finishT: 0, mood: "normal", moodT: 0,
+    dive: 0, charge: 0, bubble: null, finished: false, finishT: 0, mood: "normal", moodT: 0, gotDulce: false, ranOut: false,
     ai: { breathAt: 0, useAt: 0, wantU: lanes[i] }, complainAt: rnd(5, 9)
   }));
   const objs = [];
-  for (let x = 8; x < RACE_M - 4; x += rnd(4, 7)) {
+  for (let x = 8; x < circ.len - 4; x += rnd(circ.gap[0], circ.gap[1])) {
     const n = Math.random() < 0.4 ? 2 : 1, used = [];
     for (let k = 0; k < n; k++) {
       let u; do u = rnd(0.12, 0.88); while (used.some((v) => Math.abs(v - u) < 0.25));
       used.push(u); objs.push({ kind: pickItem(), x: x + rnd(-0.8, 0.8), u });
     }
   }
-  return { t: -3, racers, objs, over: false, overT: 0, events: [] };
+  return { t: -3, len: circ.len, circ, racers, objs, over: false, overT: 0, events: [], cur: 0, curPh: rnd(0, 6) };
 }
 
 function say(r, text, dur = 1.4) { r.bubble = { text, t: dur }; }
@@ -130,11 +147,12 @@ function aiThink(race, r) {
   const ai = r.ai, ch = r.ch;
   // respirar: con un poco de reacción; a veces se les pasa (más a los que respiran mal)
   if (r.bOpen) {
-    if (!ai.breathAt) ai.breathAt = race.t + (Math.random() < 0.2 - ch.rec * 0.03 ? 99 : rnd(0.15, 0.6));
+    const miss = (0.2 - ch.rec * 0.03) * (1 - race.circ.level * 0.35); // en cada circuito se les pasa menos
+    if (!ai.breathAt) ai.breathAt = race.t + (Math.random() < miss ? 99 : rnd(0.15, 0.6));
     if (race.t > ai.breathAt) { breathe(race, r); ai.breathAt = 0; }
   } else ai.breathAt = 0;
   // mariposa: mientras le sobre el aire, y a fondo en el final
-  const final = r.x > RACE_M - 15;
+  const final = r.x > race.len - 15;
   const careful = Math.max(0, 3 - ch.air) * 0.1; // los de poco aire se cuidan más
   if (r.fly && r.air < (final ? 0.08 : 0.3 + careful)) r.fly = false;
   else if (!r.fly && r.air > (final ? 0.3 : 0.55 + careful)) r.fly = true;
@@ -157,8 +175,12 @@ function aiThink(race, r) {
 }
 
 function stepRace(race, dt, input) {
+  const wasWaiting = race.t < 0;
   race.t += dt;
   if (race.t < 0) return;
+  // largada: se tiran del partidor y entran al agua con envión
+  if (wasWaiting) for (const r of race.racers) { r.v = BASE_V * 1.5; emit(race, r, "dive"); }
+  if (race.circ.current) race.cur = Math.sin(race.t * 0.22 + race.curPh) * race.circ.current;
   const player = race.racers[0];
 
   for (const r of race.racers) {
@@ -199,7 +221,7 @@ function stepRace(race, dt, input) {
     // aire: el crol gasta poco, la mariposa mucho
     const flying = r.fly && r.air > 0 && !blocked && !r.plancha;
     if (!r.plancha) r.air -= dt * (flying ? AIR_FLY * flyCost(ch) : AIR_CROL) * drain / airCap(ch);
-    if (r.air <= 0) { if (!r.noAir) { say(r, "¡SIN AIRE!", 1.2); emit(race, r, "noAir"); } r.air = 0; r.noAir = 1; } else r.noAir = 0;
+    if (r.air <= 0) { if (!r.noAir) { say(r, "¡SIN AIRE!", 1.2); emit(race, r, "noAir"); r.ranOut = true; } r.air = 0; r.noAir = 1; } else r.noAir = 0;
 
     mult *= (flying ? flyMult(ch) : 1) * speedMult(ch);
     if (r.noAir) mult *= 0.45;
@@ -209,11 +231,12 @@ function stepRace(race, dt, input) {
     if (r.objT > 0) mult *= r.objMult;
     if (r.plancha > 0) mult *= 0.8;
     if (blocked) mult = 0.12;
-    if (!r.isPlayer) mult *= 1 + clamp((player.x - r.x) / 30, -0.08, 0.1); // que la carrera venga pareja
+    if (!r.isPlayer) mult *= 1 + clamp((player.x - r.x) / 30, -0.08, 0.1) + race.circ.level * 0.015; // pareja, y más difícil en cada circuito
     const target = BASE_V * mult;
     r.v += (target - r.v) * Math.min(1, dt * (flying ? 4 : 2.5)); // la mariposa arranca con un tirón
     r.x += r.v * dt;
     if (!blocked) r.u = clamp(r.u + r.steer * dt * 0.65 * (ch.heavy ? 0.6 : 1), 0.08, 0.92);
+    if (race.cur) r.u = clamp(r.u + race.cur * dt * (ch.heavy ? 0.6 : 1), 0.08, 0.92); // la corriente del río
 
     // objetos: el que lo toca se lo lleva
     for (const o of race.objs) {
@@ -224,11 +247,12 @@ function stepRace(race, dt, input) {
       const mult = !it.good && ch.heavy ? 1 - (1 - it.mult) * 0.75 : it.mult;
       o.gone = true; r.objKind = o.kind; r.objMult = mult; r.objT = it.secs;
       if (it.air) { r.air = Math.min(1, r.air + it.air); r.noAir = 0; }
+      if (o.kind === "dulce") r.gotDulce = true;
       say(r, it.name + (it.good ? " ▲" : " ▼"), 1.2);
       emit(race, r, it.good ? "good" : "bad");
     }
 
-    if (r.x >= RACE_M) { r.finished = true; r.finishT = race.t; r.bOpen = false; emit(race, r, "finish"); }
+    if (r.x >= race.len) { r.finished = true; r.finishT = race.t; r.bOpen = false; emit(race, r, "finish"); }
   }
   const done = race.racers.filter((r) => r.finished).length;
   if (!race.over && (player.finished || done >= 2)) { race.over = true; race.overT = race.t; }
@@ -239,5 +263,13 @@ function standings(race) {
     if (a.finished && b.finished) return a.finishT - b.finishT;
     if (a.finished !== b.finished) return a.finished ? -1 : 1;
     return b.x - a.x;
+  });
+}
+
+// Puntos de copa de cada nadador en una carrera terminada: puesto más los extras.
+function racePoints(race) {
+  return standings(race).map((r, i) => {
+    const bonus = (r.gotDulce ? BONUS.dulce : 0) + (!r.ranOut ? BONUS.air : 0);
+    return { r, place: i + 1, base: CUP_POINTS[i], bonus, total: CUP_POINTS[i] + bonus };
   });
 }

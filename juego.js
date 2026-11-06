@@ -33,8 +33,8 @@ const store = {
   window.addEventListener("keydown", (e) => {
     Sound.unlock();
     if (scr.style.display !== "none") { // en las pantallas, Enter o espacio aprietan el botón amarillo
-      const go = scr.querySelector("button.go");
-      if ((e.key === "Enter" || e.key === " ") && go) { e.preventDefault(); go.click(); }
+      const go = scr.querySelector("button.go"), typing = e.target.tagName === "INPUT";
+      if ((e.key === "Enter" || (e.key === " " && !typing)) && go) { e.preventDefault(); go.click(); }
       return;
     }
     if (keys[e.key]) { input[keys[e.key]] = true; e.preventDefault(); }
@@ -114,41 +114,134 @@ const store = {
   }
 
   // ---------- pantallas ----------
+  // Inicio → (copa o carrera rápida) → elegir nadador → sorteo y circuito → carrera → resultado.
+  // La copa son 3 carreras con los mismos rivales; lo que sumás va al ranking guardado en este celu.
   let race = null, player = null, chosen = null, lastCount = 99, endShown = false;
+  let mode = "quick", cup = null, quickCirc = store.get("npg-circ") || "olimpica";
+  if (!CIRCUITS[quickCirc]) quickCirc = "olimpica";
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+  const alias = () => (store.get("npg-apodo") || "").trim();
+  function ranking() { try { return JSON.parse(store.get("npg-ranking") || "{}"); } catch (e) { return {}; } }
+  const rankRows = () => Object.entries(ranking()).sort((a, b) => b[1].pts - a[1].pts);
 
-  function show(html) { scr.innerHTML = html; scr.style.display = "flex"; pad.style.display = "none"; keepAwake(false); }
-  function selectScreen() {
-    race = null;
-    show(`<h1>NADAR POR LA GLORIA</h1><p>Elegí tu nadador</p>
-      <div class="grid">${CHARS.map((c) => `<button class="ch" data-id="${c.id}">${faceImg(c, 56)}<b>${c.name}</b><small>${c.tag}</small>${statBars(c)}</button>`).join("")}</div>
+  function show(html) { scr.innerHTML = html; scr.style.display = "flex"; pad.style.display = "none"; keepAwake(false); scr.scrollTop = 0; }
+
+  function homeScreen() {
+    race = null; cup = null;
+    const rows = rankRows();
+    show(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Las carreras del grupo de natación</p>
+      <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Para el ranking"></label>
+      <p class="err" id="aliasErr" hidden>Poné tu apodo para jugar la copa.</p>
+      <div class="modes">
+        <button class="go mode" id="mCup">🏆 COPA<small>3 carreras seguidas: sumás puntos para el ranking</small></button>
+        <button class="mode alt" id="mQuick">CARRERA RÁPIDA<small>Una carrera suelta para practicar</small></button>
+      </div>
+      <div class="cols"><div class="how"><b>Cómo se juega</b>
+        <span>🏊 Nadás crol solo. ${say2("Tocá arriba o abajo de la izquierda", "Con ↑ y ↓")} te movés.</span>
+        <span>🦋 ${say2("Mantené MARIPOSA", "Mantené →")} para ir mucho más rápido: gasta aire.</span>
+        <span>💨 ${say2("Tocá RESPIRAR", "Apretá ESPACIO")} cuando se ilumina, o tragás agua.</span>
+        <span>🟢 Lo verde te acelera, 🔴 lo rojo te frena. El especial ${say2("", "(←) ")}se carga solo.</span>
+        <span>🏅 En la copa: 1º suma 10, 2º suma 6, 3º suma 3. Extra: +2 si agarrás dulce de leche y +2 si nunca te quedás sin aire.</span>
+      </div>
+      <div class="rank"><b>RANKING</b>${rows.length ? `<table><tr><th></th><th>Apodo</th><th>Puntos</th><th>Copas ganadas</th></tr>${rows.slice(0, 10).map(([n, v], i) => `<tr class="${n === alias() ? "me" : ""}"><td>${i + 1}º</td><td>${esc(n)}</td><td>${v.pts}</td><td>${v.won} de ${v.played}</td></tr>`).join("")}</table>` : `<small>Todavía no se jugó ninguna copa en este ${say2("celu", "navegador")}.</small>`}</div></div>
       ${store.get("npg-guia") === "vista" ? `<button class="link" id="reguide">Ver la guía otra vez en la próxima carrera</button>` : ""}`);
-    scr.querySelectorAll(".ch").forEach((b) => b.onclick = () => { Sound.unlock(); goFull(); chosen = CHARS.find((c) => c.id === b.dataset.id); drawScreen(); });
+    const inp = document.getElementById("alias");
+    inp.oninput = () => { store.set("npg-apodo", inp.value.trim()); document.getElementById("aliasErr").hidden = true; };
+    document.getElementById("mCup").onclick = () => {
+      if (!alias()) { document.getElementById("aliasErr").hidden = false; inp.focus(); return; }
+      Sound.unlock(); goFull(); mode = "cup"; selectScreen();
+    };
+    document.getElementById("mQuick").onclick = () => { Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
     const rg = document.getElementById("reguide");
     if (rg) rg.onclick = () => { store.set("npg-guia", ""); rg.textContent = "Listo: la próxima carrera viene con guía"; };
   }
+
+  function selectScreen() {
+    race = null;
+    const circs = mode === "quick" ? `<div class="circs">${Object.values(CIRCUITS).map((c) => `<button class="circ ${c.id === quickCirc ? "on" : ""}" data-c="${c.id}">${c.name}<small>${c.len} m</small></button>`).join("")}</div>` : "";
+    show(`<p class="sub">${mode === "cup" ? "🏆 COPA · " + esc(alias()) : "CARRERA RÁPIDA"}</p><h1 class="small">Elegí tu nadador</h1>${circs}
+      <div class="grid">${CHARS.map((c) => `<button class="ch" data-id="${c.id}">${faceImg(c, 56)}<b>${c.name}</b><small>${c.tag}</small>${statBars(c)}</button>`).join("")}</div>
+      <button class="link" id="back">← Volver al inicio</button>`);
+    scr.querySelectorAll(".circ").forEach((b) => b.onclick = () => {
+      quickCirc = b.dataset.c; store.set("npg-circ", quickCirc);
+      scr.querySelectorAll(".circ").forEach((x) => x.classList.toggle("on", x === b));
+    });
+    scr.querySelectorAll(".ch").forEach((b) => b.onclick = () => {
+      Sound.unlock(); chosen = CHARS.find((c) => c.id === b.dataset.id);
+      if (mode === "cup") cup = { rivals: drawRivals(chosen), i: 0, pts: {}, done: false };
+      drawScreen();
+    });
+    document.getElementById("back").onclick = homeScreen;
+  }
+
   function drawScreen() {
-    const draft = newRace(chosen);
+    const circ = cup ? CIRCUITS[CUP[cup.i]] : CIRCUITS[quickCirc];
+    const draft = newRace(chosen, circ, cup ? cup.rivals : undefined);
     const [p, a, b] = draft.racers;
     const legend = Object.keys(ITEMS).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air ? " +AIRE" : ""}</span>`).join("");
-    show(`<p class="sub">Sorteo de rivales</p>
-      <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${faceImg(r.ch, 52, i ? "normal" : "happy")}<b>${r.ch.name}${i ? "" : " (vos)"}</b><small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
+    const head = cup ? `🏆 COPA · CARRERA ${cup.i + 1} DE ${CUP.length}` : "CARRERA RÁPIDA";
+    const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
+    show(`<p class="sub">${head}</p><h1 class="small">${circ.name}</h1><p class="help">${circ.info}</p>
+      <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${faceImg(r.ch, 52, i ? "normal" : "happy")}<b>${r.ch.name}${i ? "" : " (vos)"}</b>${pts(r)}<small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
       <p class="help">${say2("Nadás crol solo. MARIPOSA acelera pero gasta aire. Tocá RESPIRAR cuando se ilumina.", "↑ ↓ moverte · → (mantener) mariposa · ESPACIO respirar · ← especial · P pausa")}</p>
-      <div class="legend">${legend}</div><button class="go">¡A LA PILETA!</button>`);
+      <div class="legend">${legend}</div><button class="go">¡AL AGUA!</button>`);
     scr.querySelector(".go").onclick = () => {
       race = draft; player = race.racers[0]; lastCount = 99; endShown = false;
       startGuide(); setPaused(false);
       scr.style.display = "none"; pad.style.display = "block"; keepAwake(true);
     };
   }
+
   function endScreen() {
     const st = standings(race), pos = st.indexOf(player) + 1, win = pos === 1;
     if (guide.on) store.set("npg-guia", "vista");
-    show(`<h1 class="${win ? "win" : "lose"}">${win ? "¡GANASTE!" : pos === 2 ? "SALISTE 2º" : "SALISTE 3º"}</h1>
-      <p class="sub">${win ? "La gloria es tuya." : "Sin gloria esta vez. ¿La revancha?"}</p>
-      <ol class="podio">${st.map((r, i) => `<li>${i + 1}º ${faceImg(r.ch, 38, r === st[0] ? "happy" : r.isPlayer ? "hurt" : "normal")} ${r.ch.name}${r.isPlayer ? " (vos)" : ""} <small>${r.finished ? r.finishT.toFixed(1) + " s" : Math.floor(r.x) + " m"}</small></li>`).join("")}</ol>
-      <div class="row"><button class="go" id="again">OTRA VEZ</button><button id="change">CAMBIAR NADADOR</button></div>`);
-    document.getElementById("again").onclick = drawScreen;
-    document.getElementById("change").onclick = selectScreen;
+    const time = (r) => r.finished ? r.finishT.toFixed(1) + " s" : Math.floor(r.x) + " m";
+    const face = (r) => faceImg(r.ch, 38, r === st[0] ? "happy" : r.isPlayer ? "hurt" : "normal");
+    const title = `<h1 class="${win ? "win" : "lose"}">${win ? "¡GANASTE!" : pos === 2 ? "SALISTE 2º" : "SALISTE 3º"}</h1>`;
+    if (!cup) {
+      show(`${title}<p class="sub">${win ? "La gloria es tuya." : "Sin gloria esta vez. ¿La revancha?"}</p>
+        <ol class="podio">${st.map((r, i) => `<li>${i + 1}º ${face(r)} ${r.ch.name}${r.isPlayer ? " (vos)" : ""} <small>${time(r)}</small></li>`).join("")}</ol>
+        <div class="row"><button class="go" id="again">OTRA VEZ</button><button id="change">CAMBIAR NADADOR</button></div>
+        <button class="link" id="home">← Volver al inicio</button>`);
+      document.getElementById("again").onclick = drawScreen;
+      document.getElementById("change").onclick = selectScreen;
+      document.getElementById("home").onclick = homeScreen;
+      return;
+    }
+    // copa: los puntos de esta carrera y cómo va la tabla
+    const pts = racePoints(race);
+    for (const x of pts) cup.pts[x.r.ch.id] = (cup.pts[x.r.ch.id] || 0) + x.total;
+    cup.i++;
+    const last = cup.i >= CUP.length;
+    const extras = (x) => [x.r.gotDulce ? "dulce +" + BONUS.dulce : "", !x.r.ranOut ? "aire +" + BONUS.air : ""].filter(Boolean).join(" · ");
+    show(`<p class="sub">🏆 COPA · CARRERA ${cup.i} DE ${CUP.length} · ${race.circ.name}</p>${title}
+      <ol class="podio">${pts.map((x) => `<li>${x.place}º ${face(x.r)} ${x.r.ch.name}${x.r.isPlayer ? " (vos)" : ""} <small>${time(x.r)}</small> <span class="plus">+${x.total}</span>${extras(x) ? `<small class="ex">${extras(x)}</small>` : ""}</li>`).join("")}</ol>
+      ${cupTable()}
+      <button class="go" id="next">${last ? "VER QUIÉN GANÓ LA COPA" : "SIGUIENTE: " + CIRCUITS[CUP[cup.i]].name}</button>`);
+    document.getElementById("next").onclick = last ? cupEndScreen : drawScreen;
+  }
+  function cupOrder() { return [chosen, ...cup.rivals].sort((a, b) => (cup.pts[b.id] || 0) - (cup.pts[a.id] || 0)); }
+  function cupTable() {
+    return `<div class="rank"><b>TABLA DE LA COPA</b><table>${cupOrder().map((c, i) => `<tr class="${c === chosen ? "me" : ""}"><td>${i + 1}º</td><td>${faceImg(c, 24)} ${c.name}</td><td>${cup.pts[c.id] || 0} puntos</td></tr>`).join("")}</table></div>`;
+  }
+  function cupEndScreen() {
+    const order = cupOrder(), champ = order[0] === chosen, mine = cup.pts[chosen.id] || 0;
+    if (!cup.done) { // al ranking, una sola vez por copa
+      cup.done = true;
+      const rk = ranking(), me = rk[alias()] || { pts: 0, won: 0, played: 0 };
+      me.pts += mine; me.played++; if (champ) me.won++;
+      rk[alias()] = me; store.set("npg-ranking", JSON.stringify(rk));
+      Sound.play(champ ? "win" : "lose");
+    }
+    const place = rankRows().findIndex(([n]) => n === alias()) + 1;
+    show(`<p class="sub">🏆 FIN DE LA COPA</p>
+      <h1 class="${champ ? "win" : "lose"}">${champ ? "¡GANASTE LA COPA!" : "GANÓ " + order[0].name}</h1>
+      <div class="trophy">${faceImg(order[0], 72, "happy")}<span>🏆</span></div>
+      ${cupTable()}
+      <p class="sub">Sumaste <b>${mine}</b> puntos para ${esc(alias())}. Vas <b>${place}º</b> en el ranking.</p>
+      <div class="row"><button class="go" id="again">OTRA COPA</button><button id="change">AL INICIO</button></div>`);
+    document.getElementById("again").onclick = () => { mode = "cup"; selectScreen(); };
+    document.getElementById("change").onclick = homeScreen;
   }
 
   // ---------- sonidos de lo que pasa ----------
@@ -186,7 +279,7 @@ const store = {
     } else render(ctx, null, W, H);
     requestAnimationFrame(frame);
   }
-  selectScreen();
+  homeScreen();
   requestAnimationFrame(frame);
 })();
 
