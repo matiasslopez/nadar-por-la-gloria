@@ -5,8 +5,8 @@
 // Números de 1 a 5; todos suman 14. spd: velocidad en crol · air: cuánto aguanta ·
 // rec: cuánto da cada respirada y cuánto dura la ventana · fly: cuánto rinde la mariposa.
 const CHARS = [
-  { id: "facu", name: "FACU", tag: "Guarda que te como", quirk: "Si tiene a alguien cerca adelante, se acelera solo y gasta más aire.",
-    special: "TE COMO", specialInfo: "frena al de adelante", charge: 10, spd: 5, air: 2, rec: 3, fly: 4,
+  { id: "facu", name: "FACU", tag: "Guarda que te como", quirk: "Si tiene a alguien cerca adelante, se acelera solo y gasta un poco más de aire.",
+    special: "TE COMO", specialInfo: "frena al de adelante", charge: 8, spd: 5, air: 2, rec: 3, fly: 4,
     cap: "#1A1A1E", suit: "#1A1A1A", skin: "#EDBB95" },
   { id: "luis", name: "LUIS", tag: "El quejoso", quirk: "Arranca lento, y cada vez que se queja pega un tirón.",
     special: "SALTAR", specialInfo: "pasa por arriba de lo que tenga adelante", charge: 10, spd: 4, air: 3, rec: 2, fly: 5,
@@ -41,8 +41,8 @@ const speedMult = (ch) => 1 + (ch.spd - 3) * 0.03;   // 0,94 a 1,06
 const airCap = (ch) => 0.7 + 0.12 * ch.air;          // aguante: 0,82 a 1,30
 const breathGain = (ch) => 0.2 + 0.07 * ch.rec;      // 0,34 a 0,55 de aire por respirada
 const breathWindow = (ch) => 0.9 + 0.2 * ch.rec;     // 1,1 a 1,9 segundos para tocar RESPIRAR
-const flyMult = (ch) => 1.25 + 0.05 * ch.fly;        // mariposa: 1,30 a 1,50 veces el crol
-const flyCost = (ch) => 1.3 - 0.1 * ch.fly;          // y su gasto de aire: 1,2 a 0,8
+const flyMult = (ch) => 1.38 + 0.08 * ch.fly;        // mariposa: 1,54 a 1,78 veces el crol
+const flyCost = (ch) => 1.36 - 0.12 * ch.fly;        // y su gasto de aire: 1,24 a 0,76
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -63,7 +63,7 @@ function newRace(playerCh) {
     nextBreath: rnd(2.5, 4), bOpen: false, bT: 0, bLen: 1,
     stun: 0, plancha: 0, noAir: 0, gulp: 0, immune: 0, boost: 0, boostMult: 1,
     objMult: 1, objT: 0, objKind: null, chaseSay: 0,
-    dive: 0, charge: 0, bubble: null, finished: false, finishT: 0,
+    dive: 0, charge: 0, bubble: null, finished: false, finishT: 0, mood: "normal", moodT: 0,
     ai: { breathAt: 0, useAt: 0, wantU: lanes[i] }, complainAt: rnd(5, 9)
   }));
   const objs = [];
@@ -79,7 +79,13 @@ function newRace(playerCh) {
 
 function say(r, text, dur = 1.4) { r.bubble = { text, t: dur }; }
 // Lo que pasa en la carrera y le interesa a la pantalla (sonidos, avisos). Se vacía en cada cuadro.
-function emit(race, r, kind) { race.events.push({ r, kind }); }
+function emit(race, r, kind) {
+  race.events.push({ r, kind });
+  const m = MOODS[kind]; if (m) { r.mood = m[0]; r.moodT = m[1]; }
+}
+// La cara que pone cada uno cuando le pasa algo (ver caras.js), y por cuántos segundos.
+const MOODS = { good: ["happy", 1], bad: ["hurt", 1], hit: ["dead", 1.6], gulp: ["gulp", 0.8], breath: ["gulp", 0.45],
+  noAir: ["hurt", 1.2], special: ["happy", 1], finish: ["happy", 3] };
 const specialReady = (r) => r.charge >= 1;
 
 function ahead(race, r, range) {
@@ -103,7 +109,7 @@ function useSpecial(race, r) {
     case "facu": { const o = ahead(race, r, 30); if (o && hit(race, o, 1.6, "¡ME COMIÓ!")) emit(race, o, "hit"); else { r.boost = 1; r.boostMult = 1.3; } break; }
     case "luis": r.immune = 1.2; r.x += 3; break;
     case "mati": r.immune = 2.5; r.dive = 2.5; break;
-    case "pablo": r.immune = 3; r.boost = 3; r.boostMult = 1.12; break;
+    case "pablo": r.immune = 3; r.boost = 3; r.boostMult = 1.04; break;
   }
 }
 
@@ -158,7 +164,7 @@ function stepRace(race, dt, input) {
     const ch = r.ch;
     if (r.bubble) { r.bubble.t -= dt; if (r.bubble.t <= 0) r.bubble = null; }
     if (r.finished) { r.v *= 1 - dt * 1.5; r.x += r.v * dt; continue; }
-    for (const k of ["stun", "plancha", "gulp", "immune", "boost", "dive", "objT", "chaseSay"]) r[k] = Math.max(0, r[k] - dt);
+    for (const k of ["stun", "plancha", "gulp", "immune", "boost", "dive", "objT", "chaseSay", "moodT"]) r[k] = Math.max(0, r[k] - dt);
     r.charge = Math.min(1, r.charge + dt / ch.charge);
 
     // ventana para respirar, como en Nadamos por la milanga
@@ -180,10 +186,10 @@ function stepRace(race, dt, input) {
     const blocked = r.stun > 0;
     let drain = 1, mult = 1;
     if (!blocked) {
-      if (ch.id === "luis" && race.t > r.complainAt) { say(r, pick(COMPLAINTS), 1.8); r.boost = 1.8; r.boostMult = 1.25; r.complainAt = race.t + rnd(7, 11); }
+      if (ch.id === "luis" && race.t > r.complainAt) { say(r, pick(COMPLAINTS), 1.8); r.mood = "talk"; r.moodT = 1.8; r.boost = 1.8; r.boostMult = 1.25; r.complainAt = race.t + rnd(7, 11); }
       if (ch.id === "mati" && r.x > 10 && !r.plancha && Math.random() < dt * 0.03) { r.plancha = 1.4; say(r, "plancha..."); }
       if (ch.id === "facu" && ahead(race, r, 3)) {
-        mult *= 1.08; drain *= 1.1;
+        mult *= 1.1; drain *= 1.05;
         if (!r.chaseSay) { say(r, "¡TE COMO!", 1); r.chaseSay = 5; }
       }
     }
@@ -204,7 +210,7 @@ function stepRace(race, dt, input) {
     if (blocked) mult = 0.12;
     if (!r.isPlayer) mult *= 1 + clamp((player.x - r.x) / 30, -0.08, 0.1); // que la carrera venga pareja
     const target = BASE_V * mult;
-    r.v += (target - r.v) * Math.min(1, dt * 2.5);
+    r.v += (target - r.v) * Math.min(1, dt * (flying ? 4 : 2.5)); // la mariposa arranca con un tirón
     r.x += r.v * dt;
     if (!blocked) r.u = clamp(r.u + r.steer * dt * 0.65 * (ch.heavy ? 0.6 : 1), 0.08, 0.92);
 
@@ -214,7 +220,7 @@ function stepRace(race, dt, input) {
       const it = ITEMS[o.kind];
       if (!it.good && r.immune > 0) continue;
       // a Pablo, que es una losa, lo que frena le hace menos
-      const mult = !it.good && ch.heavy ? 1 - (1 - it.mult) * 0.65 : it.mult;
+      const mult = !it.good && ch.heavy ? 1 - (1 - it.mult) * 0.75 : it.mult;
       o.gone = true; r.objKind = o.kind; r.objMult = mult; r.objT = it.secs;
       say(r, it.name + (it.good ? " ▲" : " ▼"), 1.2);
       emit(race, r, it.good ? "good" : "bad");

@@ -117,13 +117,10 @@ const store = {
   let race = null, player = null, chosen = null, lastCount = 99, endShown = false;
 
   function show(html) { scr.innerHTML = html; scr.style.display = "flex"; pad.style.display = "none"; keepAwake(false); }
-  function face(ch, size) {
-    return `<span class="face" style="width:${size}px;height:${size}px;background:${ch.skin};border-color:${ch.cap};box-shadow:inset 0 ${size * 0.38}px 0 ${ch.cap}"></span>`;
-  }
   function selectScreen() {
     race = null;
     show(`<h1>NADAR POR LA GLORIA</h1><p>Elegí tu nadador</p>
-      <div class="grid">${CHARS.map((c) => `<button class="ch" data-id="${c.id}">${face(c, 34)}<b>${c.name}</b><small>${c.tag}</small>${statBars(c)}</button>`).join("")}</div>
+      <div class="grid">${CHARS.map((c) => `<button class="ch" data-id="${c.id}">${faceImg(c, 56)}<b>${c.name}</b><small>${c.tag}</small>${statBars(c)}</button>`).join("")}</div>
       ${store.get("npg-guia") === "vista" ? `<button class="link" id="reguide">Ver la guía otra vez en la próxima carrera</button>` : ""}`);
     scr.querySelectorAll(".ch").forEach((b) => b.onclick = () => { Sound.unlock(); goFull(); chosen = CHARS.find((c) => c.id === b.dataset.id); drawScreen(); });
     const rg = document.getElementById("reguide");
@@ -134,7 +131,7 @@ const store = {
     const [p, a, b] = draft.racers;
     const legend = Object.keys(ITEMS).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}</span>`).join("");
     show(`<p class="sub">Sorteo de rivales</p>
-      <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${face(r.ch, 32)}<b>${r.ch.name}${i ? "" : " (vos)"}</b><small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
+      <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${faceImg(r.ch, 52, i ? "normal" : "happy")}<b>${r.ch.name}${i ? "" : " (vos)"}</b><small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
       <p class="help">${say2("Nadás crol solo. MARIPOSA acelera pero gasta aire. Tocá RESPIRAR cuando se ilumina.", "↑ ↓ moverte · → (mantener) mariposa · ESPACIO respirar · ← especial · P pausa")}</p>
       <div class="legend">${legend}</div><button class="go">¡A LA PILETA!</button>`);
     scr.querySelector(".go").onclick = () => {
@@ -148,7 +145,7 @@ const store = {
     if (guide.on) store.set("npg-guia", "vista");
     show(`<h1 class="${win ? "win" : "lose"}">${win ? "¡GANASTE!" : pos === 2 ? "SALISTE 2º" : "SALISTE 3º"}</h1>
       <p class="sub">${win ? "La gloria es tuya." : "Sin gloria esta vez. ¿La revancha?"}</p>
-      <ol class="podio">${st.map((r) => `<li>${face(r.ch, 22)} ${r.ch.name}${r.isPlayer ? " (vos)" : ""} <small>${r.finished ? r.finishT.toFixed(1) + " s" : Math.floor(r.x) + " m"}</small></li>`).join("")}</ol>
+      <ol class="podio">${st.map((r, i) => `<li>${i + 1}º ${faceImg(r.ch, 38, r === st[0] ? "happy" : r.isPlayer ? "hurt" : "normal")} ${r.ch.name}${r.isPlayer ? " (vos)" : ""} <small>${r.finished ? r.finishT.toFixed(1) + " s" : Math.floor(r.x) + " m"}</small></li>`).join("")}</ol>
       <div class="row"><button class="go" id="again">OTRA VEZ</button><button id="change">CAMBIAR NADADOR</button></div>`);
     document.getElementById("again").onclick = drawScreen;
     document.getElementById("change").onclick = selectScreen;
