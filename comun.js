@@ -2,24 +2,45 @@
 // Personajes y rasgos tomados de Nadamos por la milanga (index.html, const CHARS).
 
 const CHARS = [
-  { id: "pablito", name: "PABLITO", tag: "Te levanta una losa y te nada 2000 metros en el mismo día", special: "CAMINAR", cap: "#F0BE98", suit: "#1F3F8F", skin: "#F0BE98", speed: 1, breathGap: 1.2, breath: 0.35 },
-  { id: "luis", name: "LUIS", tag: "Nadador rápido, pero necesita quejarse para ir más rápido", special: "SALTAR", cap: "#4A5FD0", suit: "#D4A017", skin: "#E6B08A", speed: 1.08, breathGap: 1.2, breath: 0.15, fade: true, complains: true, slowStart: true },
-  { id: "facu", name: "FACU", tag: "Guarda que te como", special: "TE COMO", cap: "#1A1A1E", suit: "#1A1A1A", skin: "#EDBB95", speed: 1.09, breathGap: 1.15, breath: 0, aggro: true },
-  { id: "mati", name: "MATI", tag: "Nada un poco pachorra", special: "SUMERGIR", cap: "#E8C25A", suit: "#2E8B57", skin: "#F2C6A0", speed: 1, breathGap: 1, breath: 0.1, lazy: true },
-  { id: "andre", name: "ANDRE", tag: "La maestra repostera", special: "UNA MASITA", cap: "#2B2D3A", suit: "#111111", skin: "#E3AE86", speed: 0.95, breathGap: 1, breath: 0.2 },
-  { id: "mika", name: "MICA", tag: "Aparece donde menos la esperás", special: "AYAHUASCA", cap: "#16161C", suit: "#2F6FE0", skin: "#F0C4A2", speed: 1, breathGap: 1, breath: 0.25 },
-  { id: "gaston", name: "GASTÓN", tag: "Cuando zarpa, no lo para nadie", special: "NAVEGANTE", cap: "#A9A9A9", suit: "#1E3A5F", skin: "#E8B48E", speed: 0.92, breathGap: 1, breath: 0.15, drowns: true, aggro: true },
-  { id: "luchito", name: "LUCHITO", tag: "Nadador rápido, aunque los calambres lo tienen a maltraer", special: "ACELERADA", cap: "#1A1410", suit: "#18A558", skin: "#EEC09A", speed: 1.08, breathGap: 1.25, breath: 0.3, fade: true, cramps: true },
-  { id: "fer", name: "FER", tag: "Nadador con experiencia: lee la pileta como nadie", special: "BULLET TIME", cap: "#E6B48C", suit: "#2B4C7E", skin: "#E6B48C", speed: 0.9, breathGap: 0.8, breath: 0.3, calm: true }
+  { id: "pablito", name: "PABLITO", tag: "Te levanta una losa y te nada 2000 metros en el mismo día", special: "CAMINAR", cd: 4, cap: "#F0BE98", suit: "#1F3F8F", skin: "#F0BE98", speed: 1, breathGap: 1.2, breath: 0.35, breathMin: 1.15 },
+  { id: "luis", name: "LUIS", tag: "Nadador rápido, pero necesita quejarse para ir más rápido", special: "SALTAR", cd: 4, cap: "#4A5FD0", suit: "#D4A017", skin: "#E6B08A", speed: 1.08, breathGap: 1.2, breath: 0.15, fade: true, complains: true, slowStart: true },
+  { id: "facu", name: "FACU", tag: "Guarda que te como", special: "TE COMO", cd: 3, cap: "#1A1A1E", suit: "#1A1A1A", skin: "#EDBB95", speed: 1.09, breathGap: 1.15, breath: 0, aggro: true },
+  { id: "mati", name: "MATI", tag: "Nada un poco pachorra", special: "SUMERGIR", cd: 4, cap: "#E8C25A", suit: "#2E8B57", skin: "#F2C6A0", speed: 1, breathGap: 1, breath: 0.1, lazy: true },
+  { id: "andre", name: "ANDRE", tag: "La maestra repostera", special: "UNA MASITA", cd: 2.4, cap: "#2B2D3A", suit: "#111111", skin: "#E3AE86", speed: 0.95, breathGap: 1, breath: 0.2 },
+  { id: "mika", name: "MICA", tag: "Aparece donde menos la esperás", special: "AYAHUASCA", cd: 3, cap: "#16161C", suit: "#2F6FE0", skin: "#F0C4A2", speed: 1, breathGap: 1, breath: 0.25 },
+  { id: "gaston", name: "GASTÓN", tag: "Cuando zarpa, no lo para nadie", special: "NAVEGANTE", cd: 6, cap: "#A9A9A9", suit: "#1E3A5F", skin: "#E8B48E", speed: 0.92, breathGap: 1, breath: 0.15, drowns: true, aggro: true },
+  { id: "luchito", name: "LUCHITO", tag: "Nadador rápido, aunque los calambres lo tienen a maltraer", special: "ACELERADA", cd: 4, cap: "#1A1410", suit: "#18A558", skin: "#EEC09A", speed: 1.08, breathGap: 1.25, breath: 0.3, fade: true, cramps: true },
+  { id: "fer", name: "FER", tag: "Nadador con experiencia: lee la pileta como nadie", special: "BULLET TIME", cd: 8, cap: "#E6B48C", suit: "#2B4C7E", skin: "#E6B48C", speed: 0.9, breathGap: 0.8, breath: 0.3, calm: true }
 ];
 const COMPLAINTS = ["¡ESTÁ HELADA!", "¿QUIÉN ARMÓ ESTA SERIE?", "ME DUELE EL HOMBRO", "¡LA PROFE ME ODIA!", "HAY MUCHA GENTE HOY", "¿SALE MILANGA HOY?"];
 
-const RACE_M = 100;   // largo de la carrera, en metros
-const BASE_V = 2.5;   // velocidad tope base, m/s
+// Objetos que flotan en la pileta: los buenos aceleran, los malos frenan, por unos segundos.
+const ITEMS = {
+  patas:      { name: "PATAS",      mult: 1.6,  secs: 2.5, good: true,  weight: 10 },
+  manoplas:   { name: "MANOPLAS",   mult: 1.35, secs: 3,   good: true,  weight: 18 },
+  antiparras: { name: "ANTIPARRAS", mult: 1.15, secs: 4,   good: true,  weight: 24 },
+  paracaidas: { name: "PARACAÍDAS", mult: 0.6,  secs: 3,   good: false, weight: 26 },
+  tablita:    { name: "TABLITA",    mult: 0.4,  secs: 3,   good: false, weight: 22 }
+};
+
+const RACE_M = 100;       // largo de la carrera, en metros
+const BASE_V = 2.4;       // velocidad de crol, m/s
+const FLY_MULT = 1.4;     // mariposa: cuánto más rápido que crol
+const AIR_CROL = 0.045;   // aire que gasta el crol por segundo
+const AIR_FLY = 0.2;      // aire que gasta la mariposa por segundo
+const AIR_BREATH = 0.38;  // aire que da una respirada a tiempo
+const AIR_WATER = 0.12;   // aire que perdés si tragás agua
+const SPECIAL_K = 3;      // segundos de carga del especial = cd del juego original × esto
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+function pickItem() {
+  const ks = Object.keys(ITEMS), tot = ks.reduce((s, k) => s + ITEMS[k].weight, 0);
+  let n = Math.random() * tot;
+  for (const k of ks) { n -= ITEMS[k].weight; if (n <= 0) return k; }
+  return ks[0];
+}
 
 // ---------- Carrera ----------
 function newRace(playerCh, opts) {
@@ -27,20 +48,27 @@ function newRace(playerCh, opts) {
   const chars = [playerCh, others[0], others[1]];
   const lanes = [0.5, 0.2, 0.8];
   const racers = chars.map((ch, i) => ({
-    ch, isPlayer: i === 0, x: 0, u: lanes[i], v: 0, air: 1, hold: false, steer: 0,
-    stun: 0, eat: 0, cramp: 0, plancha: 0, drown: 0, noAir: 0, immune: 0, boost: 0, boostMult: 1,
-    boat: 0, dive: 0, item: false, slapCd: 0, bubble: null, finished: false, finishT: 0,
-    ai: { breathing: false, useAt: 0, slapAt: rnd(1, 3), wantU: lanes[i] }, complainAt: rnd(5, 9)
+    ch, isPlayer: i === 0, x: 0, u: lanes[i], v: 0, air: 1, fly: false, steer: 0,
+    nextBreath: rnd(2.5, 4), bOpen: false, bT: 0, bLen: 1,
+    stun: 0, eat: 0, cramp: 0, plancha: 0, drown: 0, noAir: 0, gulp: 0, immune: 0, boost: 0, boostMult: 1,
+    objMult: 1, objT: 0, objKind: null,
+    boat: 0, dive: 0, charge: 0, slapCd: 0, bubble: null, finished: false, finishT: 0,
+    ai: { breathAt: 0, useAt: 0, slapAt: rnd(1, 3), wantU: lanes[i], flyUntil: 0, nextFly: rnd(6, 14) }, complainAt: rnd(5, 9)
   }));
   const objs = [];
-  for (let x = 12; x < RACE_M - 6; x += rnd(6, 10)) objs.push({ kind: "churro", x, u: rnd(0.12, 0.88) });
-  for (const x of [18, 42, 66, 84]) {
-    for (const u of [0.2, 0.5, 0.8]) objs.push({ kind: "milanga", x: x + rnd(-1, 1), u: u + rnd(-0.05, 0.05) });
+  for (let x = 8; x < RACE_M - 4; x += rnd(4, 7)) {
+    const n = Math.random() < 0.4 ? 2 : 1, used = [];
+    for (let k = 0; k < n; k++) {
+      let u; do u = rnd(0.12, 0.88); while (used.some((v) => Math.abs(v - u) < 0.25));
+      used.push(u); objs.push({ kind: pickItem(), x: x + rnd(-0.8, 0.8), u });
+    }
   }
   return { t: -3, racers, objs, bulletOwner: null, bullet: 0, slaps: !!opts.slaps, over: false, overT: 0, fx: [] };
 }
 
 function say(r, text, dur = 1.4) { r.bubble = { text, t: dur }; }
+const specialSecs = (ch) => ch.cd * SPECIAL_K;
+const specialReady = (r) => r.charge >= 1;
 
 function ahead(race, r, range) {
   let best = null;
@@ -59,8 +87,8 @@ function hit(o, secs, text) {
 }
 
 function useSpecial(race, r) {
-  if (!r.item) return;
-  r.item = false;
+  if (!specialReady(r)) return;
+  r.charge = 0;
   const ch = r.ch;
   say(r, ch.special + "!", 1.3);
   race.fx.push({ kind: "special", r, t: 0.8 });
@@ -74,6 +102,16 @@ function useSpecial(race, r) {
     case "gaston": r.boat = 3; r.immune = 3; r.boost = 3; r.boostMult = 1.45; break;
     case "luchito": r.immune = 1.5; r.boost = 1.5; r.boostMult = 2; break;
     case "fer": race.bulletOwner = r; race.bullet = 3; break;
+  }
+}
+
+function breathe(r) {
+  if (r.bOpen) {
+    r.bOpen = false; r.air = Math.min(1, r.air + AIR_BREATH); r.noAir = 0;
+    r.nextBreath = rnd(4.5, 6.5) * r.ch.breathGap;
+    if (r.isPlayer) say(r, "¡AIRE!", 0.7);
+  } else if (r.gulp <= 0) { // respirar a destiempo: tragás agua
+    r.air = Math.max(0, r.air - AIR_WATER); r.gulp = 0.6; say(r, "¡GLUB!", 0.8);
   }
 }
 
@@ -91,23 +129,28 @@ function slap(race, r) {
 
 function aiThink(race, r, dt, player) {
   const ai = r.ai, ch = r.ch;
-  // respirar
-  if (r.air < 0.22) ai.breathing = true;
-  if (ai.breathing && r.air > (ch.calm ? 0.6 : 0.75)) ai.breathing = false;
-  r.hold = !ai.breathing;
-  // carril: esquivar churros, ir a milanesas, molestar (los agresivos)
-  let want = ai.wantU;
+  // respirar: con un poco de reacción; a veces se les pasa (a Fer casi nunca)
+  if (r.bOpen) {
+    if (!ai.breathAt) ai.breathAt = race.t + (Math.random() < (ch.calm ? 0.03 : 0.12) ? 99 : rnd(0.15, 0.6));
+    if (race.t > ai.breathAt) { breathe(r); ai.breathAt = 0; }
+  } else ai.breathAt = 0;
+  // mariposa: en tramos cortos, con aire de sobra, y a fondo en el final
+  if (!r.fly && race.t > ai.nextFly && r.air > 0.65) { ai.flyUntil = race.t + rnd(1.5, 3); ai.nextFly = race.t + rnd(7, 13); }
+  r.fly = (race.t < ai.flyUntil || (r.x > RACE_M - 15 && r.air > 0.25)) && r.air > 0.2;
+  // carril: esquivar lo que frena, buscar lo que acelera, molestar (los agresivos)
+  let want = ai.wantU, best = 99;
   for (const o of race.objs) {
     const dx = o.x - r.x;
-    if (dx < 0 || dx > 12) continue;
-    if (o.kind === "churro" && Math.abs(o.u - r.u) < 0.13) { want = o.u > r.u ? o.u - 0.25 : o.u + 0.25; break; }
-    if (o.kind === "milanga" && !r.item && Math.abs(o.u - r.u) < 0.35) want = o.u;
+    if (o.gone || dx < 0 || dx > 12) continue;
+    const it = ITEMS[o.kind];
+    if (!it.good && Math.abs(o.u - r.u) < 0.13 && dx < best) { want = o.u > r.u ? o.u - 0.25 : o.u + 0.25; best = dx; }
+    else if (it.good && best === 99 && Math.abs(o.u - r.u) < 0.35) want = o.u;
   }
-  if (race.slaps && ch.aggro && Math.abs(player.x - r.x) < 4 && !player.finished) want = player.u;
+  if (race.slaps && ch.aggro && Math.abs(player.x - r.x) < 4 && !player.finished && best === 99) want = player.u;
   want = clamp(want, 0.1, 0.9);
   r.steer = Math.abs(want - r.u) > 0.03 ? Math.sign(want - r.u) : 0;
   // especial
-  if (r.item) {
+  if (specialReady(r)) {
     if (!ai.useAt) ai.useAt = race.t + rnd(0.6, 2.5);
     const needsAhead = ["facu", "andre", "mika"].includes(ch.id);
     if (race.t > ai.useAt && (!needsAhead || ahead(race, r, 25) || ch.id === "andre" && behind(race, r, 10))) { useSpecial(race, r); ai.useAt = 0; }
@@ -131,10 +174,21 @@ function stepRace(race, dt, input) {
     const ch = r.ch;
     if (r.bubble) { r.bubble.t -= dt; if (r.bubble.t <= 0) r.bubble = null; }
     if (r.finished) { r.v *= 1 - dt * 1.5; r.x += r.v * dt; continue; }
-    for (const k of ["stun", "eat", "cramp", "plancha", "drown", "noAir", "immune", "boost", "boat", "dive", "slapCd"]) r[k] = Math.max(0, r[k] - dt);
+    for (const k of ["stun", "eat", "cramp", "plancha", "drown", "gulp", "immune", "boost", "boat", "dive", "slapCd", "objT"]) r[k] = Math.max(0, r[k] - dt);
+    r.charge = Math.min(1, r.charge + dt / specialSecs(ch));
+
+    // ventana para respirar, como en Nadamos por la milanga
+    if (r.bOpen) {
+      r.bT -= dt;
+      if (r.bT <= 0) { r.bOpen = false; r.air = Math.max(0, r.air - AIR_WATER); say(r, "¡TRAGUÉ AGUA!", 1); r.nextBreath = rnd(4.5, 6.5) * ch.breathGap; }
+    } else {
+      r.nextBreath -= dt;
+      if (r.nextBreath <= 0) { r.bOpen = true; r.bLen = Math.max(ch.breathMin || 0.9, 1.5 + ch.breath); r.bT = r.bLen; }
+    }
 
     if (r.isPlayer) {
-      r.hold = input.swim; r.steer = (input.down || input.right ? 1 : 0) - (input.up || input.left ? 1 : 0);
+      r.fly = input.fly; r.steer = (input.down || input.right ? 1 : 0) - (input.up || input.left ? 1 : 0);
+      if (input.breathePressed) breathe(r);
       if (input.specialPressed) useSpecial(race, r);
       if (input.slapPressed && race.slaps) slap(race, r);
     } else aiThink(race, r, dt, player);
@@ -148,39 +202,41 @@ function stepRace(race, dt, input) {
       if (ch.drowns && r.x > 15 && Math.random() < dt * 0.02) { r.drown = 1.8; say(r, "¡AYUDA!", 1.8); }
     }
 
-    // aire
-    let swimming = r.hold && !r.noAir;
-    if (swimming) {
-      r.air -= dt * 0.17 / (ch.breathGap * (1 + ch.breath)) * (ch.calm ? 0.75 : 1);
-      if (r.air <= 0) { r.air = 0; r.noAir = 1.4; say(r, "¡AIRE!", 1.2); swimming = false; }
-    } else r.air = Math.min(1, r.air + dt * 0.32);
+    // aire: el crol gasta poco, la mariposa mucho
+    const flying = r.fly && r.air > 0 && !blocked && !r.plancha;
+    r.air -= dt * (flying ? AIR_FLY : AIR_CROL) * (ch.calm ? 0.8 : 1);
+    if (r.air <= 0) { if (!r.noAir) say(r, "¡SIN AIRE!", 1.2); r.air = 0; r.noAir = 1; } else r.noAir = 0;
 
-    let vtop = BASE_V * (1 + (ch.speed - 1) * 0.6);
-    let mult = swimming ? 1 : 0.55;
+    let mult = flying ? FLY_MULT : 1;
+    mult *= 1 + (ch.speed - 1) * 0.6;
+    if (r.noAir) mult *= 0.45;
+    if (r.gulp > 0) mult *= 0.7;
     if (ch.slowStart && race.t < 4) mult *= 0.75;
+    if (ch.lazy && r.x < 25) mult *= 1.12; // Mati arranca a full
     if (ch.fade) mult *= 1 - 0.12 * clamp(r.x / RACE_M, 0, 1);
     if (r.boost > 0) mult *= r.boostMult;
-    if (ch.lazy && r.x < 25) mult *= 1.12; // Mati arranca a full
+    if (r.objT > 0) mult *= r.objMult;
     if (r.plancha > 0) mult *= 0.6;
     if (blocked) mult = r.drown ? 0 : 0.12;
     if (race.bullet > 0 && race.bulletOwner !== r) mult *= 0.5;
     if (!r.isPlayer) mult *= 1 + clamp((player.x - r.x) / 30, -0.08, 0.1); // que la carrera venga pareja
-    const target = vtop * mult;
+    const target = BASE_V * mult;
     r.v += (target - r.v) * Math.min(1, dt * 2.5);
     r.x += r.v * dt;
     if (!blocked) r.u = clamp(r.u + r.steer * dt * 0.65, 0.08, 0.92);
 
-    // objetos
+    // objetos: el que lo toca se lo lleva
     for (const o of race.objs) {
       if (o.gone || Math.abs(o.x - r.x) > 0.9 || Math.abs(o.u - r.u) > 0.1) continue;
-      if (o.kind === "milanga") { if (!r.item) { r.item = true; o.gone = true; if (r.isPlayer) say(r, "¡MILANGA! → " + ch.special, 1.2); } }
-      else if (r.boat) o.gone = true;
-      else if (r.immune <= 0 && !(o.hits || (o.hits = new Set())).has(r)) { o.hits.add(r); hit(r, 0.8, "¡UH!"); }
+      const it = ITEMS[o.kind];
+      if (!it.good && (r.immune > 0 || r.boat)) { if (r.boat) o.gone = true; continue; }
+      o.gone = true; r.objKind = o.kind; r.objMult = it.mult; r.objT = it.secs;
+      say(r, it.name + (it.good ? " ▲" : " ▼"), 1.2);
     }
     // el barquito de Gastón se lleva puesto a todos
     if (r.boat) for (const o of race.racers) if (o !== r && Math.abs(o.x - r.x) < 1.5 && Math.abs(o.u - r.u) < 0.15) hit(o, 1.2, "¡ME PISÓ!");
 
-    if (r.x >= RACE_M) { r.finished = true; r.finishT = race.t; }
+    if (r.x >= RACE_M) { r.finished = true; r.finishT = race.t; r.bOpen = false; }
   }
   // empujones de costado (solo en el modo con manotazos)
   if (race.slaps) {
@@ -217,12 +273,12 @@ function startApp(cfg) {
   }
   window.addEventListener("resize", resize); resize();
 
-  const input = { up: false, down: false, left: false, right: false, swim: false, specialPressed: false, slapPressed: false };
-  const keys = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", " ": "swim" };
+  const input = { up: false, down: false, left: false, right: false, fly: false, breathePressed: false, specialPressed: false, slapPressed: false };
+  const keys = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right", c: "fly", C: "fly", Shift: "fly" };
+  const presses = { " ": "breathePressed", x: "specialPressed", X: "specialPressed", z: "slapPressed", Z: "slapPressed" };
   window.addEventListener("keydown", (e) => {
     if (keys[e.key]) { input[keys[e.key]] = true; e.preventDefault(); }
-    if (e.key === "x" || e.key === "X") input.specialPressed = true;
-    if (e.key === "z" || e.key === "Z") input.slapPressed = true;
+    if (presses[e.key] && !e.repeat) { input[presses[e.key]] = true; e.preventDefault(); }
   });
   window.addEventListener("keyup", (e) => { if (keys[e.key]) input[keys[e.key]] = false; });
 
@@ -230,7 +286,7 @@ function startApp(cfg) {
   const pad = document.getElementById("pad");
   for (const b of cfg.buttons) {
     const el = document.createElement("div");
-    el.className = "btn " + b.cls; el.textContent = b.label;
+    el.className = "btn " + b.cls; el.innerHTML = `<i class="fill"></i><span>${b.label}</span>`;
     const on = (e) => { e.preventDefault(); el.classList.add("on"); if (b.hold) input[b.hold] = true; if (b.press) input[b.press] = true; };
     const off = (e) => { e.preventDefault(); el.classList.remove("on"); if (b.hold) input[b.hold] = false; };
     el.addEventListener("pointerdown", on); el.addEventListener("pointerup", off);
@@ -257,15 +313,14 @@ function startApp(cfg) {
     scr.querySelectorAll(".ch").forEach((b) => b.onclick = () => { goFull(); chosen = CHARS.find((c) => c.id === b.dataset.id); drawScreen(); });
   }
   function drawScreen() {
-    race = newRace(chosen, cfg);
-    const [p, a, b] = race.racers;
+    const draft = newRace(chosen, cfg);
+    const [p, a, b] = draft.racers;
+    const legend = Object.keys(ITEMS).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}</span>`).join("");
     show(`<p class="sub">Sorteo de rivales</p>
       <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${face(r.ch, 46)}<b>${r.ch.name}${i ? "" : " (vos)"}</b><small>${r.ch.tag}</small><small class="sp">Especial: ${r.ch.special}</small></div>`).join("")}</div>
-      <p class="help">${cfg.help}</p><button class="go">¡A LA PILETA!</button>`);
-    race = null;
+      <p class="help">${cfg.help}</p><div class="legend">${legend}</div><button class="go">¡A LA PILETA!</button>`);
     scr.querySelector(".go").onclick = () => {
-      race = newRace(chosen, cfg); race.racers[1].ch = a.ch; race.racers[2].ch = b.ch;
-      player = race.racers[0]; scr.style.display = "none"; pad.style.display = "block";
+      race = draft; player = race.racers[0]; scr.style.display = "none"; pad.style.display = "block";
     };
   }
   function endScreen() {
@@ -279,17 +334,22 @@ function startApp(cfg) {
     document.getElementById("change").onclick = selectScreen;
   }
 
+  const setBtn = (id, ready, fill, label) => {
+    const el = document.getElementById(id); if (!el) return;
+    el.classList.toggle("ready", ready); el.querySelector(".fill").style.width = (fill * 100) + "%";
+    if (label) el.querySelector("span").textContent = label;
+  };
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
     ctx.clearRect(0, 0, W, H);
     if (race) {
       stepRace(race, dt, input);
-      input.specialPressed = false; input.slapPressed = false;
+      input.breathePressed = false; input.specialPressed = false; input.slapPressed = false;
       cfg.render(ctx, race, W, H);
       drawHud(ctx, race, W, H);
-      const sp = document.getElementById("bsp");
-      if (sp) { sp.classList.toggle("ready", player.item); sp.textContent = player.item ? player.ch.special : "ESPECIAL"; }
+      setBtn("bbr", player.bOpen, player.bOpen ? player.bT / player.bLen : 0, player.bOpen ? "¡RESPIRÁ!" : "RESPIRAR");
+      setBtn("bsp", specialReady(player), player.charge, player.ch.special);
       if (race.over && race.t - race.overT > 1.4 && scr.style.display === "none") endScreen();
     } else cfg.render(ctx, null, W, H);
     requestAnimationFrame(frame);
@@ -306,7 +366,8 @@ function drawHud(ctx, race, W, H) {
   ctx.lineWidth = 5; ctx.strokeStyle = "#0008"; ctx.fillStyle = pos === 1 ? "#FFD84A" : "#fff";
   ctx.strokeText(pos + "º", 12, 8); ctx.fillText(pos + "º", 12, 8);
   ctx.font = "bold 13px system-ui, sans-serif"; ctx.fillStyle = "#fff";
-  ctx.strokeText(Math.min(RACE_M, Math.floor(p.x)) + " / " + RACE_M + " m", 12, 46); ctx.fillText(Math.min(RACE_M, Math.floor(p.x)) + " / " + RACE_M + " m", 12, 46);
+  const m = Math.min(RACE_M, Math.floor(p.x)) + " / " + RACE_M + " m";
+  ctx.strokeText(m, 12, 46); ctx.fillText(m, 12, 46);
   // barra de progreso con los 3
   const bx = 80, bw = W - 80 - 200, by = 18;
   ctx.fillStyle = "#0006"; ctx.fillRect(bx, by - 3, bw, 6);
@@ -316,12 +377,20 @@ function drawHud(ctx, race, W, H) {
     ctx.beginPath(); ctx.arc(x, by, r.isPlayer ? 8 : 6, 0, 7); ctx.fillStyle = r.ch.cap; ctx.fill();
     ctx.lineWidth = 2; ctx.strokeStyle = r.isPlayer ? "#FFD84A" : "#fff"; ctx.stroke();
   }
-  // aire
+  // aire y estilo
   const ax = W - 140, aw = 128;
   ctx.fillStyle = "#0006"; ctx.fillRect(ax, 10, aw, 14);
   ctx.fillStyle = p.noAir ? "#E84A4A" : p.air < 0.3 ? "#F0A030" : "#7FE0FF"; ctx.fillRect(ax + 2, 12, (aw - 4) * p.air, 10);
   ctx.fillStyle = "#fff"; ctx.font = "bold 11px system-ui, sans-serif"; ctx.textAlign = "right";
   ctx.fillText("AIRE", ax - 4, 11);
+  ctx.textAlign = "left"; ctx.fillStyle = p.fly && p.air > 0 ? "#FFD84A" : "#fff";
+  ctx.strokeText(p.fly && p.air > 0 ? "MARIPOSA" : "CROL", ax, 30); ctx.fillText(p.fly && p.air > 0 ? "MARIPOSA" : "CROL", ax, 30);
+  if (p.objT > 0) {
+    const it = ITEMS[p.objKind];
+    ctx.fillStyle = it.good ? "#7CFC6A" : "#FF8A7A";
+    const s = it.name + " " + (it.good ? "▲" : "▼") + " " + p.objT.toFixed(1);
+    ctx.strokeText(s, ax, 46); ctx.fillText(s, ax, 46);
+  }
   // largada
   if (race.t < 0.6) {
     const n = race.t < 0 ? Math.ceil(-race.t) : 0;
@@ -330,9 +399,7 @@ function drawHud(ctx, race, W, H) {
     const s = n ? String(n) : "¡YA!";
     ctx.strokeText(s, W / 2, H / 2); ctx.fillText(s, W / 2, H / 2);
   }
-  if (race.bullet > 0) {
-    ctx.fillStyle = "rgba(120,80,200,0.15)"; ctx.fillRect(0, 0, W, H);
-  }
+  if (race.bullet > 0) { ctx.fillStyle = "rgba(120,80,200,0.15)"; ctx.fillRect(0, 0, W, H); }
   ctx.restore();
 }
 
@@ -346,19 +413,36 @@ function drawBubble(ctx, x, y, text, size = 13) {
   ctx.restore();
 }
 
-function drawMilanga(ctx, x, y, s) {
-  ctx.save(); ctx.translate(x, y);
-  ctx.fillStyle = "#B8722C"; ctx.strokeStyle = "#7A4518"; ctx.lineWidth = Math.max(1, s * 0.08);
-  ctx.beginPath(); ctx.ellipse(0, 0, s, s * 0.68, -0.3, 0, 7); ctx.fill(); ctx.stroke();
-  ctx.fillStyle = "#D8963E";
-  for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.arc(Math.cos(i * 1.3) * s * 0.5, Math.sin(i * 2.1) * s * 0.3, s * 0.1, 0, 7); ctx.fill(); }
-  ctx.fillStyle = "#F4E04A"; ctx.beginPath(); ctx.moveTo(s * 0.55, -s * 0.45); ctx.arc(s * 0.55, -s * 0.45, s * 0.35, 0.2, 1.9); ctx.fill();
+// Dibuja un objeto centrado en (x, y), con tamaño s (radio aproximado en píxeles).
+function drawItem(ctx, kind, x, y, s) {
+  ctx.save(); ctx.translate(x, y); ctx.lineWidth = Math.max(1, s * 0.12); ctx.strokeStyle = "#0007";
+  const good = ITEMS[kind].good;
+  // halo: verde si conviene, rojo si frena
+  ctx.fillStyle = good ? "rgba(124,252,106,0.35)" : "rgba(255,90,70,0.35)";
+  ctx.beginPath(); ctx.arc(0, 0, s * 1.25, 0, 7); ctx.fill();
+  if (kind === "patas") {
+    ctx.fillStyle = "#FFD23A";
+    for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(d * s * 0.35, -s * 0.8); ctx.lineTo(d * s * 0.35 + s * 0.45, s * 0.8); ctx.lineTo(d * s * 0.35 - s * 0.45, s * 0.8); ctx.closePath(); ctx.fill(); ctx.stroke(); }
+  } else if (kind === "manoplas") {
+    ctx.fillStyle = "#FF8A2A";
+    for (const d of [-1, 1]) { ctx.beginPath(); ctx.roundRect(d * s * 0.5 - s * 0.38, -s * 0.6, s * 0.76, s * 1.2, s * 0.3); ctx.fill(); ctx.stroke(); }
+  } else if (kind === "antiparras") {
+    ctx.fillStyle = "#2B2B33"; ctx.fillRect(-s, -s * 0.08, s * 2, s * 0.16);
+    ctx.fillStyle = "#7FE0FF";
+    for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(d * s * 0.42, 0, s * 0.38, s * 0.3, 0, 0, 7); ctx.fill(); ctx.stroke(); }
+  } else if (kind === "paracaidas") {
+    ctx.fillStyle = "#E23B3B";
+    ctx.beginPath(); ctx.arc(0, 0, s * 0.85, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = Math.max(1, s * 0.08);
+    for (const d of [-0.8, 0, 0.8]) { ctx.beginPath(); ctx.moveTo(d * s, 0); ctx.lineTo(0, s * 0.75); ctx.stroke(); }
+  } else if (kind === "tablita") {
+    ctx.fillStyle = "#3A6FE0";
+    ctx.beginPath(); ctx.roundRect(-s * 0.6, -s * 0.85, s * 1.2, s * 1.7, [s * 0.6, s * 0.6, s * 0.2, s * 0.2]); ctx.fill(); ctx.stroke();
+  }
   ctx.restore();
 }
-
-function drawChurro(ctx, x, y, len, thick, color) {
-  ctx.save();
-  ctx.fillStyle = color; ctx.strokeStyle = "#0004"; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.roundRect(x - thick / 2, y - len / 2, thick, len, thick / 2); ctx.fill(); ctx.stroke();
-  ctx.restore();
+function itemIcon(kind) {
+  const c = document.createElement("canvas"); c.width = c.height = 40;
+  drawItem(c.getContext("2d"), kind, 20, 20, 14);
+  return `<img src="${c.toDataURL()}" width="20" height="20" alt="">`;
 }

@@ -61,8 +61,7 @@ function render(ctx, race, W, H) {
   for (const o of race.objs) {
     if (o.gone) continue;
     const x = sx(o.x), y = sy(o.u); if (x < -40 || x > W + 40) continue;
-    if (o.kind === "milanga") drawMilanga(ctx, x, y + Math.sin(t * 3 + o.x) * 2, ppm * 0.42);
-    else drawChurro(ctx, x, y, ph * 0.13, ppm * 0.32, ["#FF6FB0", "#7CFC6A", "#FFB030"][Math.floor(o.x) % 3]);
+    drawItem(ctx, o.kind, x, y + Math.sin(t * 3 + o.x) * 2, ppm * 0.5);
   }
   // nadadores
   for (const r of race.racers) drawSwimmerTop(ctx, r, sx(r.x), sy(r.u), ppm, t, race);
@@ -89,7 +88,7 @@ function drawSwimmerTop(ctx, r, x, y, ppm, t, race) {
   ctx.fillStyle = ch.suit; ctx.beginPath(); ctx.ellipse(-L * 0.05, 0, L * 0.3, L * 0.15, 0, 0, 7); ctx.fill();
   ctx.fillStyle = ch.skin; ctx.beginPath(); ctx.ellipse(L * 0.12, 0, L * 0.14, L * 0.16, 0, 0, 7); ctx.fill();
   // brazos (crol)
-  const ph = r.stun || r.eat || r.drown || back ? 0 : t * (r.hold ? 7 : 4) + r.x;
+  const ph = r.stun || r.eat || r.drown || back ? 0 : t * (r.fly && r.air > 0 ? 9 : 6) + r.x;
   for (const s of [-1, 1]) {
     const a = ph + (s > 0 ? Math.PI : 0), reach = Math.cos(a);
     ctx.strokeStyle = ch.skin; ctx.lineWidth = L * 0.08;
@@ -106,18 +105,19 @@ function drawSwimmerTop(ctx, r, x, y, ppm, t, race) {
   const ly = y + L * 0.42 > ctx.canvas.clientHeight - 6 ? y - L * 0.3 : y + L * 0.42;
   ctx.strokeText(label, x - L * 0.1, ly); ctx.fillText(label, x - L * 0.1, ly);
   if (r.stun) { ctx.fillStyle = "#FFD84A"; for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; ctx.beginPath(); ctx.arc(x + L * 0.36 + Math.cos(a) * 12, y + Math.sin(a) * 8, 3, 0, 7); ctx.fill(); } }
-  if (r.eat) drawMilanga(ctx, x + L * 0.5, y - L * 0.2, L * 0.12);
-  if (r.item && r.isPlayer) { ctx.fillStyle = "#FFD84A"; ctx.beginPath(); ctx.arc(x - L * 0.2, y - L * 0.35, 4, 0, 7); ctx.fill(); }
+  if (r.objT > 0) drawItem(ctx, r.objKind, x - L * 0.25, y - L * 0.32, L * 0.1);
+  if (r.isPlayer && r.bOpen) { ctx.fillStyle = "#8FE3FF"; ctx.strokeText("¡RESPIRÁ!", x, y - L * 0.5); ctx.fillText("¡RESPIRÁ!", x, y - L * 0.5); }
   ctx.restore();
 }
 
 startApp({
   title: "NADAR POR LA GLORIA", subtitle: "Prototipo A · pileta vista desde arriba",
   slaps: false, render,
-  help: "Mantené NADAR para ir a fondo (gasta aire; soltá para respirar). ▲▼ para moverte. Agarrá las milanesas y usá tu ESPECIAL. Esquivá los churros. En compu: flechas, espacio y X.",
+  help: "Nadás crol solo. Mantené MARIPOSA para ir más rápido, pero gasta mucho aire. Cuando se ilumina RESPIRAR, tocalo a tiempo (si no, tragás agua). ▲▼ para moverte: agarrá lo verde, esquivá lo rojo. El ESPECIAL se carga solo. En compu: flechas, C mariposa, espacio respirar, X especial.",
   buttons: [
     { cls: "dir1", label: "▲", hold: "up" }, { cls: "dir2", label: "▼", hold: "down" },
-    { cls: "sp", id: "bsp", label: "ESPECIAL", press: "specialPressed" }, { cls: "swim", label: "NADAR", hold: "swim" }
+    { cls: "sp", id: "bsp", label: "ESPECIAL", press: "specialPressed" }, { cls: "fly", label: "MARI-\nPOSA", hold: "fly" },
+    { cls: "br", id: "bbr", label: "RESPIRAR", press: "breathePressed" }
   ]
 });
 </script>
