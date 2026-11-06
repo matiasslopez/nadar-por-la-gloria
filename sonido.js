@@ -31,6 +31,7 @@ const Sound = (() => {
     go: () => tone(880, 880, 0.35, "square", 0.1),
     good: () => { tone(523, 523, 0.08, "square", 0.08); tone(659, 659, 0.08, "square", 0.08, 0.07); tone(784, 1046, 0.14, "square", 0.08, 0.14); },
     bad: () => tone(400, 120, 0.35, "sawtooth", 0.09),
+    itemEnd: () => { tone(660, 330, 0.18, "triangle", 0.1); tone(330, 220, 0.2, "triangle", 0.08, 0.12); },
     breathOpen: () => tone(1320, 1320, 0.07, "sine", 0.09),
     breath: () => noise(0.22, 900, 0.2),
     gulp: () => { for (let i = 0; i < 3; i++) tone(260 - i * 40, 120, 0.07, "sine", 0.18, i * 0.08); },

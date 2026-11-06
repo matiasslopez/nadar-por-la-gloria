@@ -28,6 +28,11 @@ function render(ctx, race, W, H) {
 
   if (open) drawRiver(ctx, race, W, H, top, ph, sx, sy, m0, m1, t, ppm);
   else drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm);
+  // la hinchada se entusiasma en la largada y cuando alguien está por llegar
+  const near = race ? Math.max(...race.racers.map((r) => r.x)) / len : 0;
+  const hype = !race ? 0.4 : race.t < 1 ? 1 : 0.35 + Math.max(0, near - 0.75) * 2.6;
+  drawStands(ctx, sx(-14), sx(-2.2), top, ph, ppm, t, hype, 1);
+  drawStands(ctx, sx(len) + (open ? 45 : 100), sx(len + 16), top, ph, ppm, t, hype, 2);
 
   if (!race) return;
   for (const o of race.objs) {
@@ -55,7 +60,14 @@ function render(ctx, race, W, H) {
       const q = race.t / diveT, k = 1 + Math.sin(Math.PI * q) * 0.25;
       ctx.save(); ctx.translate(sx(block + (pos(r) - block) * q), sy(r.u)); ctx.scale(k, k);
       drawSwimmer(ctx, { ...r, stun: 1, v: 0 }, 0, 0, ppm, t); ctx.restore();
-    } else drawSwimmer(ctx, r, sx(pos(r)), sy(r.u), ppm, t);
+    } else if (r.walk > 0) drawWalker(ctx, r, sx(pos(r)), sy(r.u), ppm, t);
+    else drawSwimmer(ctx, r, sx(pos(r)), sy(r.u), ppm, t);
+    // el objeto que se le terminó queda flotando atrás
+    if (r.drop && race.t - r.drop.t < 1.6) {
+      const q = (race.t - r.drop.t) / 1.6;
+      ctx.save(); ctx.globalAlpha = 1 - q; ctx.translate(sx(r.drop.x - HAND - 0.4), sy(r.drop.u + q * 0.05)); ctx.rotate(q * 3);
+      drawItem(ctx, r.drop.kind, 0, 0, ppm * 0.4); ctx.restore();
+    }
   }
   drawParts(ctx, sx, sy, true);
   for (const r of race.racers) drawTags(ctx, r, sx(race.t < 0 ? 1.2 : pos(r)), sy(r.u), ppm, t, top); // antes de largar, las caras al lado del partidor
@@ -369,10 +381,22 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   ctx.fillStyle = "rgba(0,45,100,0.22)";
   ctx.beginPath(); ctx.ellipse(k * 0.12, k * 0.16, k * 0.95, k * 0.24, 0, 0, 7); ctx.fill();
 
+  const wear = r.objT > 0 ? r.objKind : null;
+  if (wear === "paracaidas") { // va arrastrando el paracaídas atrás de los pies
+    const [px, py] = P(-1.55, 0), bil = 1 + Math.sin(t * 9) * 0.07;
+    ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1.5;
+    for (const s of [-1, 0, 1]) { ctx.beginPath(); ctx.moveTo(...P(-0.2, 0)); ctx.lineTo(px + k * 0.08, py + s * k * 0.3 * bil); ctx.stroke(); }
+    ctx.fillStyle = "#E23B3B"; ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    ctx.beginPath(); ctx.ellipse(px, py, k * 0.22, k * 0.36 * bil, 0, Math.PI / 2, Math.PI * 1.5); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.ellipse(px, py, k * 0.1, k * 0.36 * bil, 0, Math.PI / 2, Math.PI * 1.5); ctx.fill();
+  }
   const rate = flying ? 1.25 : 0.95;                 // brazadas por segundo
   const base = still ? 0.15 : (t * rate + r.x * 0.07) % 1;
   const arms = [-1, 1].map((s) => armPose(still ? (back ? 0.15 : 0.05) : flying ? base : (base + (s > 0 ? 0.5 : 0)) % 1, s, flying));
   if (back) for (const a of arms) { a.E = { x: a.S.x - 0.05, y: a.S.y + Math.sign(a.S.y) * ARM }; a.H = { x: a.S.x - 0.12, y: a.S.y + Math.sign(a.S.y) * ARM * 1.95 }; a.above = true; }
+  if (wear === "tablita") for (const a of arms) { // con la tablita: brazos estirados adelante, agarrándola
+    const sd = Math.sign(a.S.y); a.H = { x: 1.08, y: sd * 0.12 }; a.E = { x: 0.8, y: sd * 0.17 }; a.above = true;
+  }
 
   const drawArm = (a) => {
     const [sx, sy] = P(a.S.x, a.S.y), [ex, ey] = P(a.E.x, a.E.y), [hx, hy] = P(a.H.x, a.H.y);
@@ -391,6 +415,12 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
     const ang = Math.atan2(hy - ey, hx - ex);
     ctx.fillStyle = shade(skin, -0.05);
     ctx.beginPath(); ctx.ellipse(hx + Math.cos(ang) * k * 0.05, hy + Math.sin(ang) * k * 0.05, k * 0.085, k * 0.055, ang, 0, 7); ctx.fill();
+    if (wear === "manoplas") { // manoplas naranjas en las manos
+      ctx.save(); ctx.translate(hx + Math.cos(ang) * k * 0.07, hy + Math.sin(ang) * k * 0.07); ctx.rotate(ang);
+      ctx.fillStyle = "#FF8A2A"; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.roundRect(-k * 0.11, -k * 0.08, k * 0.22, k * 0.16, k * 0.05); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
     if (a.above && !back && !still) { // gotas que caen de la mano
       ctx.fillStyle = "rgba(255,255,255,0.8)";
       for (let i = 0; i < 2; i++) { ctx.beginPath(); ctx.arc(hx - k * 0.05 * i, hy + k * (0.06 + 0.04 * i), k * 0.02, 0, 7); ctx.fill(); }
@@ -415,6 +445,11 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
     // pie estirado hacia atrás
     ctx.fillStyle = shade(skin, -0.08);
     ctx.beginPath(); ctx.ellipse(ankle[0] - k * 0.07, ankle[1], k * (0.085 + kk * 0.015), k * 0.04, 0, 0, 7); ctx.fill();
+    if (wear === "patas") { // patas de rana amarillas que aletean
+      const fx = ankle[0] - k * 0.05, fy = ankle[1], fl = k * (0.42 + kk * 0.05), fw = k * (0.13 + kk * 0.03);
+      ctx.fillStyle = "#FFD23A"; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(fx + k * 0.04, fy - k * 0.04); ctx.lineTo(fx - fl, fy - fw + s * k * 0.03); ctx.lineTo(fx - fl * 0.9, fy + s * 0.01 * k); ctx.lineTo(fx - fl, fy + fw + s * k * 0.03); ctx.lineTo(fx + k * 0.04, fy + k * 0.04); ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
   }
   // las piernas van más hundidas: un velo de agua encima
   const gv = ctx.createLinearGradient(-k * 0.95, 0, -k * 0.2, 0);
@@ -478,6 +513,19 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   }
   ctx.restore();
 
+  if (wear === "tablita") { // la tablita adelante
+    const [bx, by] = P(1.28, 0);
+    ctx.fillStyle = "#3A6FE0"; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(bx - k * 0.2, by - k * 0.26, k * 0.4, k * 0.52, [k * 0.04, k * 0.2, k * 0.2, k * 0.04]); ctx.fill(); ctx.stroke();
+  }
+  if (wear === "latita" || wear === "dulce") { // rayitos de energía (o brillitos dorados) alrededor
+    ctx.strokeStyle = wear === "latita" ? "#FFE14D" : "#FFB347"; ctx.lineWidth = 2.5; ctx.lineCap = "round";
+    for (let i = 0; i < 4; i++) {
+      if ((Math.floor(t * 12) + i) % 3 === 0) continue;
+      const a = i * 1.6 + Math.floor(t * 6), cx = Math.cos(a) * k * 0.8 + k * 0.2, cy = Math.sin(a) * k * 0.35;
+      ctx.beginPath(); ctx.moveTo(cx, cy - k * 0.08); ctx.lineTo(cx + k * 0.04, cy); ctx.lineTo(cx - k * 0.03, cy + k * 0.01); ctx.lineTo(cx + k * 0.01, cy + k * 0.09); ctx.stroke();
+    }
+  }
   // brazos en el aire, por encima de todo
   for (const a of arms) if (a.above) drawArm(a);
   ctx.restore();
@@ -507,6 +555,18 @@ function drawTags(ctx, r, x, y, ppm, t, top) {
       ctx.save(); ctx.translate(hx + R + 8, y); ctx.scale(pulse, pulse);
       ctx.font = "bold 16px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.lineWidth = 4; ctx.strokeStyle = "#0E4C7E";
       ctx.strokeText("¡RESPIRÁ!", 0, 0); ctx.fillStyle = "#fff"; ctx.fillText("¡RESPIRÁ!", 0, 0);
+      ctx.restore();
+    }
+  }
+  if (r.drop && r.drop.t !== undefined && r.objT <= 0) {
+    const age = (r.isPlayer ? 1 : 0.6) - ((FX.partyFor ? FX.partyFor.t : 0) - r.drop.t);
+    if (age > 0) {
+      const it = ITEMS[r.drop.kind], q = 1 - age, sz = r.isPlayer ? 20 : 13;
+      const py = y - ppm * 2.1 - q * 20;
+      ctx.save(); ctx.globalAlpha = Math.min(1, age * 2); ctx.translate(x + ppm * 0.4, py < top + 20 ? y + ppm * 2 + q * 20 : py);
+      ctx.font = `bold ${sz}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.lineWidth = 4; ctx.strokeStyle = "#0E4C7E";
+      const s2 = it.good ? "CHAU " + it.name + " ▼" : "¡CHAU " + it.name + "! ▲";
+      ctx.strokeText(s2, 0, 0); ctx.fillStyle = it.good ? "#FFB4A8" : "#7CFC6A"; ctx.fillText(s2, 0, 0);
       ctx.restore();
     }
   }
@@ -556,7 +616,7 @@ function drawHud(ctx, race, W, H) {
     const f = clamp(p.air * segs - i, 0, 1); if (f <= 0) break;
     ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect(ax + 3 + i * sw + 1, ay + 3, (sw - 2) * f, bh2 - 6, 3); ctx.fill();
   }
-  if (p.breathing) { // recargando: un brillo que corre por la pila
+  if (p.breathing || p.walk > 0) { // recargando: un brillo que corre por la pila
     const gx = ax + ((race.t * 220) % bw2);
     const gg = ctx.createLinearGradient(gx - 30, 0, gx + 30, 0);
     gg.addColorStop(0, "rgba(255,255,255,0)"); gg.addColorStop(0.5, "rgba(255,255,255,0.7)"); gg.addColorStop(1, "rgba(255,255,255,0)");
@@ -568,7 +628,7 @@ function drawHud(ctx, race, W, H) {
   ctx.fillStyle = "#fff"; ctx.strokeText("AIRE " + Math.round(p.air * 100) + "%", ax + bw2 / 2, ay + bh2 / 2 + 1); ctx.fillText("AIRE " + Math.round(p.air * 100) + "%", ax + bw2 / 2, ay + bh2 / 2 + 1);
   const blink = Math.floor(race.t * 8) % 2;
   const [txt, tc] = p.finished ? ["", "#fff"] : p.noAir ? ["¡SIN AIRE! RESPIRÁ", blink ? "#FF6A5A" : "#fff"]
-    : p.breathing ? ["RECARGANDO ▲▲▲", "#8FE3FF"] : p.plancha ? ["PLANCHA: RECARGA ▲", "#8FE3FF"]
+    : p.walk > 0 ? ["CAMINANDO: RECARGA ▲▲▲", "#8FE3FF"] : p.breathing ? ["RECARGANDO ▲▲▲", "#8FE3FF"] : p.plancha ? ["PLANCHA: RECARGA ▲", "#8FE3FF"]
     : flying ? ["MARIPOSA: GASTA ▼▼▼", blink ? "#FFD84A" : "#FFB020"] : ["CROL: GASTA ▼", "#CFE9FF"];
   ctx.font = "bold 12px system-ui, sans-serif"; ctx.fillStyle = tc;
   ctx.strokeText(txt, ax + bw2 / 2, ay + bh2 + 13); ctx.fillText(txt, ax + bw2 / 2, ay + bh2 + 13);
@@ -656,4 +716,98 @@ function itemIcon(kind) {
   const c = document.createElement("canvas"); c.width = c.height = 40;
   drawItem(c.getContext("2d"), kind, 20, 20, 14);
   return `<img src="${c.toDataURL()}" width="20" height="20" alt="">`;
+}
+
+// Pablo caminando por la pileta: parado, dando pasos, con el agua a la cintura.
+function drawWalker(ctx, r, x, y, ppm, t) {
+  const k = ppm * 2, ch = r.ch, step = Math.sin(t * 9);
+  ctx.save(); ctx.translate(x + ppm * 0.9, y);
+  if (r.immune > 0 && Math.floor(t * 10) % 2) ctx.globalAlpha = 0.75;
+  ctx.fillStyle = "rgba(0,45,100,0.22)"; ctx.beginPath(); ctx.ellipse(k * 0.05, k * 0.1, k * 0.4, k * 0.32, 0, 0, 7); ctx.fill();
+  // pies que avanzan uno y otro, abajo del agua
+  ctx.fillStyle = shade(ch.skin, -0.15); ctx.globalAlpha *= 0.7;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(s * step * k * 0.18, s * k * 0.11, k * 0.13, k * 0.06, 0, 0, 7); ctx.fill(); }
+  ctx.globalAlpha /= 0.7;
+  // ola alrededor de la cintura
+  ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(k * 0.02, 0, k * 0.34, k * 0.3, 0, 0, 7); ctx.stroke();
+  // brazos que se balancean
+  ctx.lineCap = "round";
+  for (const s of [-1, 1]) {
+    ctx.strokeStyle = shade(ch.skin, -0.06); ctx.lineWidth = k * 0.1;
+    ctx.beginPath(); ctx.moveTo(0, s * k * 0.2); ctx.lineTo(-s * step * k * 0.2, s * k * 0.27); ctx.stroke();
+  }
+  // hombros y cabeza
+  ctx.fillStyle = ch.skin; ctx.strokeStyle = "rgba(20,30,50,0.4)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(0, 0, k * 0.15, k * 0.25, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = ch.cap; ctx.strokeStyle = r.isPlayer ? "#FFD84A" : "#fff"; ctx.lineWidth = r.isPlayer ? 3 : 2;
+  ctx.beginPath(); ctx.arc(k * 0.04, 0, k * 0.13, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#1B2A3A"; for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(k * 0.14, s * k * 0.05, k * 0.03, k * 0.022, 0, 0, 7); ctx.fill(); }
+  ctx.restore();
+}
+
+// Tribunas con la hinchada, a cada punta. Cada uno tiene su color fijo (no cambia de un cuadro a otro).
+const FAN_SHIRTS = ["#75AADB", "#FFFFFF", "#FFD23A", "#1A1A1A", "#E8413C", "#2F6FE0", "#7CFC6A", "#FF8A2A", "#B05FD0"];
+const FAN_SKIN = ["#F2C6A0", "#E6B08A", "#C98F68", "#EDBB95", "#B27852"];
+const FAN_HAIR = ["#2A1C14", "#3A2618", "#F0CC62", "#6E6E74", "#1A1410"];
+const hash = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
+// Banderas: Argentina, Almirante Brown (aurinegro) y Huracán de San Justo.
+// ❓ Los colores de Huracán de San Justo no se confirmaron: por ahora va blanca con el nombre.
+const FLAGS = ["arg", "brown", "huracan", "arg", "brown"];
+function drawFlag(ctx, kind, x, y, w, h, t, seed) {
+  ctx.save(); ctx.translate(x, y);
+  ctx.strokeStyle = "#5A4636"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, h * 0.5); ctx.lineTo(0, -h * 0.7); ctx.stroke();
+  const cols = 10, cw = w / cols;
+  for (let i = 0; i < cols; i++) { // la tela flamea por tiras
+    const off = Math.sin(t * 6 + i * 0.7 + seed) * h * 0.08 * (i / cols);
+    const x0 = i * cw, y0 = -h * 0.7 + off;
+    if (kind === "arg") {
+      ctx.fillStyle = "#75AADB"; ctx.fillRect(x0, y0, cw + 0.5, h / 3);
+      ctx.fillStyle = "#fff"; ctx.fillRect(x0, y0 + h / 3, cw + 0.5, h / 3);
+      ctx.fillStyle = "#75AADB"; ctx.fillRect(x0, y0 + h * 2 / 3, cw + 0.5, h / 3);
+    } else if (kind === "brown") {
+      ctx.fillStyle = i % 2 ? "#1A1A1A" : "#FFD23A"; ctx.fillRect(x0, y0, cw + 0.5, h);
+    } else {
+      ctx.fillStyle = "#fff"; ctx.fillRect(x0, y0, cw + 0.5, h);
+    }
+  }
+  const mid = Math.sin(t * 6 + 5 * 0.7 + seed) * h * 0.04;
+  if (kind === "arg") { ctx.fillStyle = "#F6B40E"; ctx.beginPath(); ctx.arc(w / 2, -h * 0.7 + h / 2 + mid, h * 0.1, 0, 7); ctx.fill(); }
+  if (kind === "huracan") {
+    ctx.fillStyle = "#10324F"; ctx.font = `bold ${Math.round(h * 0.26)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("HURACÁN", w / 2, -h * 0.7 + h * 0.36 + mid); ctx.font = `bold ${Math.round(h * 0.2)}px system-ui, sans-serif`; ctx.fillText("SAN JUSTO", w / 2, -h * 0.7 + h * 0.68 + mid);
+  }
+  ctx.restore();
+}
+function drawStands(ctx, x0, x1, top, ph, ppm, t, hype, seed) {
+  if (x1 < 0 || x0 > ctx.canvas.width) return;
+  const rowW = ppm * 0.95, rows = Math.max(1, Math.floor((x1 - x0) / rowW));
+  for (let i = 0; i < rows; i++) { // escalones de cemento
+    ctx.fillStyle = i % 2 ? "#C9CED6" : "#B7BDC7"; ctx.fillRect(x0 + i * rowW, top - 6, rowW, ph + 12);
+  }
+  const gap = ppm * 0.62;
+  for (let i = 0; i < rows; i++) for (let j = 0, y = top + gap * 0.5; y < top + ph - gap * 0.3; j++, y += gap) {
+    const n = seed * 1000 + i * 97 + j, h = hash(n);
+    if (h < 0.12) continue; // algún lugar vacío
+    const cx = x0 + (i + 0.5) * rowW + (hash(n + 1) - 0.5) * rowW * 0.3, cy = y + (hash(n + 2) - 0.5) * gap * 0.3;
+    const jump = Math.max(0, Math.sin(t * (6 + h * 4) + n)) * hype;
+    const s = ppm * 0.2 * (1 + jump * 0.15);
+    const shirt = FAN_SHIRTS[Math.floor(hash(n + 3) * FAN_SHIRTS.length)];
+    // brazos arriba cuando se entusiasman
+    if (jump > 0.3) {
+      ctx.strokeStyle = FAN_SKIN[Math.floor(hash(n + 4) * FAN_SKIN.length)]; ctx.lineWidth = s * 0.4; ctx.lineCap = "round";
+      for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx, cy + d * s * 0.8); ctx.lineTo(cx + s * 0.9, cy + d * s * (1.1 + jump * 0.4)); ctx.stroke(); }
+    }
+    ctx.fillStyle = shirt; ctx.beginPath(); ctx.ellipse(cx - s * 0.2, cy, s * 0.8, s * 1.05, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = FAN_SKIN[Math.floor(hash(n + 4) * FAN_SKIN.length)]; ctx.beginPath(); ctx.arc(cx + s * 0.25, cy, s * 0.55, 0, 7); ctx.fill();
+    ctx.fillStyle = FAN_HAIR[Math.floor(hash(n + 5) * FAN_HAIR.length)]; ctx.beginPath(); ctx.arc(cx + s * 0.05, cy, s * 0.5, Math.PI * 0.6, Math.PI * 1.4); ctx.fill();
+  }
+  // banderas entre la gente
+  const fw = Math.min(ppm * 1.7, (x1 - x0) * 0.45), fh = fw * 0.62, nf = Math.max(2, Math.floor(ph / (fh * 1.6)));
+  for (let f = 0; f < nf; f++) {
+    // del lado de la pileta, que es lo que se ve
+    const fy = top + ph * (f + 0.6) / nf, spread = fw * (0.3 + 1.4 * hash(seed * 50 + f));
+    const fx = seed === 1 ? x1 - fw - spread : x0 + spread;
+    drawFlag(ctx, FLAGS[(f + seed) % FLAGS.length], fx, fy, fw, fh, t, f + seed);
+  }
 }
