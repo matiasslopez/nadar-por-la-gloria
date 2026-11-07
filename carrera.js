@@ -37,14 +37,18 @@ const RACE_M = 100;       // largo de la carrera si no se dice otro, en metros
 const CIRCUITS = {
 // pool: largo de la pileta; si la carrera es más larga, en cada pared se hace la vuelta americana.
 // dists: los largos de carrera que se pueden elegir en la carrera rápida (la copa usa len).
-  club:     { id: "club", name: "PILETA DEL CLUB", pool: 25, len: 50, dists: [50, 100, 200], level: 0, gap: [4, 6],
-              info: "Pileta cortita de 25 m: muchas vueltas americanas, pegale bien a cada una." },
-  olimpica: { id: "olimpica", name: "PILETA OLÍMPICA", pool: 50, len: 100, dists: [100, 200, 400], level: 1, gap: [4, 7],
-              info: "Pileta de 50 m: hay que repartir el aire." },
-  abiertas: { id: "abiertas", name: "AGUAS ABIERTAS", len: 150, level: 2, gap: [5, 8], current: 0.07, open: true,
-              info: "150 m en el río: sin paredes ni vueltas, no hay corcheras y la corriente te lleva de costado." }
+// show: los metros que se muestran, cuando la carrera "equivale" a más de lo que se nada en el juego.
+  sprint:    { id: "sprint", name: "SPRINT", pool: 50, len: 50, level: 0, gap: [4, 6],
+               info: "Un solo largo de 50 m en la pileta olímpica: sin vueltas, todo a fondo. La salida es clave." },
+  idavuelta: { id: "idavuelta", name: "IDA Y VUELTA", pool: 50, len: 200, dists: [100, 200, 400], level: 1, gap: [4, 7],
+               info: "En la pileta olímpica, ida y vuelta: en cada pared, vuelta americana. Hay que repartir el aire." },
+  abiertas:  { id: "abiertas", name: "AGUAS ABIERTAS", len: 150, show: 500, level: 2, gap: [5, 8], current: 0.08, against: 0.14, open: true,
+               info: "500 m en el río, sin paredes ni corcheras. La corriente cambia: a veces te frena de frente y a veces te lleva de costado." }
 };
-const CUP = ["club", "olimpica", "abiertas"];
+const CUP = ["sprint", "idavuelta", "abiertas"];
+// metros que se muestran (en aguas abiertas cada metro del juego vale más)
+const shownLen = (race) => race.circ.show && race.len === race.circ.len ? race.circ.show : race.len;
+const shownM = (race, x) => Math.round(x * shownLen(race) / race.len);
 const CUP_POINTS = [10, 6, 3];          // puntos por puesto en cada carrera de la copa
 const BONUS = { dulce: 2, air: 2 };     // extra por agarrar dulce de leche y por no quedarse nunca sin aire
 // Salida y vuelta americana: una barrita sube y baja; cuanto más arriba está cuando tocás, más empuje.
@@ -96,7 +100,7 @@ function newRace(playerCh, circ = CIRCUITS.olimpica, rivals = drawRivals(playerC
   const racers = chars.map((ch, i) => ({
     ch, isPlayer: i === 0, x: 1.5, u: lanes[i], v: 0, air: 1, fly: false, pecho: false,
     onBlock: true, pp: 1.5, dir: 1, nextWall: laps > 1 ? pool : Infinity, wallBar: false, barT0: 0, turnQ: null, prevB: false, push: null, steer: 0,
-    breathing: false, stun: 0, plancha: 0, noAir: 0, immune: 0, boost: 0, boostMult: 1,
+    breathing: false, stun: 0, plancha: 0, noAir: 0, immune: 0, boost: 0, boostMult: 1, kick: 0,
     objMult: 1, objT: 0, objKind: null, chaseSay: 0,
     dive: 0, walk: 0, drop: null, lunge: 0, lungeTo: 0, lungeU: 0, charge: 1, bubble: null, finished: false, finishT: 0, mood: "normal", moodT: 0, gotDulce: false, ranOut: false,
     ai: { useAt: 0, wantU: lanes[i], diveAt: aiTap(circ.level), turnAt: 0 }, complainAt: rnd(5, 9)
@@ -110,7 +114,7 @@ function newRace(playerCh, circ = CIRCUITS.olimpica, rivals = drawRivals(playerC
       used.push(u); objs.push({ kind: pickItem(), x: x + rnd(-0.8, 0.8), u });
     }
   }
-  return { t: -3, len, pool, laps, circ, racers, objs, over: false, overT: 0, events: [], cur: 0, curPh: rnd(0, 6) };
+  return { t: -3, len, pool, laps, circ, racers, objs, over: false, overT: 0, events: [], cur: 0, against: 0, curPlan: null };
 }
 
 function say(r, text, dur = 1.4) { r.bubble = { text, t: dur }; }
@@ -125,18 +129,40 @@ const MOODS = { good: ["happy", 1], bad: ["hurt", 1], hit: ["dead", 1.6], breath
 const specialReady = (r) => r.charge >= 1;
 
 // Salto del partidor: con la barrita arriba entra más lejos y más rápido.
+// Si la toca perfecta, además sale con turbo un rato (kick).
+const kickFor = (q) => q > 0.88 ? 1.8 : q > 0.55 ? 0.7 : 0;
 function startDive(race, r, q) {
-  r.onBlock = false; r.x = 1.5 + 2.5 * q; r.v = BASE_V * (1.1 + 1.1 * q);
-  r.push = { kind: "SALIDA", q, t: race.t }; emit(race, r, "dive");
+  r.onBlock = false; r.x = 1.5 + 3 * q; r.v = BASE_V * (1.0 + 1.4 * q); r.kick = kickFor(q);
+  r.push = { kind: "SALIDA", q, t: race.t }; r.qs = [q]; emit(race, r, q > 0.88 ? "perfect" : "dive");
 }
 // Vuelta americana: gira en la pared y empuja; con la barrita arriba sale disparado.
 function turnAround(race, r) {
   const q = r.turnQ === null ? 0.1 : r.turnQ, wall = r.nextWall; // si no tocó, gira tarde y sin fuerza
-  r.x = wall + 1.2 + 1.5 * q; r.v = BASE_V * (0.75 + 1.0 * q); r.dive = Math.max(r.dive, 0.2 + 0.4 * q);
+  r.x = wall + 1 + 2.2 * q; r.v = BASE_V * (0.65 + 1.25 * q); r.dive = Math.max(r.dive, 0.2 + 0.4 * q); r.kick = kickFor(q);
   r.wallBar = false; r.nextWall = wall + race.pool < race.len - 0.01 ? wall + race.pool : Infinity;
-  r.push = { kind: "VUELTA", q, t: race.t }; emit(race, r, "turn");
+  r.push = { kind: "VUELTA", q, t: race.t }; (r.qs = r.qs || []).push(q); emit(race, r, q > 0.88 ? "perfect" : "turn");
 }
 function place(race, r) { const a = poolAt(race, r.x); r.pp = a.p; r.dir = a.dir; }
+
+// La corriente del río cambia cada tantos segundos: calma, de frente o de costado (para un lado o el otro).
+const CURRENTS = [
+  { kind: "calm", side: 0, against: 0, say: "EL RÍO SE CALMA" },
+  { kind: "against", side: 0, against: 1, say: "¡CORRIENTE EN CONTRA!" },
+  { kind: "up", side: -1, against: 0.25, say: "CORRIENTE DE COSTADO ↑" },
+  { kind: "down", side: 1, against: 0.25, say: "CORRIENTE DE COSTADO ↓" }
+];
+function stepCurrent(race, dt) {
+  const c = race.circ;
+  if (!race.curPlan || race.t >= race.curPlan.until) {
+    const prev = race.curPlan ? race.curPlan.kind : "calm";
+    const opts = CURRENTS.filter((k) => k.kind !== prev), next = race.curPlan ? pick(opts) : CURRENTS[2 + (Math.random() < 0.5 ? 0 : 1)];
+    race.curPlan = { ...next, until: race.t + rnd(6, 10), at: race.t };
+    race.events.push({ kind: "current", r: null, say: next.say });
+  }
+  const k = Math.min(1, dt * 0.8); // cambia de a poco
+  race.cur += (race.curPlan.side * c.current - race.cur) * k;
+  race.against += (race.curPlan.against * c.against - race.against) * k;
+}
 
 function ahead(race, r, range) {
   let best = null;
@@ -207,7 +233,7 @@ function stepRace(race, dt, input) {
   const wasWaiting = race.t < 0;
   race.t += dt;
   if (race.t < 0) return;
-  if (race.circ.current) race.cur = Math.sin(race.t * 0.22 + race.curPh) * race.circ.current;
+  if (race.circ.current && race.t >= 0) stepCurrent(race, dt);
   const player = race.racers[0];
 
   for (const r of race.racers) {
@@ -224,7 +250,7 @@ function stepRace(race, dt, input) {
     }
     const hadObj = r.objT > 0;
     if (r.walk > 0 && r.air >= 1 && r.walk < 3) r.walk = 0; // Pablo deja de caminar cuando ya tiene la pila llena
-    for (const k of ["stun", "plancha", "immune", "boost", "dive", "walk", "lunge", "objT", "chaseSay", "moodT"]) r[k] = Math.max(0, r[k] - dt);
+    for (const k of ["stun", "plancha", "immune", "boost", "kick", "dive", "walk", "lunge", "objT", "chaseSay", "moodT"]) r[k] = Math.max(0, r[k] - dt);
     if (hadObj && r.objT <= 0) { // se terminó el objeto: se le cae y se nota el cambio de velocidad
       const good = ITEMS[r.objKind].good;
       r.drop = { kind: r.objKind, x: r.x, u: r.u, t: race.t };
@@ -274,15 +300,17 @@ function stepRace(race, dt, input) {
     if (ch.id === "luis" && race.t < 2) mult *= 0.85;
     if (r.boost > 0) mult *= r.boostMult;
     if (r.dive > 0) mult *= 1.3;
+    if (r.kick > 0) mult *= 1.18; // turbo por la salida o la vuelta perfecta
     if (r.objT > 0) mult *= r.objMult;
     if (r.plancha > 0) mult *= 0.8;
     if (blocked) mult = 0.12;
-    if (!r.isPlayer && !race.fair) mult *= 1 + clamp((player.x - r.x) / 30, -0.08, 0.1) + race.circ.level * 0.015; // pareja, y más difícil en cada circuito
+    if (!r.isPlayer && !race.fair) mult *= 1 + clamp((player.x - r.x) / 18, -0.09, 0.12) + race.circ.level * 0.015; // pareja hasta el final, y más difícil en cada circuito
     const target = BASE_V * mult;
     r.v += (target - r.v) * Math.min(1, dt * (flying ? 4 : 2.5)); // la mariposa arranca con un tirón
     r.x += r.v * dt;
     if (r.lunge > 0) { const k = Math.min(1, dt * 10); r.x += (r.lungeTo - r.x) * k; r.u += (r.lungeU - r.u) * k; }
     if (!blocked) r.u = clamp(r.u + r.steer * dt * 0.65 * (ch.heavy ? 0.6 : 1), 0.08, 0.92);
+    if (race.against) mult *= 1 - race.against * (ch.heavy ? 0.6 : 1); // corriente de frente: Pablo, que es una losa, la sufre menos
     if (race.cur) r.u = clamp(r.u + race.cur * dt * (ch.heavy ? 0.6 : 1), 0.08, 0.92); // la corriente del río
     // llegando a la pared aparece la barrita de la vuelta americana
     if (!r.wallBar && r.x > r.nextWall - TURN_ZONE) { r.wallBar = true; r.barT0 = race.t; r.turnQ = null; r.ai.turnAt = race.t + aiTap(race.circ.level); }

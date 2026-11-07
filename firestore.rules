@@ -1,0 +1,71 @@
+rules_version = '2';
+// Reglas de la base de Nadar por la gloria. Se pegan en Firebase → Firestore → Reglas.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Admin: solo la cuenta de Google del dueño, con el mail verificado
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'matiasslopez@gmail.com' && request.auth.token.email_verified == true;
+    }
+    function okAlias(a) { return a is string && a.size() <= 16; }
+    function okChar(c) { return c in ['facu', 'luis', 'mati', 'pablo']; }
+    function okMode(m) { return m in ['sprint', 'idavuelta', 'abiertas']; }
+
+    // Carreras terminadas: todos leen (para las métricas), nadie edita; máx. una cada 8 s por dispositivo
+    match /runs/{id} {
+      allow read: if true;
+      allow create: if request.resource.data.keys().hasOnly(['alias', 'char', 'mode', 'dist', 'place', 'time', 'cup', 'dive', 'turns', 'plat', 'device', 'at'])
+        && okAlias(request.resource.data.alias) && okChar(request.resource.data.char) && okMode(request.resource.data.mode)
+        && request.resource.data.dist is int && request.resource.data.dist >= 50 && request.resource.data.dist <= 400
+        && request.resource.data.place is int && request.resource.data.place >= 1 && request.resource.data.place <= 3
+        && (request.resource.data.time == null || (request.resource.data.time is number
+            && request.resource.data.time >= request.resource.data.dist / 8 && request.resource.data.time <= 1200))
+        && request.resource.data.device is string && request.resource.data.device.size() <= 40
+        && getAfter(/databases/$(database)/documents/lim/$(request.resource.data.device)).data.t == request.time;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+    // Récords del grupo: uno por dispositivo y modo; solo se puede bajar el tiempo
+    match /boards/{board}/best/{dev} {
+      allow read: if true;
+      allow create, update: if board in ['sprint-50', 'idavuelta-100', 'idavuelta-200', 'idavuelta-400', 'abiertas-150']
+        && request.resource.data.keys().hasOnly(['alias', 'char', 'time', 'at'])
+        && okAlias(request.resource.data.alias) && request.resource.data.alias.size() > 0 && okChar(request.resource.data.char)
+        && request.resource.data.time is number && request.resource.data.time >= 5 && request.resource.data.time <= 1200
+        && (resource == null || request.resource.data.time < resource.data.time);
+      allow delete: if isAdmin();
+    }
+    // Visitas: un documento por dispositivo; el contador solo sube de a 1; solo el admin las lee
+    match /visits/{id} {
+      allow get: if true;
+      allow list: if isAdmin();
+      allow create: if request.resource.data.count == 1;
+      allow update: if request.resource.data.count == resource.data.count + 1
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['shares']);
+      allow delete: if false;
+    }
+    // Comentarios: cualquiera deja uno (máx. uno por minuto por dispositivo); solo el admin los lee
+    match /feedback/{id} {
+      allow create: if request.resource.data.keys().hasOnly(['rating', 'comment', 'alias', 'char', 'mode', 'device', 'at'])
+        && request.resource.data.rating is int && request.resource.data.rating >= 1 && request.resource.data.rating <= 5
+        && request.resource.data.comment is string && request.resource.data.comment.size() <= 500
+        && okAlias(request.resource.data.alias)
+        && request.resource.data.device is string && request.resource.data.device.size() > 0 && request.resource.data.device.size() <= 40
+        && getAfter(/databases/$(database)/documents/limf/$(request.resource.data.device)).data.t == request.time;
+      allow read, delete: if isAdmin();
+      allow update: if false;
+    }
+    // Límite de frecuencia: una marca de tiempo por dispositivo
+    match /lim/{dev} {
+      allow create: if request.resource.data.keys().hasOnly(['t']) && request.resource.data.t == request.time;
+      allow update: if request.resource.data.keys().hasOnly(['t']) && request.resource.data.t == request.time
+        && request.time > resource.data.t + duration.value(8, 's');
+      allow read, delete: if false;
+    }
+    match /limf/{dev} {
+      allow create: if request.resource.data.keys().hasOnly(['t']) && request.resource.data.t == request.time;
+      allow update: if request.resource.data.keys().hasOnly(['t']) && request.resource.data.t == request.time
+        && request.time > resource.data.t + duration.value(60, 's');
+      allow read, delete: if false;
+    }
+  }
+}

@@ -123,10 +123,10 @@ const store = {
   // Inicio → (copa o carrera rápida) → elegir nadador → sorteo y circuito → carrera → resultado.
   // La copa son 3 carreras con los mismos rivales; lo que sumás va al ranking guardado en este celu.
   let race = null, player = null, chosen = null, lastCount = 99, endShown = false;
-  let mode = "quick", cup = null, quickCirc = store.get("npg-circ") || "olimpica";
+  let mode = "quick", cup = null, quickCirc = store.get("npg-circ") || "sprint";
   // largo de la carrera rápida en cada pileta (100, 200 o 400 m en la olímpica)
   const quickDist = (c) => { const d = +store.get("npg-dist-" + c.id); return c.dists && c.dists.includes(d) ? d : c.len; };
-  if (!CIRCUITS[quickCirc]) quickCirc = "olimpica";
+  if (!CIRCUITS[quickCirc]) quickCirc = "sprint";
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const alias = () => (store.get("npg-apodo") || "").trim();
   function ranking() { try { return JSON.parse(store.get("npg-ranking") || "{}"); } catch (e) { return {}; } }
@@ -145,15 +145,18 @@ const store = {
         <button class="mode alt" id="mQuick">CARRERA RÁPIDA<small>Una carrera suelta para practicar</small></button>
       </div>
       <div class="cols"><div class="how"><b>Cómo se juega</b>
+        <span>🏁 Tres modos: SPRINT (un largo de 50 m), IDA Y VUELTA (200 m con vueltas americanas) y AGUAS ABIERTAS (500 m con corriente que cambia).</span>
         <span>🏊 Nadás crol solo. ${say2("Tocá arriba o abajo de la izquierda", "Con ↑ y ↓")} te movés.</span>
         <span>🔋 El aire es tu pila. En crol baja despacio; ${say2("manteniendo MARIPOSA", "manteniendo →")} vas mucho más rápido, pero baja rápido.</span>
         <span>🐸 ${say2("Manteniendo PECHO", "Manteniendo Z")} vas más lento que en crol, pero casi no gastás aire: sirve para llegar al final sin parar.</span>
         <span>💨 ${say2("Mantené RESPIRAR", "Mantené ESPACIO")} para recargarla: mientras respirás vas más lento. Sin aire, casi no avanzás.</span>
-        <span>🚀 En la salida y en cada vuelta americana sube y baja una barrita: ${say2("tocá RESPIRAR", "apretá ESPACIO")} cuando está arriba de todo y salís con mucho más empuje.</span>
+        <span>🚀 En la salida y en cada vuelta americana aparece una barra que va y viene: ${say2("tocá la pantalla", "apretá cualquier tecla")} cuando llega al verde y salís disparado, con turbo.</span>
         <span>🟢 Lo verde te acelera, 🔴 lo rojo te frena. El especial ${say2("", "(←) ")}se carga solo.</span>
         <span>🏅 En la copa: 1º suma 10, 2º suma 6, 3º suma 3. Extra: +2 si agarrás dulce de leche y +2 si nunca te quedás sin aire.</span>
       </div>
-      <div class="rank"><b>RANKING</b>${rows.length ? `<table><tr><th></th><th>Apodo</th><th>Puntos</th><th>Copas ganadas</th></tr>${rows.slice(0, 10).map(([n, v], i) => `<tr class="${n === alias() ? "me" : ""}"><td>${i + 1}º</td><td>${esc(n)}</td><td>${v.pts}</td><td>${v.won} de ${v.played}</td></tr>`).join("")}</table>` : `<small>Todavía no se jugó ninguna copa en este ${say2("celu", "navegador")}.</small>`}</div></div>
+      <div class="side"><div class="rank"><b>RÉCORDS DEL GRUPO</b><div class="circs boards">${BOARDS.map(([k, n]) => `<button class="circ ${k === boardKey ? "on" : ""}" data-b="${k}">${n}</button>`).join("")}</div><div id="board"><small>Cargando…</small></div></div>
+      <div class="rank"><b>RANKING DE COPAS (este ${say2("celu", "navegador")})</b>${rows.length ? `<table><tr><th></th><th>Apodo</th><th>Puntos</th><th>Copas ganadas</th></tr>${rows.slice(0, 10).map(([n, v], i) => `<tr class="${n === alias() ? "me" : ""}"><td>${i + 1}º</td><td>${esc(n)}</td><td>${v.pts}</td><td>${v.won} de ${v.played}</td></tr>`).join("")}</table>` : `<small>Todavía no se jugó ninguna copa en este ${say2("celu", "navegador")}.</small>`}</div></div></div>
+      <button class="link" id="opinar">💬 Contanos qué te parece el juego</button>
       ${store.get("npg-guia") === "vista" ? `<button class="link" id="reguide">Ver la guía otra vez en la próxima carrera</button>` : ""}`);
     const inp = document.getElementById("alias");
     inp.oninput = () => { store.set("npg-apodo", inp.value.trim()); document.getElementById("aliasErr").hidden = true; };
@@ -162,14 +165,61 @@ const store = {
       Sound.unlock(); goFull(); mode = "cup"; selectScreen();
     };
     document.getElementById("mQuick").onclick = () => { Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
+    document.getElementById("opinar").onclick = () => feedbackScreen(homeScreen);
+    scr.querySelectorAll("[data-b]").forEach((b) => b.onclick = () => {
+      boardKey = b.dataset.b; scr.querySelectorAll("[data-b]").forEach((x) => x.classList.toggle("on", x === b)); fillBoard();
+    });
+    fillBoard();
     const rg = document.getElementById("reguide");
     if (rg) rg.onclick = () => { store.set("npg-guia", ""); rg.textContent = "Listo: la próxima carrera viene con guía"; };
+  }
+
+  // Los récords del grupo (en la nube): los 10 mejores tiempos de cada modo.
+  const BOARDS = [["sprint-50", "SPRINT 50 m"], ["idavuelta-200", "IDA Y VUELTA 200 m"], ["abiertas-150", "AGUAS ABIERTAS 500 m"],
+    ["idavuelta-100", "IDA Y VUELTA 100 m"], ["idavuelta-400", "IDA Y VUELTA 400 m"]];
+  let boardKey = "sprint-50";
+  async function fillBoard() {
+    const key = boardKey, rows = await Nube.board(key), el = document.getElementById("board");
+    if (!el || key !== boardKey) return;
+    if (!rows) { el.innerHTML = `<small>Los récords del grupo aparecen cuando el juego está conectado a internet.</small>`; return; }
+    if (!rows.length) { el.innerHTML = `<small>Todavía nadie marcó tiempo acá. ¡Sé el primero!</small>`; return; }
+    el.innerHTML = `<table>${rows.map((x, i) => { const c = CHARS.find((k) => k.id === x.char);
+      return `<tr class="${x.me ? "me" : ""}"><td>${i + 1}º</td><td>${esc(x.alias)}</td><td>${c ? faceImg(c, 20) + " " + c.name : ""}</td><td>${x.time.toFixed(2)} s</td></tr>`; }).join("")}</table>`;
+  }
+
+  // Opinar: de 1 a 5 estrellas y un comentario; va a la nube y solo lo lee Matias.
+  function feedbackScreen(back) {
+    let rating = 0;
+    show(`<h1 class="small">¿Qué te parece el juego?</h1><p class="sub">Lo lee Matias. Contá qué te gustó, qué no se entiende o qué le sumarías.</p>
+      <div class="stars">${[1, 2, 3, 4, 5].map((n) => `<button class="star" data-n="${n}">★</button>`).join("")}</div>
+      <textarea id="fbText" maxlength="500" rows="3" placeholder="Tu comentario (opcional)"></textarea>
+      <p class="sub" id="fbMsg"></p>
+      <div class="row"><button class="go" id="fbSend">ENVIAR</button><button id="fbBack">VOLVER</button></div>`);
+    const paint = () => scr.querySelectorAll(".star").forEach((b) => b.classList.toggle("on", +b.dataset.n <= rating));
+    scr.querySelectorAll(".star").forEach((b) => b.onclick = () => { rating = +b.dataset.n; paint(); });
+    document.getElementById("fbBack").onclick = back;
+    const msg = document.getElementById("fbMsg"), send = document.getElementById("fbSend");
+    send.onclick = async () => {
+      const text = document.getElementById("fbText").value.trim();
+      if (!rating) { msg.textContent = "Elegí de 1 a 5 estrellas."; return; }
+      if (/http|www\.|\.com\b/i.test(text)) { msg.textContent = "Sin links, porfa."; return; }
+      send.disabled = true; msg.textContent = "Enviando…";
+      const ok = await Nube.feedback(rating, text, { alias: alias().slice(0, 16), char: chosen ? chosen.id : "", mode: quickCirc });
+      send.disabled = false;
+      if (ok) { msg.textContent = "¡Gracias! Lo vamos a leer."; send.remove(); document.getElementById("fbBack").textContent = "LISTO"; }
+      else msg.textContent = "No se pudo enviar ahora. Esperá un minuto y probá de nuevo.";
+    };
+  }
+  // Compartir el resultado con el link al juego.
+  function shareBtn(text) {
+    const b = document.getElementById("share"); if (!b) return;
+    b.onclick = async () => { const r = await Nube.share(text); if (r === "copiado") b.textContent = "✔ LINK COPIADO"; };
   }
 
   function selectScreen() {
     race = null;
     const qc = CIRCUITS[quickCirc];
-    const circs = mode === "quick" ? `<div class="circs">${Object.values(CIRCUITS).map((c) => `<button class="circ ${c.id === quickCirc ? "on" : ""}" data-c="${c.id}">${c.name}<small>${c.pool ? "pileta de " + c.pool + " m" : "río, " + c.len + " m"}</small></button>`).join("")}</div>
+    const circs = mode === "quick" ? `<div class="circs">${Object.values(CIRCUITS).map((c) => `<button class="circ ${c.id === quickCirc ? "on" : ""}" data-c="${c.id}">${c.name}<small>${c.open ? "río, " + c.show + " m" : c.dists ? "pileta de " + c.pool + " m" : c.len + " m, sin vueltas"}</small></button>`).join("")}</div>
       ${qc.dists ? `<div class="circs dists">${qc.dists.map((d) => `<button class="circ dist ${d === quickDist(qc) ? "on" : ""}" data-d="${d}">${d} m<small>${d / qc.pool - 1 === 1 ? "1 vuelta" : d / qc.pool - 1 + " vueltas"}</small></button>`).join("")}</div>` : ""}` : "";
     show(`<p class="sub">${mode === "cup" ? "🏆 COPA · " + esc(alias()) : "CARRERA RÁPIDA"}</p><h1 class="small">Elegí tu nadador</h1>${circs}
       <div class="grid">${CHARS.map((c) => `<button class="ch" data-id="${c.id}">${faceImg(c, 56)}<b>${c.name}</b><small>${c.tag}</small>${statBars(c)}</button>`).join("")}</div>
@@ -191,7 +241,7 @@ const store = {
     const legend = Object.keys(ITEMS).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air ? " +AIRE" : ""}</span>`).join("");
     const head = cup ? `🏆 COPA · CARRERA ${cup.i + 1} DE ${CUP.length}` : "CARRERA RÁPIDA";
     const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
-    show(`<p class="sub">${head}</p><h1 class="small">${circ.name} · ${draft.len} m</h1><p class="help">${circ.info}${draft.laps > 1 ? ` Son ${draft.laps} largos: ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}.` : ""}</p>
+    show(`<p class="sub">${head}</p><h1 class="small">${circ.name} · ${shownLen(draft)} m</h1><p class="help">${circ.info}${draft.laps > 1 ? ` Son ${draft.laps} largos: ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}.` : ""}</p>
       <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${faceImg(r.ch, 52, i ? "normal" : "happy")}<b>${r.ch.name}${i ? "" : " (vos)"}</b>${pts(r)}<small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
       <p class="help">${say2("Nadás crol solo. MARIPOSA va más rápido y gasta más pila; PECHO va lento y casi no gasta. Mantené RESPIRAR para recargar.", "↑ ↓ moverte · → mariposa · Z pecho · ESPACIO respirar (mantener) · ← especial · P pausa")}</p>
       <div class="legend">${legend}</div><button class="go">¡AL AGUA!</button>`);
@@ -202,17 +252,34 @@ const store = {
     };
   }
 
+  // El podio: el 1º en el medio y más alto, el 2º a la izquierda y el 3º a la derecha.
+  // items: [{ ch, isPlayer, sub, extra }] ya ordenados del 1º al 3º.
+  function podium(items) {
+    const col = (x, i) => !x ? "" : `<div class="step s${i + 1} ${x.isPlayer ? "me" : ""}">
+      ${faceImg(x.ch, i ? 40 : 52, i ? (x.isPlayer ? "hurt" : "normal") : "happy")}${i ? "" : "<i>🏆</i>"}
+      <b>${x.ch.name}${x.isPlayer ? " (vos)" : ""}</b><small>${x.sub}</small>${x.extra || ""}
+      <div class="block">${i + 1}º</div></div>`;
+    return `<div class="podium">${col(items[1], 1)}${col(items[0], 0)}${col(items[2], 2)}</div>`;
+  }
   function endScreen() {
     const st = standings(race), pos = st.indexOf(player) + 1, win = pos === 1;
     if (guide.on) store.set("npg-guia", "vista");
-    const time = (r) => r.finished ? r.finishT.toFixed(1) + " s" : Math.floor(r.x) + " m";
-    const face = (r) => faceImg(r.ch, 38, r === st[0] ? "happy" : r.isPlayer ? "hurt" : "normal");
+    const time = (r) => r.finished ? r.finishT.toFixed(1) + " s" : shownM(race, r.x) + " m";
     const title = `<h1 class="${win ? "win" : "lose"}">${win ? "¡GANASTE!" : pos === 2 ? "SALISTE 2º" : "SALISTE 3º"}</h1>`;
+    const qs = player.qs || [], key = race.circ.id + "-" + race.len, myTime = player.finished ? Math.round(player.finishT * 100) / 100 : null;
+    const prevBest = +(store.get("npg-pb-" + key) || 0); // tu mejor marca en este celu
+    if (myTime && (!prevBest || myTime < prevBest)) store.set("npg-pb-" + key, myTime);
+    Nube.saveRun({ alias: alias().slice(0, 16), char: player.ch.id, mode: race.circ.id, dist: race.len, place: pos, time: myTime, cup: !!cup,
+      dive: Math.round((qs[0] || 0) * 100) / 100, turns: qs.length > 1 ? Math.round(qs.slice(1).reduce((a, b) => a + b, 0) / (qs.length - 1) * 100) / 100 : null });
+    const record = myTime && (!prevBest || myTime < prevBest) ? `<p class="sub rec">⏱️ ¡Tu mejor marca en ${race.circ.name} ${shownLen(race)} m! ${!Nube.online() ? "" : alias() ? "Va a los récords del grupo." : "Poné tu apodo en el inicio para entrar a los récords del grupo."}</p>` : "";
+    const shareText = `Nadé ${shownLen(race)} m de ${race.circ.name} con ${player.ch.name} en ${myTime ? myTime.toFixed(1) + " s" : "—"} y salí ${pos}º en Nadar por la gloria. ¿Me ganás?`;
     if (!cup) {
       show(`${title}<p class="sub">${win ? "La gloria es tuya." : "Sin gloria esta vez. ¿La revancha?"}</p>
-        <ol class="podio">${st.map((r, i) => `<li>${i + 1}º ${face(r)} ${r.ch.name}${r.isPlayer ? " (vos)" : ""} <small>${time(r)}</small></li>`).join("")}</ol>
+        ${podium(st.map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: time(r) })))}${record}
         <div class="row"><button class="go" id="again">OTRA VEZ</button><button id="change">CAMBIAR NADADOR</button></div>
+        <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>
         <button class="link" id="home">← Volver al inicio</button>`);
+      shareBtn(shareText); document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
       document.getElementById("again").onclick = drawScreen;
       document.getElementById("change").onclick = selectScreen;
       document.getElementById("home").onclick = homeScreen;
@@ -225,8 +292,8 @@ const store = {
     const last = cup.i >= CUP.length;
     const extras = (x) => [x.r.gotDulce ? "dulce +" + BONUS.dulce : "", !x.r.ranOut ? "aire +" + BONUS.air : ""].filter(Boolean).join(" · ");
     show(`<p class="sub">🏆 COPA · CARRERA ${cup.i} DE ${CUP.length} · ${race.circ.name}</p>${title}
-      <ol class="podio">${pts.map((x) => `<li>${x.place}º ${face(x.r)} ${x.r.ch.name}${x.r.isPlayer ? " (vos)" : ""} <small>${time(x.r)}</small> <span class="plus">+${x.total}</span>${extras(x) ? `<small class="ex">${extras(x)}</small>` : ""}</li>`).join("")}</ol>
-      ${cupTable()}
+      ${podium(pts.map((x) => ({ ch: x.r.ch, isPlayer: x.r.isPlayer, sub: time(x.r), extra: `<span class="plus">+${x.total}</span>${extras(x) ? `<small class="ex">${extras(x)}</small>` : ""}` })))}
+      ${record}${cupTable()}
       <button class="go" id="next">${last ? "VER QUIÉN GANÓ LA COPA" : "SIGUIENTE: " + CIRCUITS[CUP[cup.i]].name}</button>`);
     document.getElementById("next").onclick = last ? cupEndScreen : drawScreen;
   }
@@ -246,10 +313,12 @@ const store = {
     const place = rankRows().findIndex(([n]) => n === alias()) + 1;
     show(`<p class="sub">🏆 FIN DE LA COPA</p>
       <h1 class="${champ ? "win" : "lose"}">${champ ? "¡GANASTE LA COPA!" : "GANÓ " + order[0].name}</h1>
-      <div class="trophy">${faceImg(order[0], 72, "happy")}<span>🏆</span></div>
-      ${cupTable()}
+      ${podium(order.map((c) => ({ ch: c, isPlayer: c === chosen, sub: (cup.pts[c.id] || 0) + " puntos" })))}
       <p class="sub">Sumaste <b>${mine}</b> puntos para ${esc(alias())}. Vas <b>${place}º</b> en el ranking.</p>
-      <div class="row"><button class="go" id="again">OTRA COPA</button><button id="change">AL INICIO</button></div>`);
+      <div class="row"><button class="go" id="again">OTRA COPA</button><button id="change">AL INICIO</button></div>
+      <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`);
+    shareBtn(`${champ ? "¡Gané la copa" : "Jugué la copa"} de Nadar por la gloria con ${chosen.name}: ${mine} puntos. ¿Me ganás?`);
+    document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
     document.getElementById("again").onclick = () => { mode = "cup"; selectScreen(); };
     document.getElementById("change").onclick = homeScreen;
   }

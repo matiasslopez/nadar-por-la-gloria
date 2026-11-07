@@ -37,6 +37,7 @@ const Sound = (() => {
     gulp: () => { for (let i = 0; i < 3; i++) tone(260 - i * 40, 120, 0.07, "sine", 0.18, i * 0.08); },
     noAir: () => tone(160, 90, 0.5, "triangle", 0.15),
     dive: () => noise(0.3, 700, 0.22),
+    perfect: () => { noise(0.3, 700, 0.22); [784, 988, 1318].forEach((f, i) => tone(f, f, 0.09, "square", 0.08, 0.05 + i * 0.06)); },
     turn: () => { noise(0.2, 500, 0.2); tone(300, 600, 0.15, "triangle", 0.07); },
     special: () => tone(300, 1500, 0.25, "sawtooth", 0.07),
     hit: () => tone(200, 60, 0.25, "square", 0.1),
