@@ -686,7 +686,7 @@ function drawHud(ctx, race, W, H) {
   // largada: cada número aparece grande y se achica
   if (race.t < 0.6) {
     const n = race.t < 0 ? Math.ceil(-race.t) : 0, k = 1.5 - 0.5 * (race.t < 0 ? n + race.t : race.t / 0.6);
-    ctx.save(); ctx.translate(n ? W / 2 : W * 0.66, n ? H / 2 : H * 0.42); ctx.scale(n ? k : k * 0.7, n ? k : k * 0.7); // el ¡YA! se corre para que se vea la barrita
+    ctx.save(); ctx.translate(W / 2, H * 0.4); ctx.scale(k * 0.8, k * 0.8); // más arriba, para que se vea la barra de la largada
     ctx.font = "bold 90px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.lineWidth = 10; ctx.strokeStyle = "#0E4C7E"; ctx.fillStyle = n ? "#fff" : "#FFD84A";
     const s = n ? String(n) : "¡YA!";
@@ -696,25 +696,45 @@ function drawHud(ctx, race, W, H) {
   ctx.restore();
 }
 
-// La barrita que sube y baja en el partidor y llegando a la pared: tocar cuando está arriba de todo.
+// La barra de la largada y de la vuelta americana: grande en el centro, con una flecha que va
+// y viene; hay que tocar (cualquier botón, la pantalla o cualquier tecla) cuando llega al verde.
 function drawPushBar(ctx, race, p, x, y, ppm, t, W, H) {
-  const onBar = (p.onBlock && race.t >= 0) || (p.wallBar && p.turnQ === null && !p.finished);
-  const bh = Math.min(110, (H - POOL_TOP) * 0.42), bw = 26;
-  const bx = clamp(x + (p.onBlock ? ppm * 2.6 : p.dir * ppm * 2.4) - bw / 2, 8, W - bw - 8), by = clamp(y - bh / 2, POOL_TOP + 26, H - bh - 30);
+  const ready = p.onBlock && race.t < 0, onBar = ready || (p.onBlock && race.t >= 0) || (p.wallBar && p.turnQ === null && !p.finished);
   if (onBar) {
-    const v = p.onBlock ? barAt(0, race.t) : barAt(p.barT0, race.t);
+    const v = ready ? 0 : p.onBlock ? barAt(0, race.t) : barAt(p.barT0, race.t), hot = !ready && v > 0.88;
+    const pc = document.body.classList.contains("pc");
+    const bw = Math.min(W * 0.46, 380), bh = 24, bx = W / 2 - bw / 2, by = Math.min(H - 104, H * 0.7);
     ctx.save();
-    ctx.fillStyle = "#000a"; ctx.beginPath(); ctx.roundRect(bx - 4, by - 4, bw + 8, bh + 8, 8); ctx.fill();
-    const g = ctx.createLinearGradient(0, by + bh, 0, by);
-    g.addColorStop(0, "#FF4A3A"); g.addColorStop(0.55, "#FFD23A"); g.addColorStop(1, "#5FE36A");
-    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(bx, by + bh * (1 - v), bw, bh * v, 5); ctx.fill();
-    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.strokeRect(bx - 1, by + bh * 0.12, bw + 2, 0); // arriba de todo: la zona perfecta
-    ctx.fillStyle = "#ffffff44"; ctx.fillRect(bx, by, bw, bh * 0.12);
-    ctx.font = "bold 15px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.lineWidth = 4; ctx.strokeStyle = "#0E4C7E";
-    const s = p.onBlock ? "¡SALTÁ!" : "¡VUELTA!", k = 1 + (v > 0.88 ? 0.15 : 0);
-    ctx.translate(bx + bw / 2, by - 8); ctx.scale(k, k);
-    ctx.strokeText(s, 0, 0); ctx.fillStyle = v > 0.88 ? "#7CFC6A" : "#fff"; ctx.fillText(s, 0, 0);
+    // fondo
+    ctx.fillStyle = "rgba(8,40,70,0.88)"; ctx.strokeStyle = hot ? "#7CFC6A" : "#FFD84A"; ctx.lineWidth = hot ? 4 : 2;
+    ctx.beginPath(); ctx.roundRect(bx - 16, by - 42, bw + 32, bh + 76, 16); ctx.fill(); ctx.stroke();
+    // título
+    ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "bold 16px system-ui, sans-serif"; ctx.fillStyle = "#FFD84A";
+    ctx.fillText(ready ? "EN EL ¡YA! SALE LA BARRA" : p.onBlock ? "LARGADA: ¡SALTÁ!" : "VUELTA AMERICANA: ¡EMPUJÁ!", W / 2, by - 24);
+    // la barra: de rojo (flojo) a verde (perfecto)
+    const g = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+    g.addColorStop(0, "#FF4A3A"); g.addColorStop(0.55, "#FFD23A"); g.addColorStop(0.86, "#9BE35A"); g.addColorStop(1, "#3FD35A");
+    ctx.globalAlpha = ready ? 0.5 : 1; ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(bx, by, bw, bh, 8); ctx.fill(); ctx.globalAlpha = 1;
+    // la zona perfecta
+    const zx = bx + bw * 0.88;
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 3; ctx.beginPath(); ctx.roundRect(zx, by - 3, bw * 0.12, bh + 6, 6); ctx.stroke();
+    ctx.font = "bold 11px system-ui, sans-serif"; ctx.fillStyle = hot ? "#7CFC6A" : "#fff"; ctx.fillText("¡AHORA!", zx + bw * 0.06, by - 10);
+    // la flecha que va y viene
+    const px = bx + bw * v, pk = hot ? 1.25 : 1;
+    ctx.fillStyle = hot ? "#7CFC6A" : "#fff"; ctx.strokeStyle = "#0E4C7E"; ctx.lineWidth = 2;
+    ctx.fillRect(px - 2.5, by - 4, 5, bh + 8);
+    ctx.beginPath(); ctx.moveTo(px, by + bh + 4); ctx.lineTo(px - 9 * pk, by + bh + 16 * pk); ctx.lineTo(px + 9 * pk, by + bh + 16 * pk); ctx.closePath(); ctx.fill(); ctx.stroke();
+    // cómo se toca
+    ctx.font = "bold 12px system-ui, sans-serif"; ctx.fillStyle = "#fff";
+    ctx.fillText(pc ? "CUALQUIER TECLA CUANDO LA FLECHA LLEGUE AL VERDE" : "TOCÁ LA PANTALLA CUANDO LA FLECHA LLEGUE AL VERDE", W / 2, by + bh + 27, bw + 20);
     ctx.restore();
+    // una flechita sobre tu nadador, para que sepas cuál es
+    if (!ready) {
+      const b = Math.sin(t * 10) * 3;
+      ctx.save(); ctx.fillStyle = "#FFD84A"; ctx.strokeStyle = "#0E4C7E"; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x, y - ppm * 0.9 + b); ctx.lineTo(x - 8, y - ppm * 0.9 - 12 + b); ctx.lineTo(x + 8, y - ppm * 0.9 - 12 + b); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
   }
   // cómo te salió el salto o la vuelta
   if (p.push && race.t - p.push.t < 1.3) {

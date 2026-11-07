@@ -48,7 +48,7 @@ const CUP = ["club", "olimpica", "abiertas"];
 const CUP_POINTS = [10, 6, 3];          // puntos por puesto en cada carrera de la copa
 const BONUS = { dulce: 2, air: 2 };     // extra por agarrar dulce de leche y por no quedarse nunca sin aire
 // Salida y vuelta americana: una barrita sube y baja; cuanto más arriba está cuando tocás, más empuje.
-const BAR_T = 0.8;        // la barrita sube y baja en 0,8 segundos (arriba de todo a los 0,4)
+const BAR_T = 1.0;        // la barra va y vuelve en 1 segundo (en el verde a los 0,5)
 const TURN_ZONE = 4;      // a cuántos metros de la pared aparece la barrita de la vuelta
 const barAt = (t0, t) => (1 - Math.cos(((t - t0) / BAR_T) * Math.PI * 2)) / 2;
 const aiTap = (level) => Math.max(0.08, BAR_T / 2 + (rnd(-1, 1) + rnd(-1, 1)) * [0.2, 0.15, 0.11][level]); // cuándo toca la máquina
@@ -214,7 +214,7 @@ function stepRace(race, dt, input) {
     const ch = r.ch;
     if (r.bubble) { r.bubble.t -= dt; if (r.bubble.t <= 0) r.bubble = null; }
     if (r.finished) { r.v *= 1 - dt * 1.5; r.x += r.v * dt; place(race, r); continue; }
-    const pressed = r.isPlayer && !!input.breathe && !r.prevB; // tocar RESPIRAR (o espacio) sirve para saltar y para la vuelta
+    const pressed = r.isPlayer && (!!input.tap || (!!input.breathe && !r.prevB)); // cualquier toque o tecla sirve para saltar y para la vuelta
     if (r.isPlayer) r.prevB = !!input.breathe;
     if (r.onBlock) { // en el partidor la barrita sube y baja; si no salta, a los 1,6 segundos se tira tarde
       if (pressed) startDive(race, r, barAt(0, race.t));

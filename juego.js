@@ -27,7 +27,9 @@ const store = {
   const PC = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   document.body.classList.toggle("pc", PC);
   const say2 = (touch, pc) => (PC ? pc : touch);
-  const input = { up: false, down: false, fly: false, pecho: false, breathe: false, specialPressed: false };
+  const input = { up: false, down: false, fly: false, pecho: false, breathe: false, specialPressed: false, tap: false };
+  // en la largada y llegando a la pared, cualquier tecla o toque en la pantalla sirve para saltar o girar
+  const pushOpen = () => race && !race.over && !paused && scr.style.display === "none" && ((player.onBlock && race.t >= 0) || (player.wallBar && player.turnQ === null));
   const keys = { ArrowUp: "up", ArrowDown: "down", ArrowRight: "fly", w: "up", W: "up", s: "down", S: "down", d: "fly", D: "fly", z: "pecho", Z: "pecho", " ": "breathe" };
   const presses = { ArrowLeft: "specialPressed", a: "specialPressed", A: "specialPressed" };
   window.addEventListener("keydown", (e) => {
@@ -37,13 +39,16 @@ const store = {
       if ((e.key === "Enter" || (e.key === " " && !typing)) && go) { e.preventDefault(); go.click(); }
       return;
     }
+    const push = pushOpen() && !e.repeat && !"pP".includes(e.key) && e.key !== "Escape";
+    if (push) { input.tap = true; e.preventDefault(); }
     if (keys[e.key]) { input[keys[e.key]] = true; e.preventDefault(); }
-    if (presses[e.key] && !e.repeat) { input[presses[e.key]] = true; e.preventDefault(); }
+    if (presses[e.key] && !e.repeat && !push) { input[presses[e.key]] = true; e.preventDefault(); }
     if ((e.key === "p" || e.key === "P" || e.key === "Escape") && race && !race.over) setPaused(!paused);
     else if (paused && !e.repeat) setPaused(false);
   });
   window.addEventListener("keyup", (e) => { if (keys[e.key]) input[keys[e.key]] = false; });
 
+  window.addEventListener("pointerdown", (e) => { if (pushOpen() && !e.target.closest("#pauseBtn, #mute")) input.tap = true; }, true);
   const pad = document.getElementById("pad");
   const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch (err) {} };
   // zona izquierda: tocar en la mitad de arriba sube, en la de abajo baja (se puede deslizar)
@@ -106,8 +111,6 @@ const store = {
     if (!guide.on || race.t < 0) return;
     const p = player;
     if (guide.cur) { guide.cur.t -= dt; if (guide.cur.t <= 0 || (guide.cur.id === "breath" && p.breathing)) guide.cur = null; }
-    if (p.onBlock) tip("jump", say2("¡TOCÁ RESPIRAR CUANDO LA BARRITA ESTÉ ARRIBA DE TODO!", "¡APRETÁ ESPACIO CUANDO LA BARRITA ESTÉ ARRIBA DE TODO!"), 1.6, true);
-    if (p.wallBar && p.turnQ === null) tip("turn", say2("VUELTA AMERICANA: TOCÁ RESPIRAR CON LA BARRITA ARRIBA", "VUELTA AMERICANA: ESPACIO CON LA BARRITA ARRIBA"), 1.2, true);
     if (p.onBlock || p.wallBar) return;
     if (p.air < 0.45) tip("breath", say2("SE TE VA EL AIRE: MANTENÉ RESPIRAR PARA RECARGAR LA PILA", "SE TE VA EL AIRE: MANTENÉ ESPACIO PARA RECARGAR LA PILA"), 4, true);
     tip("move", say2("TOCÁ ARRIBA O ABAJO DE LA IZQUIERDA PARA MOVERTE", "USÁ LAS FLECHAS ↑ Y ↓ PARA MOVERTE"), 3.5);
@@ -270,7 +273,7 @@ const store = {
       if (!paused) {
         stepRace(race, dt, input);
         const events = race.events; race.events = [];
-        input.specialPressed = false;
+        input.specialPressed = false; input.tap = false;
         playEvents(events); guideStep(dt, events);
         const n = race.t < 0 ? Math.ceil(-race.t) : 0;
         if (n !== lastCount) { Sound.play(n ? "count" : "go"); lastCount = n; }
@@ -279,7 +282,7 @@ const store = {
       drawHud(ctx, race, W, H);
       if (guide.cur) drawTip(ctx, W, guide.cur.text, Math.min(1, guide.cur.t * 3));
       const bar = (player.onBlock && race.t >= 0) || (player.wallBar && player.turnQ === null);
-      if (bar) setBtn("bbr", true, player.onBlock ? barAt(0, race.t) : barAt(player.barT0, race.t), player.onBlock ? "¡SALTÁ!" : "¡VUELTA!");
+      if (bar) setBtn("bbr", true, player.onBlock ? barAt(0, race.t) : barAt(player.barT0, race.t), "¡TOCÁ!");
       else setBtn("bbr", player.air < 0.3 && !player.breathing, player.air, player.breathing ? "RECARGANDO" : "RESPIRAR");
       setBtn("bsp", specialReady(player), player.charge, player.ch.special);
       if (race.over && !endShown && race.t - race.overT > 1.4) {
