@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0B3D63">
+<title>Métricas · Nadar por la gloria</title>
+<style>
+* { box-sizing: border-box; }
+body { margin: 0; background: #0B3D63; color: #fff; font: 15px system-ui, sans-serif; }
+main { max-width: 960px; margin: 0 auto; padding: 16px; }
+h1 { margin: 4px 0 2px; color: #FFD84A; font-size: 26px; }
+h2 { margin: 26px 0 8px; font-size: 17px; color: #8FE3FF; text-transform: uppercase; letter-spacing: 1px; }
+.sub { opacity: 0.8; font-size: 13px; margin: 0 0 10px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.tile { background: #ffffff14; border: 1px solid #ffffff26; border-radius: 12px; padding: 10px 12px; }
+.tile b { display: block; font-size: 28px; color: #FFD84A; line-height: 1.1; }
+.tile span { font-size: 12px; opacity: 0.85; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.box { background: #ffffff10; border-radius: 12px; padding: 10px 12px; }
+.box h3 { margin: 0 0 8px; font-size: 13px; opacity: 0.9; }
+.bar { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0; }
+.bar i { display: block; height: 12px; border-radius: 6px; background: #FFD84A; min-width: 2px; }
+.bar em { font-style: normal; text-align: right; opacity: 0.9; }
+.days { display: flex; align-items: flex-end; gap: 3px; height: 120px; }
+.days > div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; font-size: 10px; }
+.days i { display: block; width: 100%; background: #FFD84A; border-radius: 3px 3px 0 0; min-height: 1px; }
+.days i.v { background: #8FE3FF; }
+.days .pair { display: flex; align-items: flex-end; gap: 1px; width: 100%; flex: 1; }
+.days .pair i { flex: 1; }
+.legend { font-size: 12px; opacity: 0.85; margin-top: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin: 0 4px 0 10px; vertical-align: middle; }
+.fb { border-top: 1px solid #ffffff20; padding: 8px 0; font-size: 14px; }
+.fb .st { color: #FFD84A; letter-spacing: 1px; }
+.fb small { opacity: 0.7; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+td { padding: 3px 4px; border-top: 1px solid #ffffff18; }
+button { font: bold 16px system-ui, sans-serif; padding: 10px 22px; border: 0; border-radius: 30px; background: #FFD84A; color: #10324F; cursor: pointer; }
+button.link { background: none; color: #8FE3FF; text-decoration: underline; padding: 0; font-weight: normal; font-size: 13px; }
+.err { color: #FFB4A8; }
+.top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+@media (max-width: 480px) { .bar { grid-template-columns: 90px 1fr 38px; } }
+</style>
+</head>
+<body>
+<main>
+  <div class="top"><div><h1>Métricas</h1><p class="sub">Nadar por la gloria · solo para Matias</p></div><div id="who"></div></div>
+  <div id="out"><p class="sub">Cargando…</p></div>
+</main>
+<script src="config.js?v=18"></script>
+<script>
+(async () => {
+  const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
+  const out = document.getElementById("out"), who = document.getElementById("who");
+  const app = await import(FB + "firebase-app.js"), au = await import(FB + "firebase-auth.js"), fs = await import(FB + "firebase-firestore.js");
+  const fa = app.initializeApp(FIREBASE_CONFIG), auth = au.getAuth(fa), db = fs.getFirestore(fa);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const MODES = { sprint: "Sprint", idavuelta: "Ida y vuelta", abiertas: "Aguas abiertas" };
+  const NAMES = { facu: "Facu", luis: "Luis", mati: "Mati", pablo: "Pablo" };
+  const pct = (a, b) => b ? Math.round(a / b * 100) + "%" : "—";
+  const day = (iso) => { const d = new Date(iso); return isNaN(d) ? null : d.toLocaleDateString("sv"); };
+
+  function login(msg) {
+    who.innerHTML = "";
+    out.innerHTML = `${msg ? `<p class="err">${msg}</p>` : ""}<p class="sub">Entrá con tu cuenta de Google para ver las métricas.</p><button id="in">Entrar con Google</button>`;
+    document.getElementById("in").onclick = async () => {
+      try { await au.signInWithPopup(auth, new au.GoogleAuthProvider()); }
+      catch (e) { login("No se pudo entrar: " + esc(e.code || e.message)); }
+    };
+  }
+
+  au.onAuthStateChanged(auth, async (user) => {
+    if (!user) return login();
+    who.innerHTML = `<small>${esc(user.email)}</small> <button class="link" id="out-btn">salir</button>`;
+    document.getElementById("out-btn").onclick = () => au.signOut(auth);
+    out.innerHTML = `<p class="sub">Cargando…</p>`;
+    try {
+      const get = async (c) => (await fs.getDocs(fs.collection(db, c))).docs.map((d) => ({ id: d.id, ...d.data() }));
+      const [visits, runs, fbs] = await Promise.all([get("visits"), get("runs"), get("feedback")]);
+      const boards = {};
+      for (const k of ["sprint-50", "idavuelta-200", "abiertas-150", "idavuelta-100", "idavuelta-400"]) {
+        const s = await fs.getDocs(fs.query(fs.collection(db, "boards", k, "best"), fs.orderBy("time"), fs.limit(5)));
+        boards[k] = s.docs.map((d) => d.data());
+      }
+      render(visits, runs, fbs, boards);
+    } catch (e) {
+      if (e.code === "permission-denied") login("Esa cuenta no tiene permiso. Entrá con matiasslopez@gmail.com.");
+      else out.innerHTML = `<p class="err">No se pudieron cargar los datos: ${esc(e.message)}</p>`;
+    }
+  });
+
+  // barras horizontales: [[nombre, cantidad], ...]
+  function bars(title, pairs, total) {
+    const max = Math.max(1, ...pairs.map((p) => p[1]));
+    total = total || pairs.reduce((a, p) => a + p[1], 0);
+    return `<div class="box"><h3>${title}</h3>${pairs.length ? pairs.map(([k, n]) =>
+      `<div class="bar"><span>${esc(k)}</span><i style="width:${n / max * 100}%"></i><em>${n} · ${pct(n, total)}</em></div>`).join("")
+      : `<p class="sub">Sin datos todavía.</p>`}</div>`;
+  }
+  const count = (arr, f) => Object.entries(arr.reduce((m, x) => { const k = f(x); if (k != null) m[k] = (m[k] || 0) + 1; return m; }, {})).sort((a, b) => b[1] - a[1]);
+  const tile = (n, label) => `<div class="tile"><b>${n}</b><span>${label}</span></div>`;
+  const avg = (xs) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+
+  function render(visits, runs, fbs, boards) {
+    const now = Date.now(), wk = (iso) => now - new Date(iso) < 7 * 864e5;
+    const entries = visits.reduce((a, v) => a + (v.count || 0), 0);
+    const back = visits.filter((v) => (v.count || 0) > 1).length;
+    const players = new Set(runs.map((r) => r.device));
+    const shares = visits.reduce((a, v) => a + (v.shares || 0), 0);
+    const viaShare = visits.filter((v) => v.src === "compartido").length;
+    const wins = runs.filter((r) => r.place === 1).length;
+    const dive = avg(runs.map((r) => r.dive).filter((x) => typeof x === "number"));
+    const turns = avg(runs.map((r) => r.turns).filter((x) => typeof x === "number"));
+    const stars = avg(fbs.map((f) => f.rating));
+
+    // últimos 14 días: personas nuevas y carreras
+    const days = [];
+    for (let i = 13; i >= 0; i--) days.push(new Date(now - i * 864e5).toLocaleDateString("sv"));
+    const nNew = count(visits, (v) => v.first && day(v.first)), nRuns = count(runs, (r) => day(r.at));
+    const get = (list, d) => (list.find((x) => x[0] === d) || [0, 0])[1];
+    const dmax = Math.max(1, ...days.map((d) => Math.max(get(nNew, d), get(nRuns, d))));
+
+    out.innerHTML = `
+      <h2>Gente</h2>
+      <div class="tiles">
+        ${tile(visits.length, "personas que entraron (una por celu o compu)")}
+        ${tile(visits.filter((v) => v.first && wk(v.first)).length, "nuevas en los últimos 7 días")}
+        ${tile(entries, "entradas en total")}
+        ${tile(pct(back, visits.length), "volvieron a entrar")}
+        ${tile(pct(players.size, visits.length), "de los que entraron jugaron al menos una carrera")}
+      </div>
+      <h2>Últimos 14 días</h2>
+      <div class="box"><div class="days">${days.map((d) => `<div><div class="pair"><i class="v" style="height:${get(nNew, d) / dmax * 100}%" title="${get(nNew, d)} personas nuevas"></i><i style="height:${get(nRuns, d) / dmax * 100}%" title="${get(nRuns, d)} carreras"></i></div>${+d.slice(8)}</div>`).join("")}</div>
+        <div class="legend"><i style="background:#8FE3FF"></i>personas nuevas<i style="background:#FFD84A"></i>carreras</div></div>
+      <h2>De dónde llegan</h2>
+      <div class="cols">
+        ${bars("Origen", count(visits, (v) => v.src || "directo"))}
+        ${bars("Dispositivo", count(visits, (v) => v.plat))}
+        ${bars("Sistema", count(visits, (v) => v.os))}
+      </div>
+      <div class="tiles" style="margin-top:10px">
+        ${tile(shares, "veces que tocaron COMPARTIR")}
+        ${tile(viaShare, "personas que llegaron por un link compartido")}
+      </div>
+      <h2>Carreras</h2>
+      <div class="tiles">
+        ${tile(runs.length, "carreras terminadas")}
+        ${tile(players.size ? (runs.length / players.size).toFixed(1) : "—", "carreras por persona que jugó")}
+        ${tile(pct(wins, runs.length), "las ganó el jugador")}
+        ${tile(dive == null ? "—" : Math.round(dive * 100) + "%", "potencia promedio en la largada")}
+        ${tile(turns == null ? "—" : Math.round(turns * 100) + "%", "potencia promedio en las vueltas")}
+      </div>
+      <div class="cols" style="margin-top:10px">
+        ${bars("Modo", count(runs, (r) => (MODES[r.mode] || r.mode) + (r.mode === "idavuelta" ? " " + r.dist + " m" : "")))}
+        ${bars("Puesto del jugador", count(runs, (r) => r.place + "º").sort())}
+        ${bars("Nadador elegido", count(runs, (r) => NAMES[r.char] || r.char))}
+        ${bars("Copa o carrera suelta", count(runs, (r) => r.cup ? "en la copa" : "carrera suelta"))}
+        ${bars("Desde", count(runs, (r) => r.plat))}
+      </div>
+      <h2>Comentarios ${fbs.length ? `· ${stars.toFixed(1)} ★ promedio de ${fbs.length}` : ""}</h2>
+      <div class="box">${fbs.length ? fbs.sort((a, b) => (b.at || "").localeCompare(a.at || "")).map((f) =>
+        `<div class="fb"><span class="st">${"★".repeat(f.rating)}${"☆".repeat(5 - f.rating)}</span> ${esc(f.comment) || "<small>(sin texto)</small>"}<br>
+        <small>${esc(f.alias || "sin apodo")}${f.char ? " · " + esc(NAMES[f.char] || f.char) : ""} · ${f.at ? new Date(f.at).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : ""}</small></div>`).join("")
+        : `<p class="sub">Todavía nadie dejó un comentario.</p>`}</div>
+      <h2>Récords del grupo</h2>
+      <div class="cols">${Object.entries(boards).map(([k, rows]) => `<div class="box"><h3>${esc(MODES[k.split("-")[0]])} ${k.split("-")[1] === "150" ? "500" : k.split("-")[1]} m</h3>${rows.length
+        ? `<table>${rows.map((r, i) => `<tr><td>${i + 1}º</td><td>${esc(r.alias)}</td><td>${esc(NAMES[r.char] || r.char)}</td><td>${r.time.toFixed(2)} s</td></tr>`).join("")}</table>`
+        : `<p class="sub">Sin tiempos.</p>`}</div>`).join("")}</div>
+      <p class="sub" style="margin-top:24px">Actualizado ${new Date().toLocaleString("es-AR")} · recargá la página para ver lo último.</p>`;
+  }
+})();
+</script>
+</body>
+</html>

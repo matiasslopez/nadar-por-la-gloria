@@ -2,15 +2,7 @@
 // récords del grupo por modo, cada carrera terminada (para las métricas), visitas y comentarios.
 // Sin IP ni ubicación: solo un número al azar por dispositivo. Si no hay conexión, el juego sigue igual.
 
-// Datos del proyecto de Firebase (son públicos: lo que protege la base son las reglas de firestore.rules).
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyComAkhd658W2VgtZQTA2DOYvaft1Ma678",
-  authDomain: "nadar-por-la-gloria.firebaseapp.com",
-  projectId: "nadar-por-la-gloria",
-  storageBucket: "nadar-por-la-gloria.firebasestorage.app",
-  messagingSenderId: "1163677313",
-  appId: "1:1163677313:web:b81933d1e4e18bfef1c780",
-};
+// Los datos del proyecto de Firebase están en config.js.
 
 const Nube = (() => {
   const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
