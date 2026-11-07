@@ -36,6 +36,8 @@ const Sound = (() => {
     breath: () => noise(0.22, 900, 0.2),
     gulp: () => { for (let i = 0; i < 3; i++) tone(260 - i * 40, 120, 0.07, "sine", 0.18, i * 0.08); },
     noAir: () => tone(160, 90, 0.5, "triangle", 0.15),
+    dive: () => noise(0.3, 700, 0.22),
+    turn: () => { noise(0.2, 500, 0.2); tone(300, 600, 0.15, "triangle", 0.07); },
     special: () => tone(300, 1500, 0.25, "sawtooth", 0.07),
     hit: () => tone(200, 60, 0.25, "square", 0.1),
     win: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, f, i === 3 ? 0.5 : 0.14, "square", 0.09, i * 0.14)),

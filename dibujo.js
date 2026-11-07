@@ -18,60 +18,73 @@ function render(ctx, race, W, H) {
   const ppm = Math.max(26, W / 22);                 // píxeles por metro
   const p = race ? race.racers[0] : { x: 0 };
   const t = race ? race.t : performance.now() / 1000;
-  const len = race ? race.len : RACE_M, open = race && race.circ.open;
+  const len = race ? race.pool : 50, open = race && race.circ.open; // len: largo de la pileta
   const dt = FX.lastT === null ? 0 : clamp(t - FX.lastT, 0, 0.05); FX.lastT = t;
   // en mariposa la cámara se adelanta un poco, para que se sienta el tirón
   const lead = race && flyingNow(p) ? 0.26 : 0.32;
   FX.lead += (lead - FX.lead) * Math.min(1, dt * 3);
-  const camX = Math.max(p.x - HAND, 0) - (W * FX.lead) / ppm + 1;
+  // la cámara sigue al jugador para el lado que nade; después de cada vuelta se da vuelta despacio
+  const dir = race ? p.dir : 1, hp = race && !p.onBlock ? Math.max(0, p.pp - dir * HAND) : 0;
+  const want = hp - (dir > 0 ? W * FX.lead : W * (1 - FX.lead)) / ppm + dir;
+  if (FX.camFor !== race) { FX.camFor = race; FX.cam = want; }
+  FX.cam += (want - FX.cam) * Math.min(1, dt * 4);
+  const camX = FX.cam;
   const sx = (x) => (x - camX) * ppm, sy = (u) => top + u * ph;
   const m0 = Math.floor(camX), m1 = camX + W / ppm + 1;
 
   if (open) drawRiver(ctx, race, W, H, top, ph, sx, sy, m0, m1, t, ppm);
-  else drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm);
+  else drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, race && race.laps > 1);
   // la hinchada se entusiasma en la largada y cuando alguien está por llegar
-  const near = race ? Math.max(...race.racers.map((r) => r.x)) / len : 0;
+  const near = race ? Math.max(...race.racers.map((r) => r.x)) / race.len : 0;
   const hype = !race ? 0.4 : race.t < 1 ? 1 : 0.35 + Math.max(0, near - 0.75) * 2.6;
   drawStands(ctx, sx(-14), sx(-2.2), top, ph, ppm, t, hype, 1);
   drawStands(ctx, sx(len) + (open ? 45 : 100), sx(len + 16), top, ph, ppm, t, hype, 2);
 
   if (!race) return;
+  const myLap = poolAt(race, p.x).lap; // solo se ven los objetos del largo que estás nadando
   for (const o of race.objs) {
     if (o.gone) continue;
-    const x = sx(o.x), y = sy(o.u); if (x < -40 || x > W + 40) continue;
+    const oa = poolAt(race, o.x); if (oa.lap !== myLap) continue;
+    const x = sx(oa.p), y = sy(o.u); if (x < -40 || x > W + 40) continue;
     const bob = Math.sin(t * 3 + o.x) * 2;
     ctx.fillStyle = "rgba(0,40,90,0.22)"; ctx.beginPath(); ctx.ellipse(x + 4, y + 6, ppm * 0.5, ppm * 0.3, 0, 0, 7); ctx.fill();
     drawItem(ctx, o.kind, x, y + bob, ppm * 0.5);
   }
-  // la largada: parados en el partidor (o en el muelle) y después el salto al agua
+  // la largada: parados en el partidor (o en el muelle) y después el salto al agua; en cada vuelta, un salpicón en la pared
   const block = -0.7, diveT = 0.35;
-  if (race.t >= 0.25 && !FX.splashed) {
-    FX.splashed = true;
-    for (const r of race.racers) for (let k = 0; k < 26; k++) {
+  for (const r of race.racers) if (r.push && r.push !== r.fxPush) {
+    r.fxPush = r.push;
+    const x0 = r.push.kind === "SALIDA" ? 0.6 + 2.5 * r.push.q * 0.5 : r.dir > 0 ? 0.3 : len - 0.3;
+    for (let k = 0; k < (r.push.kind === "SALIDA" ? 26 : 18); k++) {
       const a = rnd(0, 7), v = rnd(0.4, 1.4);
-      FX.parts.push({ x: 0.6 + Math.cos(a) * 0.2, u: r.u + Math.sin(a) * 0.02, vx: Math.cos(a) * v, vu: Math.sin(a) * v * 0.08, life: 0, max: rnd(0.5, 0.9), s: rnd(3, 6), top: true });
+      FX.parts.push({ x: x0 + Math.cos(a) * 0.2, u: r.u + Math.sin(a) * 0.02, vx: Math.cos(a) * v, vu: Math.sin(a) * v * 0.08, life: 0, max: rnd(0.5, 0.9), s: rnd(3, 6), top: true });
     }
   }
   stepFx(race, dt);
   drawParts(ctx, sx, sy, false);
-  const pos = (r) => Math.min(r.x, len) - HAND;
+  const pos = (r) => r.pp - r.dir * HAND; // centro del cuerpo: la mano va adelante
   for (const r of race.racers) {
-    if (race.t < 0) drawStanding(ctx, r, sx(block), sy(r.u), ppm);
-    else if (race.t < diveT) {
-      const q = race.t / diveT, k = 1 + Math.sin(Math.PI * q) * 0.25;
+    const diving = r.push && r.push.kind === "SALIDA" && race.t - r.push.t < diveT;
+    if (r.onBlock) drawStanding(ctx, r, sx(block), sy(r.u), ppm);
+    else if (diving) {
+      const q = (race.t - r.push.t) / diveT, k = 1 + Math.sin(Math.PI * q) * 0.25;
       ctx.save(); ctx.translate(sx(block + (pos(r) - block) * q), sy(r.u)); ctx.scale(k, k);
       drawSwimmer(ctx, { ...r, stun: 1, v: 0 }, 0, 0, ppm, t); ctx.restore();
-    } else if (r.walk > 0) drawWalker(ctx, r, sx(pos(r)), sy(r.u), ppm, t);
-    else drawSwimmer(ctx, r, sx(pos(r)), sy(r.u), ppm, t);
+    } else {
+      ctx.save(); ctx.translate(sx(pos(r)), sy(r.u)); if (r.dir < 0) ctx.scale(-1, 1); // de vuelta nada para la izquierda
+      if (r.walk > 0) drawWalker(ctx, r, 0, 0, ppm, t); else drawSwimmer(ctx, r, 0, 0, ppm, t);
+      ctx.restore();
+    }
     // el objeto que se le terminó queda flotando atrás
     if (r.drop && race.t - r.drop.t < 1.6) {
-      const q = (race.t - r.drop.t) / 1.6;
-      ctx.save(); ctx.globalAlpha = 1 - q; ctx.translate(sx(r.drop.x - HAND - 0.4), sy(r.drop.u + q * 0.05)); ctx.rotate(q * 3);
+      const q = (race.t - r.drop.t) / 1.6, da = poolAt(race, r.drop.x);
+      ctx.save(); ctx.globalAlpha = 1 - q; ctx.translate(sx(da.p - da.dir * (HAND + 0.4)), sy(r.drop.u + q * 0.05)); ctx.rotate(q * 3);
       drawItem(ctx, r.drop.kind, 0, 0, ppm * 0.4); ctx.restore();
     }
   }
   drawParts(ctx, sx, sy, true);
-  for (const r of race.racers) drawTags(ctx, r, sx(race.t < 0 ? 1.2 : pos(r)), sy(r.u), ppm, t, top); // antes de largar, las caras al lado del partidor
+  for (const r of race.racers) drawTags(ctx, r, sx(r.onBlock ? 1.2 : pos(r)), sy(r.u), ppm, t, top); // antes de largar, las caras al lado del partidor
+  drawPushBar(ctx, race, p, sx(p.onBlock ? 1.2 : pos(p)), sy(p.u), ppm, t, W, H);
   drawStreaks(ctx, race, W, H, dt);
   drawConfetti(ctx, race, W, H, dt);
   if (p.air < 0.25 && !p.breathing && !p.finished && race.t > 0) { // el borde titila cuando queda poco aire
@@ -87,7 +100,7 @@ function render(ctx, race, W, H) {
 }
 
 // Pileta: baldosas, corcheras, partidores en la salida y placas para tocar en la llegada.
-function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm) {
+function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, turns) {
   ctx.fillStyle = "#F6E7C8"; ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = "rgba(190,160,110,0.35)"; ctx.lineWidth = 1;
   ctx.beginPath();
@@ -106,6 +119,14 @@ function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm) {
     for (let k = 1; k < 12; k++) { ctx.moveTo(x0, top + ph * k / 12); ctx.lineTo(x1, top + ph * k / 12); }
     ctx.stroke();
     caustics(ctx, sx, sy, m0, t, "rgba(255,255,255,0.22)");
+    // el globo de HSJ pintado en el fondo, en la mitad de la pileta
+    if (HSJ_LOGO.complete && HSJ_LOGO.naturalWidth) {
+      const lh = ph * 0.26, lw = lh / HSJ_LOGO_H;
+      for (const u of [1 / 6, 5 / 6]) {
+        const lx = sx(len / 2) - lw / 2, ly = sy(u) - lh / 2; if (lx < -lw || lx > W) continue;
+        ctx.save(); ctx.globalAlpha = 0.65; ctx.drawImage(HSJ_LOGO, lx, ly, lw, lh); ctx.restore();
+      }
+    }
     // líneas del fondo con la T antes de cada pared, y la cruz en las paredes
     ctx.fillStyle = "rgba(20,60,140,0.35)";
     for (const u of LANES) {
@@ -156,19 +177,20 @@ function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm) {
       ctx.fillText(String(i + 1), ws - 8 - bw / 2, y - bh * 0.08);
     });
     ctx.save(); ctx.translate(ws - ppm * 1.6, top + ph / 2); ctx.rotate(-Math.PI / 2);
-    ctx.font = "bold 20px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#2F6FE0"; ctx.fillText("SALIDA", 0, 0);
+    ctx.font = "bold 20px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#2F6FE0"; ctx.fillText(turns ? "SALIDA Y LLEGADA" : "SALIDA", 0, 0);
     ctx.restore();
+    if (turns) for (const u of LANES) { ctx.fillStyle = "#FFD23A"; ctx.fillRect(ws - 2, sy(u) - ph / 6 + 8, 6, ph / 3 - 16); } // placas para tocar al llegar
   }
   // pared de llegada: placas amarillas para tocar, y el cartel
   const wf = sx(len);
   if (wf < W + 40) {
     ctx.fillStyle = "#DCE3EA"; ctx.fillRect(wf, top - 4, 10, ph + 8);
     for (const u of LANES) { ctx.fillStyle = "#FFD23A"; ctx.fillRect(wf - 4, sy(u) - ph / 6 + 8, 6, ph / 3 - 16); }
-    for (let i = 0; i < ph / 12; i++) for (let j = 0; j < 2; j++) {
+    if (!turns) for (let i = 0; i < ph / 12; i++) for (let j = 0; j < 2; j++) {
       ctx.fillStyle = (i + j) % 2 ? "#111" : "#fff"; ctx.fillRect(wf + 18 + j * 12, top + i * 12, 12, Math.min(12, ph - i * 12));
     }
     ctx.save(); ctx.translate(wf + 70, top + ph / 2); ctx.rotate(-Math.PI / 2);
-    ctx.font = "bold 22px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#E8413C"; ctx.fillText("LLEGADA", 0, 0);
+    ctx.font = "bold 22px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = turns ? "#2F6FE0" : "#E8413C"; ctx.fillText(turns ? "VUELTA ↺" : "LLEGADA", 0, 0);
     ctx.restore();
   }
 }
@@ -269,21 +291,21 @@ function drawStanding(ctx, r, x, y, ppm) {
 // Espuma de las patadas y salpicones de los brazos; en mariposa salpica mucho más.
 function stepFx(race, dt) {
   for (const r of race.racers) {
-    if (r.finished || r.stun || race.t < 0) continue;
-    const flying = flyingNow(r);
+    if (r.finished || r.stun || r.onBlock || race.t < 0) continue;
+    const flying = flyingNow(r), d = r.dir, at = (off) => r.pp + d * (off - HAND); // off: metros desde la mano hacia adelante
     const n = dt * (flying ? 34 : 14) * Math.min(1.5, r.v / 2.4);
     for (let k = 0; k < n; k++) {
       if (k + 1 > n && Math.random() > n - k) break;
-      FX.parts.push({ x: r.x - HAND - 0.9 + rnd(-0.15, 0.15), u: r.u + rnd(-0.02, 0.02), vx: -rnd(0.2, 1), vu: rnd(-0.03, 0.03), life: 0, max: rnd(0.5, 0.9), s: rnd(2, 4), top: false });
+      FX.parts.push({ x: at(-0.9 + rnd(-0.15, 0.15)), u: r.u + rnd(-0.02, 0.02), vx: -d * rnd(0.2, 1), vu: rnd(-0.03, 0.03), life: 0, max: rnd(0.5, 0.9), s: rnd(2, 4), top: false });
     }
     if (r.breathing) for (let k = 0; k < dt * 25; k++) // respirando: saca la cabeza y salpica al costado
-      FX.parts.push({ x: r.x - HAND + 1.1 + rnd(-0.2, 0.2), u: r.u + rnd(0.02, 0.06), vx: rnd(-0.5, 0.3), vu: rnd(0.02, 0.08), life: 0, max: rnd(0.3, 0.6), s: rnd(2, 4), top: true });
+      FX.parts.push({ x: at(1.1 + rnd(-0.2, 0.2)), u: r.u + rnd(0.02, 0.06), vx: d * rnd(-0.5, 0.3), vu: rnd(0.02, 0.08), life: 0, max: rnd(0.3, 0.6), s: rnd(2, 4), top: true });
     if (r.dive) for (let k = 0; k < dt * 40; k++) // burbujas del que va por abajo del agua
-      FX.parts.push({ x: r.x - HAND + rnd(-0.6, 0.9), u: r.u + rnd(-0.03, 0.03), vx: rnd(-0.3, 0.1), vu: rnd(-0.02, 0.02), life: 0, max: rnd(0.4, 0.8), s: rnd(1.5, 3.5), top: true });
+      FX.parts.push({ x: at(rnd(-0.6, 0.9)), u: r.u + rnd(-0.03, 0.03), vx: d * rnd(-0.3, 0.1), vu: rnd(-0.02, 0.02), life: 0, max: rnd(0.4, 0.8), s: rnd(1.5, 3.5), top: true });
     if (r.lunge > 0) for (let k = 0; k < dt * 80; k++) // Facu tirándose encima
-      FX.parts.push({ x: r.x - HAND + rnd(-1, 1), u: r.u + rnd(-0.04, 0.04), vx: -rnd(2, 4), vu: rnd(-0.1, 0.1), life: 0, max: rnd(0.3, 0.5), s: rnd(3, 6), top: true });
+      FX.parts.push({ x: at(rnd(-1, 1)), u: r.u + rnd(-0.04, 0.04), vx: -d * rnd(2, 4), vu: rnd(-0.1, 0.1), life: 0, max: rnd(0.3, 0.5), s: rnd(3, 6), top: true });
     if (flying && Math.random() < dt * 9) for (const s of [-1, 1]) for (let k = 0; k < 4; k++) {
-      FX.parts.push({ x: r.x - HAND + 0.3 + rnd(-0.2, 0.2), u: r.u + s * rnd(0.03, 0.05), vx: rnd(-0.5, 0.5), vu: s * rnd(0.05, 0.15), life: 0, max: rnd(0.35, 0.6), s: rnd(2.5, 5), top: true });
+      FX.parts.push({ x: at(0.3 + rnd(-0.2, 0.2)), u: r.u + s * rnd(0.03, 0.05), vx: rnd(-0.5, 0.5), vu: s * rnd(0.05, 0.15), life: 0, max: rnd(0.35, 0.6), s: rnd(2.5, 5), top: true });
     }
   }
   for (const q of FX.parts) { q.life += dt; q.x += q.vx * dt; q.u += q.vu * dt; }
@@ -301,14 +323,14 @@ function drawParts(ctx, sx, sy, top) {
 function drawStreaks(ctx, race, W, H, dt) {
   const p = race.racers[0];
   const fast = !p.finished && (flyingNow(p) || (p.objT > 0 && p.objMult > 1));
-  if (fast) for (let k = 0; k < dt * 70; k++) FX.streaks.push({ x: W + rnd(0, 60), y: rnd(POOL_TOP + 10, H - 10), len: rnd(40, 120), v: rnd(900, 1500) });
+  if (fast) for (let k = 0; k < dt * 70; k++) FX.streaks.push({ x: p.dir > 0 ? W + rnd(0, 60) : -rnd(120, 180), y: rnd(POOL_TOP + 10, H - 10), len: rnd(40, 120), v: rnd(900, 1500), d: p.dir });
   ctx.save(); ctx.strokeStyle = "rgba(255,255,255,0.75)"; ctx.lineWidth = 3; ctx.lineCap = "round";
   for (const s of FX.streaks) {
-    s.x -= s.v * dt;
+    s.x -= s.v * dt * s.d;
     ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x + s.len, s.y); ctx.stroke();
   }
   ctx.restore();
-  FX.streaks = FX.streaks.filter((s) => s.x + s.len > 0);
+  FX.streaks = FX.streaks.filter((s) => s.d > 0 ? s.x + s.len > 0 : s.x < W);
 }
 // Papelitos de colores cuando llegás primero.
 function drawConfetti(ctx, race, W, H, dt) {
@@ -550,7 +572,7 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
 
 // Cara, nombre y avisos de cada nadador, siempre arriba de todo.
 function drawTags(ctx, r, x, y, ppm, t, top) {
-  const L = ppm * 1.8, size = Math.round(clamp(ppm * 0.85, 24, 40));
+  const dr = r.dir || 1, L = ppm * 1.8, size = Math.round(clamp(ppm * 0.85, 24, 40));
   // la cara va arriba del nadador, o abajo si no entra
   const above = y - L * 0.3 - size - 4 > top;
   const fy = above ? y - L * 0.3 - size / 2 : y + L * 0.3 + size / 2;
@@ -560,17 +582,17 @@ function drawTags(ctx, r, x, y, ppm, t, top) {
   const label = r.isPlayer ? "VOS" : r.ch.name, ly = above ? fy - size / 2 - 8 : fy + size / 2 + 8;
   ctx.fillStyle = r.isPlayer ? "#FFD84A" : "#fff"; ctx.strokeStyle = "#0009"; ctx.lineWidth = 3;
   ctx.strokeText(label, fxp, ly); ctx.fillText(label, fxp, ly);
-  if (r.stun) { ctx.fillStyle = "#FFD84A"; for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; ctx.beginPath(); ctx.arc(x + L * 0.36 + Math.cos(a) * 12, y + Math.sin(a) * 8, 3, 0, 7); ctx.fill(); } }
+  if (r.stun) { ctx.fillStyle = "#FFD84A"; for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; ctx.beginPath(); ctx.arc(x + dr * L * 0.36 + Math.cos(a) * 12, y + Math.sin(a) * 8, 3, 0, 7); ctx.fill(); } }
   if (r.objT > 0) drawItem(ctx, r.objKind, fxp - size / 2 - 10, fy, 7);
   if (r.isPlayer && !r.finished && (r.breathing || r.air < 0.3)) {
-    const hx = x + ppm * 1.12, pulse = 1 + Math.sin(t * 16) * 0.06, R = ppm * 0.55 * pulse;
+    const hx = x + dr * ppm * 1.12, pulse = 1 + Math.sin(t * 16) * 0.06, R = ppm * 0.55 * pulse;
     ctx.fillStyle = r.breathing ? "rgba(143,227,255,0.25)" : "rgba(255,80,60,0.2)"; ctx.beginPath(); ctx.arc(hx, y, R, 0, 7); ctx.fill();
     ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(hx, y, R, 0, 7); ctx.stroke();
     ctx.strokeStyle = r.breathing ? "#8FE3FF" : "#FF6A4A"; ctx.lineWidth = 6; ctx.lineCap = "round";
     ctx.beginPath(); ctx.arc(hx, y, R, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.max(0.02, r.air)); ctx.stroke();
     if (!r.breathing) {
-      ctx.save(); ctx.translate(hx + R + 8, y); ctx.scale(pulse, pulse);
-      ctx.font = "bold 16px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.lineWidth = 4; ctx.strokeStyle = "#0E4C7E";
+      ctx.save(); ctx.translate(hx + dr * (R + 8), y); ctx.scale(pulse, pulse);
+      ctx.font = "bold 16px system-ui, sans-serif"; ctx.textAlign = dr > 0 ? "left" : "right"; ctx.lineWidth = 4; ctx.strokeStyle = "#0E4C7E";
       ctx.strokeText("¡RESPIRÁ!", 0, 0); ctx.fillStyle = "#fff"; ctx.fillText("¡RESPIRÁ!", 0, 0);
       ctx.restore();
     }
@@ -622,6 +644,12 @@ function drawHud(ctx, race, W, H) {
   const bx = 136, bw = W - bx - 210, by = 24;
   ctx.fillStyle = "#0005"; ctx.beginPath(); ctx.roundRect(bx, by - 4, bw, 8, 4); ctx.fill();
   ctx.fillStyle = "#fff"; ctx.fillRect(bx + bw - 2, by - 10, 4, 20);
+  for (let k = 1; k < race.laps; k++) { ctx.fillStyle = "#ffffff88"; ctx.fillRect(bx + bw * k / race.laps - 1, by - 7, 2, 14); } // cada pared
+  if (race.laps > 1) {
+    const lap = Math.min(race.laps, poolAt(race, p.x).lap + 1);
+    ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "right"; ctx.fillStyle = "#CFE9FF"; ctx.lineWidth = 3; ctx.strokeStyle = "#0008";
+    ctx.strokeText("LARGO " + lap + " DE " + race.laps, bx + bw, by + 20); ctx.fillText("LARGO " + lap + " DE " + race.laps, bx + bw, by + 20);
+  }
   for (const r of race.racers.slice().reverse()) drawFaceBadge(ctx, r, bx + bw * clamp(r.x / race.len, 0, 1), by, r.isPlayer ? 22 : 18, race.t);
   // la pila de aire: grande, por segmentos, y abajo cuánto gasta o si recarga
   const bw2 = 150, bh2 = 26, ax = W - bw2 - 22, ay = 7, flying = flyingNow(p) && !p.finished && !p.breathing;
@@ -658,7 +686,7 @@ function drawHud(ctx, race, W, H) {
   // largada: cada número aparece grande y se achica
   if (race.t < 0.6) {
     const n = race.t < 0 ? Math.ceil(-race.t) : 0, k = 1.5 - 0.5 * (race.t < 0 ? n + race.t : race.t / 0.6);
-    ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(k, k);
+    ctx.save(); ctx.translate(n ? W / 2 : W * 0.66, n ? H / 2 : H * 0.42); ctx.scale(n ? k : k * 0.7, n ? k : k * 0.7); // el ¡YA! se corre para que se vea la barrita
     ctx.font = "bold 90px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.lineWidth = 10; ctx.strokeStyle = "#0E4C7E"; ctx.fillStyle = n ? "#fff" : "#FFD84A";
     const s = n ? String(n) : "¡YA!";
@@ -666,6 +694,37 @@ function drawHud(ctx, race, W, H) {
     ctx.restore();
   }
   ctx.restore();
+}
+
+// La barrita que sube y baja en el partidor y llegando a la pared: tocar cuando está arriba de todo.
+function drawPushBar(ctx, race, p, x, y, ppm, t, W, H) {
+  const onBar = (p.onBlock && race.t >= 0) || (p.wallBar && p.turnQ === null && !p.finished);
+  const bh = Math.min(110, (H - POOL_TOP) * 0.42), bw = 26;
+  const bx = clamp(x + (p.onBlock ? ppm * 2.6 : p.dir * ppm * 2.4) - bw / 2, 8, W - bw - 8), by = clamp(y - bh / 2, POOL_TOP + 26, H - bh - 30);
+  if (onBar) {
+    const v = p.onBlock ? barAt(0, race.t) : barAt(p.barT0, race.t);
+    ctx.save();
+    ctx.fillStyle = "#000a"; ctx.beginPath(); ctx.roundRect(bx - 4, by - 4, bw + 8, bh + 8, 8); ctx.fill();
+    const g = ctx.createLinearGradient(0, by + bh, 0, by);
+    g.addColorStop(0, "#FF4A3A"); g.addColorStop(0.55, "#FFD23A"); g.addColorStop(1, "#5FE36A");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.roundRect(bx, by + bh * (1 - v), bw, bh * v, 5); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.strokeRect(bx - 1, by + bh * 0.12, bw + 2, 0); // arriba de todo: la zona perfecta
+    ctx.fillStyle = "#ffffff44"; ctx.fillRect(bx, by, bw, bh * 0.12);
+    ctx.font = "bold 15px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.lineWidth = 4; ctx.strokeStyle = "#0E4C7E";
+    const s = p.onBlock ? "¡SALTÁ!" : "¡VUELTA!", k = 1 + (v > 0.88 ? 0.15 : 0);
+    ctx.translate(bx + bw / 2, by - 8); ctx.scale(k, k);
+    ctx.strokeText(s, 0, 0); ctx.fillStyle = v > 0.88 ? "#7CFC6A" : "#fff"; ctx.fillText(s, 0, 0);
+    ctx.restore();
+  }
+  // cómo te salió el salto o la vuelta
+  if (p.push && race.t - p.push.t < 1.3) {
+    const q = p.push.q, a = race.t - p.push.t, sal = p.push.kind === "SALIDA";
+    const [txt, col] = q > 0.88 ? [sal ? "¡SALIDA PERFECTA!" : "¡VUELTA PERFECTA!", "#7CFC6A"] : q > 0.55 ? [sal ? "BUENA SALIDA" : "BUENA VUELTA", "#FFD84A"] : [sal ? "SALIDA FLOJA" : "VUELTA FLOJA", "#FF8A7A"];
+    ctx.save(); ctx.globalAlpha = Math.min(1, (1.3 - a) * 3); ctx.translate(W / 2, POOL_TOP + 40 - a * 10); const k = 1 + Math.max(0, 0.3 - a);
+    ctx.scale(k, k); ctx.font = "bold 26px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineWidth = 6; ctx.strokeStyle = "#0E4C7E";
+    ctx.strokeText(txt, 0, 0); ctx.fillStyle = col; ctx.fillText(txt, 0, 0);
+    ctx.restore();
+  }
 }
 
 // Aviso grande de la guía, centrado debajo del tablero.
@@ -770,7 +829,7 @@ const FAN_HAIR = ["#2A1C14", "#3A2618", "#F0CC62", "#6E6E74", "#1A1410"];
 const hash = (n) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.5453; return v - Math.floor(v); };
 // Banderas: Argentina, Almirante Brown (aurinegro) y Huracán de San Justo.
 // ❓ Los colores de Huracán de San Justo no se confirmaron: por ahora va blanca con el nombre.
-const FLAGS = ["arg", "brown", "huracan", "arg", "brown"];
+const FLAGS = ["arg", "huracan", "arg", "huracan", "arg"];
 function drawFlag(ctx, kind, x, y, w, h, t, seed) {
   ctx.save(); ctx.translate(x, y);
   ctx.strokeStyle = "#5A4636"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, h * 0.5); ctx.lineTo(0, -h * 0.7); ctx.stroke();
@@ -782,23 +841,16 @@ function drawFlag(ctx, kind, x, y, w, h, t, seed) {
       ctx.fillStyle = "#75AADB"; ctx.fillRect(x0, y0, cw + 0.5, h / 3);
       ctx.fillStyle = "#fff"; ctx.fillRect(x0, y0 + h / 3, cw + 0.5, h / 3);
       ctx.fillStyle = "#75AADB"; ctx.fillRect(x0, y0 + h * 2 / 3, cw + 0.5, h / 3);
-    } else if (kind === "brown") {
-      ctx.fillStyle = i % 2 ? "#1A1A1A" : "#FFD23A"; ctx.fillRect(x0, y0, cw + 0.5, h);
-    } else {
-      ctx.fillStyle = "#D7262E"; ctx.fillRect(x0, y0, cw + 0.5, h);
+    } else { // Huracán: blanca con una franja roja arriba y abajo
+      ctx.fillStyle = "#fff"; ctx.fillRect(x0, y0, cw + 0.5, h);
+      ctx.fillStyle = "#D7262E"; ctx.fillRect(x0, y0, cw + 0.5, h * 0.1); ctx.fillRect(x0, y0 + h * 0.9, cw + 0.5, h * 0.1);
     }
   }
   const mid = Math.sin(t * 6 + 5 * 0.7 + seed) * h * 0.04;
   if (kind === "arg") { ctx.fillStyle = "#F6B40E"; ctx.beginPath(); ctx.arc(w / 2, -h * 0.7 + h / 2 + mid, h * 0.1, 0, 7); ctx.fill(); }
-  if (kind === "huracan") { // el globo blanco con HSJ
-    const gx = w / 2, gy = -h * 0.7 + h * 0.42 + mid, R = h * 0.3;
-    ctx.strokeStyle = "#fff"; ctx.lineWidth = Math.max(1, h * 0.05);
-    ctx.beginPath(); ctx.arc(gx, gy, R, Math.PI * 0.8, Math.PI * 2.2); ctx.lineTo(gx + R * 0.25, gy + R * 1.25); ctx.lineTo(gx - R * 0.25, gy + R * 1.25); ctx.closePath(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(gx - R * 0.92, gy - R * 0.25); ctx.quadraticCurveTo(gx, gy - R * 0.45, gx + R * 0.92, gy - R * 0.25); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(gx - R * 0.92, gy + R * 0.3); ctx.quadraticCurveTo(gx, gy + R * 0.5, gx + R * 0.92, gy + R * 0.3); ctx.stroke();
-    ctx.fillStyle = "#fff"; ctx.fillRect(gx - R * 0.15, gy + R * 1.35, R * 0.3, R * 0.22);
-    ctx.font = `bold ${Math.round(h * 0.2)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("HSJ", gx, gy + R * 0.03);
+  if (kind === "huracan" && HSJ_LOGO.complete && HSJ_LOGO.naturalWidth) { // el globo rojo de HSJ en el medio
+    const lh = h * 0.74, lw = lh / HSJ_LOGO_H;
+    ctx.drawImage(HSJ_LOGO, w / 2 - lw / 2, -h * 0.7 + h * 0.13 + mid, lw, lh);
   }
   ctx.restore();
 }

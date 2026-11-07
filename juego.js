@@ -106,6 +106,9 @@ const store = {
     if (!guide.on || race.t < 0) return;
     const p = player;
     if (guide.cur) { guide.cur.t -= dt; if (guide.cur.t <= 0 || (guide.cur.id === "breath" && p.breathing)) guide.cur = null; }
+    if (p.onBlock) tip("jump", say2("¡TOCÁ RESPIRAR CUANDO LA BARRITA ESTÉ ARRIBA DE TODO!", "¡APRETÁ ESPACIO CUANDO LA BARRITA ESTÉ ARRIBA DE TODO!"), 1.6, true);
+    if (p.wallBar && p.turnQ === null) tip("turn", say2("VUELTA AMERICANA: TOCÁ RESPIRAR CON LA BARRITA ARRIBA", "VUELTA AMERICANA: ESPACIO CON LA BARRITA ARRIBA"), 1.2, true);
+    if (p.onBlock || p.wallBar) return;
     if (p.air < 0.45) tip("breath", say2("SE TE VA EL AIRE: MANTENÉ RESPIRAR PARA RECARGAR LA PILA", "SE TE VA EL AIRE: MANTENÉ ESPACIO PARA RECARGAR LA PILA"), 4, true);
     tip("move", say2("TOCÁ ARRIBA O ABAJO DE LA IZQUIERDA PARA MOVERTE", "USÁ LAS FLECHAS ↑ Y ↓ PARA MOVERTE"), 3.5);
     if (race.objs.some((o) => !o.gone && o.x - p.x > 0 && o.x - p.x < 7)) tip("items", "LO VERDE TE ACELERA, LO ROJO TE FRENA", 3);
@@ -118,6 +121,8 @@ const store = {
   // La copa son 3 carreras con los mismos rivales; lo que sumás va al ranking guardado en este celu.
   let race = null, player = null, chosen = null, lastCount = 99, endShown = false;
   let mode = "quick", cup = null, quickCirc = store.get("npg-circ") || "olimpica";
+  // largo de la carrera rápida en cada pileta (100, 200 o 400 m en la olímpica)
+  const quickDist = (c) => { const d = +store.get("npg-dist-" + c.id); return c.dists && c.dists.includes(d) ? d : c.len; };
   if (!CIRCUITS[quickCirc]) quickCirc = "olimpica";
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const alias = () => (store.get("npg-apodo") || "").trim();
@@ -141,6 +146,7 @@ const store = {
         <span>🔋 El aire es tu pila. En crol baja despacio; ${say2("manteniendo MARIPOSA", "manteniendo →")} vas mucho más rápido, pero baja rápido.</span>
         <span>🐸 ${say2("Manteniendo PECHO", "Manteniendo Z")} vas más lento que en crol, pero casi no gastás aire: sirve para llegar al final sin parar.</span>
         <span>💨 ${say2("Mantené RESPIRAR", "Mantené ESPACIO")} para recargarla: mientras respirás vas más lento. Sin aire, casi no avanzás.</span>
+        <span>🚀 En la salida y en cada vuelta americana sube y baja una barrita: ${say2("tocá RESPIRAR", "apretá ESPACIO")} cuando está arriba de todo y salís con mucho más empuje.</span>
         <span>🟢 Lo verde te acelera, 🔴 lo rojo te frena. El especial ${say2("", "(←) ")}se carga solo.</span>
         <span>🏅 En la copa: 1º suma 10, 2º suma 6, 3º suma 3. Extra: +2 si agarrás dulce de leche y +2 si nunca te quedás sin aire.</span>
       </div>
@@ -159,14 +165,14 @@ const store = {
 
   function selectScreen() {
     race = null;
-    const circs = mode === "quick" ? `<div class="circs">${Object.values(CIRCUITS).map((c) => `<button class="circ ${c.id === quickCirc ? "on" : ""}" data-c="${c.id}">${c.name}<small>${c.len} m</small></button>`).join("")}</div>` : "";
+    const qc = CIRCUITS[quickCirc];
+    const circs = mode === "quick" ? `<div class="circs">${Object.values(CIRCUITS).map((c) => `<button class="circ ${c.id === quickCirc ? "on" : ""}" data-c="${c.id}">${c.name}<small>${c.pool ? "pileta de " + c.pool + " m" : "río, " + c.len + " m"}</small></button>`).join("")}</div>
+      ${qc.dists ? `<div class="circs dists">${qc.dists.map((d) => `<button class="circ dist ${d === quickDist(qc) ? "on" : ""}" data-d="${d}">${d} m<small>${d / qc.pool - 1 === 1 ? "1 vuelta" : d / qc.pool - 1 + " vueltas"}</small></button>`).join("")}</div>` : ""}` : "";
     show(`<p class="sub">${mode === "cup" ? "🏆 COPA · " + esc(alias()) : "CARRERA RÁPIDA"}</p><h1 class="small">Elegí tu nadador</h1>${circs}
       <div class="grid">${CHARS.map((c) => `<button class="ch" data-id="${c.id}">${faceImg(c, 56)}<b>${c.name}</b><small>${c.tag}</small>${statBars(c)}</button>`).join("")}</div>
       <button class="link" id="back">← Volver al inicio</button>`);
-    scr.querySelectorAll(".circ").forEach((b) => b.onclick = () => {
-      quickCirc = b.dataset.c; store.set("npg-circ", quickCirc);
-      scr.querySelectorAll(".circ").forEach((x) => x.classList.toggle("on", x === b));
-    });
+    scr.querySelectorAll(".circ[data-c]").forEach((b) => b.onclick = () => { quickCirc = b.dataset.c; store.set("npg-circ", quickCirc); selectScreen(); });
+    scr.querySelectorAll(".dist").forEach((b) => b.onclick = () => { store.set("npg-dist-" + quickCirc, b.dataset.d); selectScreen(); });
     scr.querySelectorAll(".ch").forEach((b) => b.onclick = () => {
       Sound.unlock(); chosen = CHARS.find((c) => c.id === b.dataset.id);
       if (mode === "cup") cup = { rivals: drawRivals(chosen), i: 0, pts: {}, done: false };
@@ -177,12 +183,12 @@ const store = {
 
   function drawScreen() {
     const circ = cup ? CIRCUITS[CUP[cup.i]] : CIRCUITS[quickCirc];
-    const draft = newRace(chosen, circ, cup ? cup.rivals : undefined);
+    const draft = newRace(chosen, circ, cup ? cup.rivals : undefined, cup ? circ.len : quickDist(circ));
     const [p, a, b] = draft.racers;
     const legend = Object.keys(ITEMS).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air ? " +AIRE" : ""}</span>`).join("");
     const head = cup ? `🏆 COPA · CARRERA ${cup.i + 1} DE ${CUP.length}` : "CARRERA RÁPIDA";
     const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
-    show(`<p class="sub">${head}</p><h1 class="small">${circ.name}</h1><p class="help">${circ.info}</p>
+    show(`<p class="sub">${head}</p><h1 class="small">${circ.name} · ${draft.len} m</h1><p class="help">${circ.info}${draft.laps > 1 ? ` Son ${draft.laps} largos: ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}.` : ""}</p>
       <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${faceImg(r.ch, 52, i ? "normal" : "happy")}<b>${r.ch.name}${i ? "" : " (vos)"}</b>${pts(r)}<small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
       <p class="help">${say2("Nadás crol solo. MARIPOSA va más rápido y gasta más pila; PECHO va lento y casi no gasta. Mantené RESPIRAR para recargar.", "↑ ↓ moverte · → mariposa · Z pecho · ESPACIO respirar (mantener) · ← especial · P pausa")}</p>
       <div class="legend">${legend}</div><button class="go">¡AL AGUA!</button>`);
@@ -272,7 +278,9 @@ const store = {
       render(ctx, race, W, H);
       drawHud(ctx, race, W, H);
       if (guide.cur) drawTip(ctx, W, guide.cur.text, Math.min(1, guide.cur.t * 3));
-      setBtn("bbr", player.air < 0.3 && !player.breathing, player.air, player.breathing ? "RECARGANDO" : "RESPIRAR");
+      const bar = (player.onBlock && race.t >= 0) || (player.wallBar && player.turnQ === null);
+      if (bar) setBtn("bbr", true, player.onBlock ? barAt(0, race.t) : barAt(player.barT0, race.t), player.onBlock ? "¡SALTÁ!" : "¡VUELTA!");
+      else setBtn("bbr", player.air < 0.3 && !player.breathing, player.air, player.breathing ? "RECARGANDO" : "RESPIRAR");
       setBtn("bsp", specialReady(player), player.charge, player.ch.special);
       if (race.over && !endShown && race.t - race.overT > 1.4) {
         endShown = true; Sound.play(standings(race)[0] === player ? "win" : "lose"); endScreen();
