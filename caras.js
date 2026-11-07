@@ -114,6 +114,7 @@ function moodOf(r) {
   if (r.breathing) return "gulp";
   if (r.bubble && r.ch.id === "luis" && r.boost > 0) return "talk";
   if (r.fly && r.air > 0 && !r.plancha) return "effort";
+  if (r.pecho) return "happy";
   if (r.plancha > 0) return "happy";
   return "normal";
 }

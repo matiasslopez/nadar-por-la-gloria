@@ -80,6 +80,8 @@ input { user-select: text; -webkit-user-select: text; }
 @keyframes latido { from { transform: scale(1); } to { transform: scale(1.12); } }
 .btn.fly { width: 84px; height: 84px; right: 128px; bottom: 14px; font-size: 13px; background: rgba(255,216,74,0.3); }
 .btn.fly.on { background: rgba(255,216,74,0.65); color: #10324F; }
+.btn.pe { width: 70px; height: 70px; right: 224px; bottom: 14px; font-size: 12px; background: rgba(124,232,150,0.28); }
+.btn.pe.on { background: rgba(124,232,150,0.65); color: #10324F; }
 .btn.sp { width: 70px; height: 70px; right: 32px; bottom: 132px; font-size: 10px; }
 .btn.sp .fill { background: rgba(255,216,74,0.35); }
 .btn.sp.ready { background: rgba(255,216,74,0.75); border-color: #FFD84A; color: #10324F; }

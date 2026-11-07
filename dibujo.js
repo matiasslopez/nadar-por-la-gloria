@@ -7,6 +7,7 @@ const POOL_TOP = 62; // alto del tablero de arriba
 const FX = { parts: [], streaks: [], confetti: [], lastT: null, lead: 0.32, partyFor: null };
 const CONFETTI = ["#FFD84A", "#FF6FB0", "#7CFC6A", "#5FD0F5", "#FF8A2A", "#fff"];
 const flyingNow = (r) => r.fly && r.air > 0 && !r.plancha && !r.stun;
+const pechoNow = (r) => r.pecho && !flyingNow(r) && !r.breathing && !r.plancha && !r.stun && !r.walk && !r.dive;
 
 // Dónde se dibuja cada nadador: r.x es la punta de la mano, así al llegar la mano toca la pared.
 const HAND = 1.5;
@@ -358,9 +359,23 @@ function armPose(ph, side, fly) {
   return { S, E, H, above };
 }
 
+// Pecho: las dos manos salen juntas adelante, abren hacia los costados y vuelven al pecho.
+function pechoPose(ph, side) {
+  let hx, hy;
+  if (ph < 0.45) { const q = ph / 0.45; hx = 1.08 - q * 0.3; hy = 0.05 + q * 0.3; }       // abre
+  else if (ph < 0.7) { const q = (ph - 0.45) / 0.25; hx = 0.78 - q * 0.18; hy = 0.35 - q * 0.27; } // junta al pecho
+  else { const q = (ph - 0.7) / 0.3; hx = 0.6 + q * 0.48; hy = 0.08 - q * 0.03; }           // estira adelante
+  const a = armPose(0, side, false);
+  let dx = hx - a.S.x, dy = side * hy - a.S.y, d = Math.hypot(dx, dy);
+  if (d > ARM * 2 * 0.99) { const f = ARM * 2 * 0.99 / d; dx *= f; dy *= f; d = ARM * 2 * 0.99; }
+  const H = { x: a.S.x + dx, y: a.S.y + dy }, h = Math.sqrt(Math.max(0, ARM * ARM - (d / 2) * (d / 2)));
+  let px = -dy / d, py = dx / d; if (py * side < 0) { px = -px; py = -py; }
+  return { S: a.S, E: { x: a.S.x + dx / 2 + px * h, y: a.S.y + dy / 2 + py * h }, H, above: true };
+}
+
 function drawSwimmer(ctx, r, x, y, ppm, t) {
   const ch = r.ch, k = ppm * 1.4, skin = ch.skin;
-  const back = r.plancha > 0, flying = flyingNow(r), still = r.stun > 0 || back || r.finished;
+  const back = r.plancha > 0, flying = flyingNow(r), still = r.stun > 0 || back || r.finished, pecho = pechoNow(r) && !still;
   const P = (px, py) => [px * k, py * k];
   ctx.save(); ctx.translate(x, y);
   if (r.dive) { ctx.globalAlpha = 0.45; ctx.filter = "brightness(0.55) saturate(0.6)"; }
@@ -390,9 +405,9 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
     ctx.beginPath(); ctx.ellipse(px, py, k * 0.22, k * 0.36 * bil, 0, Math.PI / 2, Math.PI * 1.5); ctx.fill(); ctx.stroke();
     ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.ellipse(px, py, k * 0.1, k * 0.36 * bil, 0, Math.PI / 2, Math.PI * 1.5); ctx.fill();
   }
-  const rate = flying ? 1.25 : 0.95;                 // brazadas por segundo
+  const rate = flying ? 1.25 : pecho ? 0.8 : 0.95;   // brazadas por segundo
   const base = still ? 0.15 : (t * rate + r.x * 0.07) % 1;
-  const arms = [-1, 1].map((s) => armPose(still ? (back ? 0.15 : 0.05) : flying ? base : (base + (s > 0 ? 0.5 : 0)) % 1, s, flying));
+  const arms = [-1, 1].map((s) => pecho ? pechoPose(base, s) : armPose(still ? (back ? 0.15 : 0.05) : flying ? base : (base + (s > 0 ? 0.5 : 0)) % 1, s, flying));
   if (back) for (const a of arms) { a.E = { x: a.S.x - 0.05, y: a.S.y + Math.sign(a.S.y) * ARM }; a.H = { x: a.S.x - 0.12, y: a.S.y + Math.sign(a.S.y) * ARM * 1.95 }; a.above = true; }
   if (wear === "tablita") for (const a of arms) { // con la tablita: brazos estirados adelante, agarrándola
     const sd = Math.sign(a.S.y); a.H = { x: 1.08, y: sd * 0.12 }; a.E = { x: 0.8, y: sd * 0.17 }; a.above = true;
@@ -432,10 +447,12 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   ctx.restore();
 
   // piernas: crol patea alternado; mariposa, las dos juntas
-  const kickT = t * (flying ? rate * 2 : 7) + r.x;
+  const kickT = pecho ? 0 : t * (flying ? rate * 2 : 7) + r.x;
   for (const s of [-1, 1]) {
     const kk = still ? 0 : Math.sin(kickT + (flying || s < 0 ? 0 : Math.PI));
-    const hip = P(-0.14, s * 0.085), knee = P(-0.47, s * 0.085), ankle = P(-0.8 + kk * 0.03, s * (0.07 + kk * 0.012));
+    // pecho: patada de rana, las rodillas abren y las piernas se juntan con fuerza
+    const frog = pecho ? Math.max(0, Math.sin((base - 0.35) * Math.PI * 2)) : 0;
+    const hip = P(-0.14, s * 0.085), knee = P(-0.45 + frog * 0.1, s * (0.085 + frog * 0.2)), ankle = P(-0.8 + kk * 0.03 + frog * 0.2, s * (0.07 + kk * 0.012 + frog * 0.14));
     ctx.lineCap = "round";
     ctx.strokeStyle = "rgba(20,30,50,0.25)"; ctx.lineWidth = k * 0.17;
     ctx.beginPath(); ctx.moveTo(...hip); ctx.lineTo(...knee); ctx.lineTo(...ankle); ctx.stroke();
@@ -629,7 +646,7 @@ function drawHud(ctx, race, W, H) {
   const blink = Math.floor(race.t * 8) % 2;
   const [txt, tc] = p.finished ? ["", "#fff"] : p.noAir ? ["¡SIN AIRE! RESPIRÁ", blink ? "#FF6A5A" : "#fff"]
     : p.walk > 0 ? ["CAMINANDO: RECARGA ▲▲▲", "#8FE3FF"] : p.breathing ? ["RECARGANDO ▲▲▲", "#8FE3FF"] : p.plancha ? ["PLANCHA: RECARGA ▲", "#8FE3FF"]
-    : flying ? ["MARIPOSA: GASTA ▼▼▼", blink ? "#FFD84A" : "#FFB020"] : ["CROL: GASTA ▼", "#CFE9FF"];
+    : flying ? ["MARIPOSA: GASTA ▼▼▼", blink ? "#FFD84A" : "#FFB020"] : pechoNow(p) ? ["PECHO: CASI NO GASTA", "#9CF0B0"] : ["CROL: GASTA ▼", "#CFE9FF"];
   ctx.font = "bold 12px system-ui, sans-serif"; ctx.fillStyle = tc;
   ctx.strokeText(txt, ax + bw2 / 2, ay + bh2 + 13); ctx.fillText(txt, ax + bw2 / 2, ay + bh2 + 13);
   if (p.objT > 0) { // objeto activo, abajo de la barra de la carrera
@@ -768,14 +785,20 @@ function drawFlag(ctx, kind, x, y, w, h, t, seed) {
     } else if (kind === "brown") {
       ctx.fillStyle = i % 2 ? "#1A1A1A" : "#FFD23A"; ctx.fillRect(x0, y0, cw + 0.5, h);
     } else {
-      ctx.fillStyle = "#fff"; ctx.fillRect(x0, y0, cw + 0.5, h);
+      ctx.fillStyle = "#D7262E"; ctx.fillRect(x0, y0, cw + 0.5, h);
     }
   }
   const mid = Math.sin(t * 6 + 5 * 0.7 + seed) * h * 0.04;
   if (kind === "arg") { ctx.fillStyle = "#F6B40E"; ctx.beginPath(); ctx.arc(w / 2, -h * 0.7 + h / 2 + mid, h * 0.1, 0, 7); ctx.fill(); }
-  if (kind === "huracan") {
-    ctx.fillStyle = "#10324F"; ctx.font = `bold ${Math.round(h * 0.26)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    ctx.fillText("HURACÁN", w / 2, -h * 0.7 + h * 0.36 + mid); ctx.font = `bold ${Math.round(h * 0.2)}px system-ui, sans-serif`; ctx.fillText("SAN JUSTO", w / 2, -h * 0.7 + h * 0.68 + mid);
+  if (kind === "huracan") { // el globo blanco con HSJ
+    const gx = w / 2, gy = -h * 0.7 + h * 0.42 + mid, R = h * 0.3;
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = Math.max(1, h * 0.05);
+    ctx.beginPath(); ctx.arc(gx, gy, R, Math.PI * 0.8, Math.PI * 2.2); ctx.lineTo(gx + R * 0.25, gy + R * 1.25); ctx.lineTo(gx - R * 0.25, gy + R * 1.25); ctx.closePath(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gx - R * 0.92, gy - R * 0.25); ctx.quadraticCurveTo(gx, gy - R * 0.45, gx + R * 0.92, gy - R * 0.25); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gx - R * 0.92, gy + R * 0.3); ctx.quadraticCurveTo(gx, gy + R * 0.5, gx + R * 0.92, gy + R * 0.3); ctx.stroke();
+    ctx.fillStyle = "#fff"; ctx.fillRect(gx - R * 0.15, gy + R * 1.35, R * 0.3, R * 0.22);
+    ctx.font = `bold ${Math.round(h * 0.2)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("HSJ", gx, gy + R * 0.03);
   }
   ctx.restore();
 }

@@ -23,12 +23,12 @@ const store = {
 
   // ---------- controles ----------
   // En la compu se juega con las flechas y el espacio: ↑↓ moverse, → (mantener) mariposa,
-  // espacio (mantener) respirar, ← especial. Enter sirve para los botones de las pantallas.
+  // espacio (mantener) respirar, Z (mantener) pecho, ← especial. Enter sirve para los botones de las pantallas.
   const PC = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   document.body.classList.toggle("pc", PC);
   const say2 = (touch, pc) => (PC ? pc : touch);
-  const input = { up: false, down: false, fly: false, breathe: false, specialPressed: false };
-  const keys = { ArrowUp: "up", ArrowDown: "down", ArrowRight: "fly", w: "up", W: "up", s: "down", S: "down", d: "fly", D: "fly", " ": "breathe" };
+  const input = { up: false, down: false, fly: false, pecho: false, breathe: false, specialPressed: false };
+  const keys = { ArrowUp: "up", ArrowDown: "down", ArrowRight: "fly", w: "up", W: "up", s: "down", S: "down", d: "fly", D: "fly", z: "pecho", Z: "pecho", " ": "breathe" };
   const presses = { ArrowLeft: "specialPressed", a: "specialPressed", A: "specialPressed" };
   window.addEventListener("keydown", (e) => {
     Sound.unlock();
@@ -139,6 +139,7 @@ const store = {
       <div class="cols"><div class="how"><b>Cómo se juega</b>
         <span>🏊 Nadás crol solo. ${say2("Tocá arriba o abajo de la izquierda", "Con ↑ y ↓")} te movés.</span>
         <span>🔋 El aire es tu pila. En crol baja despacio; ${say2("manteniendo MARIPOSA", "manteniendo →")} vas mucho más rápido, pero baja rápido.</span>
+        <span>🐸 ${say2("Manteniendo PECHO", "Manteniendo Z")} vas más lento que en crol, pero casi no gastás aire: sirve para llegar al final sin parar.</span>
         <span>💨 ${say2("Mantené RESPIRAR", "Mantené ESPACIO")} para recargarla: mientras respirás vas más lento. Sin aire, casi no avanzás.</span>
         <span>🟢 Lo verde te acelera, 🔴 lo rojo te frena. El especial ${say2("", "(←) ")}se carga solo.</span>
         <span>🏅 En la copa: 1º suma 10, 2º suma 6, 3º suma 3. Extra: +2 si agarrás dulce de leche y +2 si nunca te quedás sin aire.</span>
@@ -183,7 +184,7 @@ const store = {
     const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
     show(`<p class="sub">${head}</p><h1 class="small">${circ.name}</h1><p class="help">${circ.info}</p>
       <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${faceImg(r.ch, 52, i ? "normal" : "happy")}<b>${r.ch.name}${i ? "" : " (vos)"}</b>${pts(r)}<small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
-      <p class="help">${say2("Nadás crol solo. MARIPOSA va más rápido y gasta más pila. Mantené RESPIRAR para recargar.", "↑ ↓ moverte · → (mantener) mariposa · ESPACIO (mantener) respirar · ← especial · P pausa")}</p>
+      <p class="help">${say2("Nadás crol solo. MARIPOSA va más rápido y gasta más pila; PECHO va lento y casi no gasta. Mantené RESPIRAR para recargar.", "↑ ↓ moverte · → mariposa · Z pecho · ESPACIO respirar (mantener) · ← especial · P pausa")}</p>
       <div class="legend">${legend}</div><button class="go">¡AL AGUA!</button>`);
     scr.querySelector(".go").onclick = () => {
       race = draft; player = race.racers[0]; lastCount = 99; endShown = false;
