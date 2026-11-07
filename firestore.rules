@@ -27,7 +27,7 @@ service cloud.firestore {
     // Récords del grupo: uno por dispositivo y modo; solo se puede bajar el tiempo
     match /boards/{board}/best/{dev} {
       allow read: if true;
-      allow create, update: if board in ['sprint-50', 'idavuelta-100', 'idavuelta-200', 'idavuelta-400', 'abiertas-150']
+      allow create, update: if board in ['sprint-100', 'idavuelta-200', 'abiertas-150']
         && request.resource.data.keys().hasOnly(['alias', 'char', 'time', 'at'])
         && okAlias(request.resource.data.alias) && request.resource.data.alias.size() > 0 && okChar(request.resource.data.char)
         && request.resource.data.time is number && request.resource.data.time >= 5 && request.resource.data.time <= 1200

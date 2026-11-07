@@ -125,7 +125,6 @@ const store = {
   let race = null, player = null, chosen = null, lastCount = 99, endShown = false;
   let mode = "quick", cup = null, quickCirc = store.get("npg-circ") || "sprint";
   // largo de la carrera rápida en cada pileta (100, 200 o 400 m en la olímpica)
-  const quickDist = (c) => { const d = +store.get("npg-dist-" + c.id); return c.dists && c.dists.includes(d) ? d : c.len; };
   if (!CIRCUITS[quickCirc]) quickCirc = "sprint";
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const alias = () => (store.get("npg-apodo") || "").trim();
@@ -145,7 +144,7 @@ const store = {
         <button class="mode alt" id="mQuick">CARRERA RÁPIDA<small>Una carrera suelta para practicar</small></button>
       </div>
       <div class="cols"><div class="how"><b>Cómo se juega</b>
-        <span>🏁 Tres modos: SPRINT (un largo de 50 m), IDA Y VUELTA (200 m con vueltas americanas) y AGUAS ABIERTAS (500 m con corriente que cambia).</span>
+        <span>🏁 Tres modos: SPRINT (100 m sin vueltas), IDA Y VUELTA (200 m con vueltas americanas) y AGUAS ABIERTAS (500 m con corriente que cambia).</span>
         <span>🏊 Nadás crol solo. ${say2("Tocá arriba o abajo de la izquierda", "Con ↑ y ↓")} te movés.</span>
         <span>🔋 El aire es tu pila. En crol baja despacio; ${say2("manteniendo MARIPOSA", "manteniendo →")} vas mucho más rápido, pero baja rápido.</span>
         <span>🐸 ${say2("Manteniendo PECHO", "Manteniendo Z")} vas más lento que en crol, pero casi no gastás aire: sirve para llegar al final sin parar.</span>
@@ -175,9 +174,8 @@ const store = {
   }
 
   // Los récords del grupo (en la nube): los 10 mejores tiempos de cada modo.
-  const BOARDS = [["sprint-50", "SPRINT 50 m"], ["idavuelta-200", "IDA Y VUELTA 200 m"], ["abiertas-150", "AGUAS ABIERTAS 500 m"],
-    ["idavuelta-100", "IDA Y VUELTA 100 m"], ["idavuelta-400", "IDA Y VUELTA 400 m"]];
-  let boardKey = "sprint-50";
+  const BOARDS = [["sprint-100", "SPRINT 100 m"], ["idavuelta-200", "IDA Y VUELTA 200 m"], ["abiertas-150", "AGUAS ABIERTAS 500 m"]];
+  let boardKey = "sprint-100";
   async function fillBoard() {
     const key = boardKey, rows = await Nube.board(key), el = document.getElementById("board");
     if (!el || key !== boardKey) return;
@@ -219,13 +217,11 @@ const store = {
   function selectScreen() {
     race = null;
     const qc = CIRCUITS[quickCirc];
-    const circs = mode === "quick" ? `<div class="circs">${Object.values(CIRCUITS).map((c) => `<button class="circ ${c.id === quickCirc ? "on" : ""}" data-c="${c.id}">${c.name}<small>${c.open ? "río, " + c.show + " m" : c.dists ? "pileta de " + c.pool + " m" : c.len + " m, sin vueltas"}</small></button>`).join("")}</div>
-      ${qc.dists ? `<div class="circs dists">${qc.dists.map((d) => `<button class="circ dist ${d === quickDist(qc) ? "on" : ""}" data-d="${d}">${d} m<small>${d / qc.pool - 1 === 1 ? "1 vuelta" : d / qc.pool - 1 + " vueltas"}</small></button>`).join("")}</div>` : ""}` : "";
+    const circs = mode === "quick" ? `<div class="circs">${Object.values(CIRCUITS).map((c) => `<button class="circ ${c.id === quickCirc ? "on" : ""}" data-c="${c.id}">${c.name}<small>${c.open ? c.show + " m en el río" : c.len > c.pool ? c.len + " m, ida y vuelta" : c.len + " m, sin vueltas"}</small></button>`).join("")}</div>` : "";
     show(`<p class="sub">${mode === "cup" ? "🏆 COPA · " + esc(alias()) : "CARRERA RÁPIDA"}</p><h1 class="small">Elegí tu nadador</h1>${circs}
       <div class="grid">${CHARS.map((c) => `<button class="ch" data-id="${c.id}">${faceImg(c, 56)}<b>${c.name}</b><small>${c.tag}</small>${statBars(c)}</button>`).join("")}</div>
       <button class="link" id="back">← Volver al inicio</button>`);
     scr.querySelectorAll(".circ[data-c]").forEach((b) => b.onclick = () => { quickCirc = b.dataset.c; store.set("npg-circ", quickCirc); selectScreen(); });
-    scr.querySelectorAll(".dist").forEach((b) => b.onclick = () => { store.set("npg-dist-" + quickCirc, b.dataset.d); selectScreen(); });
     scr.querySelectorAll(".ch").forEach((b) => b.onclick = () => {
       Sound.unlock(); chosen = CHARS.find((c) => c.id === b.dataset.id);
       if (mode === "cup") cup = { rivals: drawRivals(chosen), i: 0, pts: {}, done: false };
@@ -236,7 +232,7 @@ const store = {
 
   function drawScreen() {
     const circ = cup ? CIRCUITS[CUP[cup.i]] : CIRCUITS[quickCirc];
-    const draft = newRace(chosen, circ, cup ? cup.rivals : undefined, cup ? circ.len : quickDist(circ));
+    const draft = newRace(chosen, circ, cup ? cup.rivals : undefined, circ.len);
     const [p, a, b] = draft.racers;
     const legend = Object.keys(ITEMS).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air ? " +AIRE" : ""}</span>`).join("");
     const head = cup ? `🏆 COPA · CARRERA ${cup.i + 1} DE ${CUP.length}` : "CARRERA RÁPIDA";

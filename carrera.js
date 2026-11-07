@@ -36,11 +36,10 @@ const RACE_M = 100;       // largo de la carrera si no se dice otro, en metros
 // Los tres circuitos de la copa. Cada uno cambia una regla y los rivales se ponen más difíciles.
 const CIRCUITS = {
 // pool: largo de la pileta; si la carrera es más larga, en cada pared se hace la vuelta americana.
-// dists: los largos de carrera que se pueden elegir en la carrera rápida (la copa usa len).
 // show: los metros que se muestran, cuando la carrera "equivale" a más de lo que se nada en el juego.
-  sprint:    { id: "sprint", name: "SPRINT", pool: 50, len: 50, level: 0, gap: [4, 6],
-               info: "Un solo largo de 50 m en la pileta olímpica: sin vueltas, todo a fondo. La salida es clave." },
-  idavuelta: { id: "idavuelta", name: "IDA Y VUELTA", pool: 50, len: 200, dists: [100, 200, 400], level: 1, gap: [4, 7],
+  sprint:    { id: "sprint", name: "SPRINT", pool: 100, len: 100, level: 0, gap: [4, 6],
+               info: "100 m de un tirón en una pileta larga: sin vueltas, todo a fondo. La salida es clave." },
+  idavuelta: { id: "idavuelta", name: "IDA Y VUELTA", pool: 50, len: 200, level: 1, gap: [4, 7],
                info: "En la pileta olímpica, ida y vuelta: en cada pared, vuelta americana. Hay que repartir el aire." },
   abiertas:  { id: "abiertas", name: "AGUAS ABIERTAS", len: 150, show: 500, level: 2, gap: [5, 8], current: 0.08, against: 0.14, open: true,
                info: "500 m en el río, sin paredes ni corcheras. La corriente cambia: a veces te frena de frente y a veces te lleva de costado." }

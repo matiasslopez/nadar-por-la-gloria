@@ -79,7 +79,7 @@ button.link { background: none; color: #8FE3FF; text-decoration: underline; padd
       const get = async (c) => (await fs.getDocs(fs.collection(db, c))).docs.map((d) => ({ id: d.id, ...d.data() }));
       const [visits, runs, fbs] = await Promise.all([get("visits"), get("runs"), get("feedback")]);
       const boards = {};
-      for (const k of ["sprint-50", "idavuelta-200", "abiertas-150", "idavuelta-100", "idavuelta-400"]) {
+      for (const k of ["sprint-100", "idavuelta-200", "abiertas-150"]) {
         const s = await fs.getDocs(fs.query(fs.collection(db, "boards", k, "best"), fs.orderBy("time"), fs.limit(5)));
         boards[k] = s.docs.map((d) => d.data());
       }
