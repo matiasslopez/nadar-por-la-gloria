@@ -66,6 +66,10 @@ function render(ctx, race, W, H) {
   for (const r of race.racers) {
     const diving = r.push && r.push.kind === "SALIDA" && race.t - r.push.t < diveT;
     if (r.onBlock) drawStanding(ctx, r, sx(block), sy(r.u), ppm);
+    else if (r.finished) {
+      ctx.save(); ctx.translate(sx(r.pp), sy(r.u)); if (r.dir < 0) ctx.scale(-1, 1);
+      drawAtWall(ctx, r, ppm, t, race.t - r.finishT, standings(race)[0] === r); ctx.restore();
+    }
     else if (diving) {
       const q = (race.t - r.push.t) / diveT, k = 1 + Math.sin(Math.PI * q) * 0.25;
       ctx.save(); ctx.translate(sx(block + (pos(r) - block) * q), sy(r.u)); ctx.scale(k, k);
@@ -111,14 +115,14 @@ function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, turns) {
   if (x1 > x0) {
     ctx.save(); ctx.beginPath(); ctx.rect(x0, top, x1 - x0, ph); ctx.clip();
     const g = ctx.createLinearGradient(0, top, 0, top + ph);
-    g.addColorStop(0, "#29B6EE"); g.addColorStop(0.5, "#45CCF5"); g.addColorStop(1, "#29B6EE");
+    g.addColorStop(0, "#0F86C9"); g.addColorStop(0.18, "#1FA9E4"); g.addColorStop(0.5, "#3CC4F0"); g.addColorStop(0.82, "#1FA9E4"); g.addColorStop(1, "#0F86C9");
     ctx.fillStyle = g; ctx.fillRect(x0, top, x1 - x0, ph);
-    ctx.strokeStyle = "rgba(255,255,255,0.13)"; ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(255,255,255,0.07)"; ctx.lineWidth = 1;
     ctx.beginPath();
     for (let m = Math.max(0, m0); m < m1; m++) { ctx.moveTo(sx(m), top); ctx.lineTo(sx(m), top + ph); }
     for (let k = 1; k < 12; k++) { ctx.moveTo(x0, top + ph * k / 12); ctx.lineTo(x1, top + ph * k / 12); }
     ctx.stroke();
-    caustics(ctx, sx, sy, m0, t, "rgba(255,255,255,0.22)");
+    causticLight(ctx, sx, x0, top, x1 - x0, ph, t, ppm, 0.3);
     // el globo de HSJ pintado en el fondo, en la mitad de la pileta
     if (HSJ_LOGO.complete && HSJ_LOGO.naturalWidth) {
       const lh = ph * 0.26, lw = lh / HSJ_LOGO_H;
@@ -152,6 +156,7 @@ function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, turns) {
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 9 + Math.sin(t * 5 + i) * 2, y + 6); ctx.lineTo(x, y + 12); ctx.fill();
       }
     }
+    glints(ctx, sx, sy, m0, m1, t);
     // marcas cada 10 m
     ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (let m = 10; m < len; m += 10) {
@@ -161,9 +166,16 @@ function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, turns) {
     }
     ctx.restore();
   }
-  // bordes del agua
-  ctx.fillStyle = "#fff";
-  if (x1 > x0) { ctx.fillRect(x0, top - 4, x1 - x0, 4); ctx.fillRect(x0, top + ph, x1 - x0, 4); }
+  // bordes del agua: canaleta con sombra hacia adentro
+  if (x1 > x0) {
+    for (const [y, d] of [[top, 1], [top + ph, -1]]) {
+      const gs = ctx.createLinearGradient(0, y, 0, y + d * 16);
+      gs.addColorStop(0, "rgba(0,40,90,0.35)"); gs.addColorStop(1, "rgba(0,40,90,0)");
+      ctx.fillStyle = gs; ctx.fillRect(x0, d > 0 ? y : y - 16, x1 - x0, 16);
+    }
+    ctx.fillStyle = "#fff"; ctx.fillRect(x0, top - 5, x1 - x0, 5); ctx.fillRect(x0, top + ph, x1 - x0, 5);
+    ctx.fillStyle = "#C9D6E2"; ctx.fillRect(x0, top - 1, x1 - x0, 1); ctx.fillRect(x0, top + ph + 4, x1 - x0, 1);
+  }
   // pared de salida con los partidores y el número de cada carril
   const ws = sx(0);
   if (ws > -ppm * 3) {
@@ -201,6 +213,7 @@ function drawRiver(ctx, race, W, H, top, ph, sx, sy, m0, m1, t, ppm) {
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, "#1C8CA6"); g.addColorStop(0.5, "#2AA5B5"); g.addColorStop(1, "#1C8CA6");
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  causticLight(ctx, sx, 0, top, W, ph, t, ppm, 0.18);
   // olitas
   ctx.strokeStyle = "rgba(255,255,255,0.25)"; ctx.lineWidth = 2; ctx.lineCap = "round";
   for (let i = 0; i < 40; i++) {
@@ -264,6 +277,97 @@ function drawRiver(ctx, race, W, H, top, ph, sx, sy, m0, m1, t, ppm) {
     ctx.font = "bold 18px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#fff"; ctx.fillText("★ LLEGADA ★", 0, 0);
     ctx.restore();
   }
+}
+
+// Luz del sol que se mueve en el fondo: una red de líneas claras (como en una pileta de verdad).
+// Se dibuja una sola vez en una baldosa que se repite, y en cada cuadro se mueven dos capas.
+let CAUSTIC = null;
+function causticTile() {
+  if (CAUSTIC) return CAUSTIC;
+  const S = 256, c = document.createElement("canvas"); c.width = c.height = S;
+  const x = c.getContext("2d"), img = x.createImageData(S, S), pts = [];
+  let seed = 7; const rr = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let i = 0; i < 26; i++) pts.push([rr() * S, rr() * S]);
+  for (let py = 0; py < S; py++) for (let px = 0; px < S; px++) {
+    let f1 = 1e9, f2 = 1e9;
+    for (const [qx, qy] of pts) {
+      let dx = Math.abs(px - qx), dy = Math.abs(py - qy); if (dx > S / 2) dx = S - dx; if (dy > S / 2) dy = S - dy;
+      const d = dx * dx + dy * dy; if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) f2 = d;
+    }
+    const e = Math.sqrt(f2) - Math.sqrt(f1), v = Math.max(0, 1 - e / 5);
+    const i = (py * S + px) * 4; img.data[i] = img.data[i + 1] = img.data[i + 2] = 255; img.data[i + 3] = Math.round(v * v * 255);
+  }
+  x.putImageData(img, 0, 0);
+  return CAUSTIC = { c, pat: null };
+}
+function causticLight(ctx, sx, x, y, w, h, t, ppm, alpha) {
+  const tile = causticTile();
+  if (!tile.pat) tile.pat = ctx.createPattern(tile.c, "repeat");
+  ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+  for (const [sc, vx, vy, a] of [[ppm / 42, 0.3, 0.2, 1], [ppm / 34, -0.24, 0.27, 0.6]]) { // dos capas que se cruzan: la luz titila
+    tile.pat.setTransform(new DOMMatrix().translate(sx(0) + t * vx * ppm, y + t * vy * ppm).scale(sc));
+    ctx.globalAlpha = alpha * a; ctx.fillStyle = tile.pat; ctx.fillRect(x, y, w, h);
+  }
+  ctx.restore();
+}
+// Brillitos que titilan en la superficie, fijos en la pileta (se van con la cámara).
+function glints(ctx, sx, sy, m0, m1, t) {
+  ctx.save(); ctx.fillStyle = "#fff";
+  for (let m = Math.floor(m0); m < m1; m++) for (let j = 0; j < 3; j++) {
+    const n = m * 7 + j, a = Math.sin(t * (2 + hash(n) * 3) + n * 3);
+    if (a < 0.75) continue;
+    const x = sx(m + hash(n + 1)), y = sy(0.04 + hash(n + 2) * 0.92), s = (a - 0.75) * 4 * (2 + hash(n + 3) * 2);
+    ctx.globalAlpha = (a - 0.75) * 3;
+    ctx.beginPath(); ctx.moveTo(x - s * 2, y); ctx.lineTo(x, y - s * 0.5); ctx.lineTo(x + s * 2, y); ctx.lineTo(x, y + s * 0.5); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Ya llegó: parado en el agua contra la pared, con los antebrazos apoyados en el borde y la cabeza afuera.
+// x = 0 es la pared; el agua queda hacia la izquierda. El que ganó saluda con un brazo para arriba.
+function drawAtWall(ctx, r, ppm, t, since, won) {
+  const ch = r.ch, k = ppm * 1.4, skin = ch.skin;
+  // ondas que salen del nadador
+  for (let i = 0; i < 3; i++) {
+    const q = ((t * 0.7 + i / 3) % 1), R = k * (0.3 + q * 0.9);
+    ctx.strokeStyle = `rgba(255,255,255,${(0.5 * (1 - q)).toFixed(2)})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(-k * 0.3, 0, R, R * 0.8, 0, Math.PI * 0.5, Math.PI * 1.5); ctx.stroke();
+  }
+  // el cuerpo, abajo del agua y parado: se ve apagado
+  ctx.save(); ctx.globalAlpha = 0.32; ctx.fillStyle = shade(ch.suit, -0.1);
+  ctx.beginPath(); ctx.ellipse(-k * 0.42, 0, k * 0.2, k * 0.17, 0, 0, 7); ctx.fill();
+  ctx.fillStyle = shade(skin, -0.2);
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(-k * 0.62 + Math.sin(t * 3 + s) * k * 0.03, s * k * 0.08, k * 0.16, k * 0.05, 0, 0, 7); ctx.fill(); }
+  ctx.restore();
+  // brazos: apoyados en el borde (el que ganó levanta uno y lo agita)
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const s of [-1, 1]) {
+    const up = won && s < 0 && since < 6, sh = [-k * 0.22, s * k * 0.2];
+    let el = [k * 0.1, s * k * 0.34], ha = [k * 0.32, s * k * 0.16];
+    if (up) { const w = Math.sin(t * 12) * k * 0.08; el = [-k * 0.18, s * k * 0.42]; ha = [-k * 0.08 + w, s * k * 0.6]; }
+    ctx.strokeStyle = "rgba(20,30,50,0.35)"; ctx.lineWidth = k * 0.15;
+    ctx.beginPath(); ctx.moveTo(...sh); ctx.lineTo(...el); ctx.lineTo(...ha); ctx.stroke();
+    ctx.strokeStyle = shade(skin, -0.06); ctx.lineWidth = k * 0.115;
+    ctx.beginPath(); ctx.moveTo(...sh); ctx.lineTo(...el); ctx.lineTo(...ha); ctx.stroke();
+    ctx.fillStyle = shade(skin, -0.03); ctx.beginPath(); ctx.arc(ha[0], ha[1], k * 0.075, 0, 7); ctx.fill();
+    if (up) { // rayitas de festejo al lado de la mano
+      ctx.strokeStyle = "#FFD84A"; ctx.lineWidth = 2.5;
+      for (let i = -1; i <= 1; i++) { const a = s * (Math.PI / 2) + i * 0.6; ctx.beginPath(); ctx.moveTo(ha[0] + Math.cos(a) * k * 0.13, ha[1] + Math.sin(a) * k * 0.13); ctx.lineTo(ha[0] + Math.cos(a) * k * 0.24, ha[1] + Math.sin(a) * k * 0.24); ctx.stroke(); }
+    }
+  }
+  // hombros con la línea del agua
+  ctx.fillStyle = skin; ctx.strokeStyle = "rgba(20,30,50,0.4)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.ellipse(-k * 0.25, 0, k * 0.13, k * 0.27, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,0.85)"; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(-k * 0.25, 0, k * 0.2, k * 0.33, 0, Math.PI * 0.55, Math.PI * 1.45); ctx.stroke();
+  // cabeza con gorra, mirando la pared, y las antiparras subidas a la frente
+  const hx = -k * 0.2, hy = Math.sin(t * 2.2) * k * 0.01;
+  const gc = ctx.createRadialGradient(hx - k * 0.04, hy - k * 0.05, k * 0.01, hx, hy, k * 0.16);
+  gc.addColorStop(0, shade(ch.cap, 0.45)); gc.addColorStop(0.6, ch.cap); gc.addColorStop(1, shade(ch.cap, -0.35));
+  ctx.fillStyle = gc; ctx.strokeStyle = r.isPlayer ? "#FFD84A" : "rgba(255,255,255,0.9)"; ctx.lineWidth = r.isPlayer ? 3 : 2;
+  ctx.beginPath(); ctx.ellipse(hx, hy, k * 0.15, k * 0.14, 0, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = "#1B2A3A";
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(hx + k * 0.02, hy + s * k * 0.055, k * 0.03, k * 0.024, 0, 0, 7); ctx.fill(); }
 }
 
 function caustics(ctx, sx, sy, m0, t, col) {
@@ -422,6 +526,14 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
     gl.addColorStop(0, good ? `rgba(124,252,106,${(0.55 * pul).toFixed(2)})` : `rgba(255,80,60,${(0.5 * pul).toFixed(2)})`);
     gl.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = gl; ctx.beginPath(); ctx.ellipse(k * 0.2, 0, k * 1.25, k * 0.55, 0, 0, 7); ctx.fill();
+  }
+  if (r.v > 1 && !r.dive) { // la V que abre el agua detrás de la cabeza
+    const sp = Math.min(1.4, r.v / 2.6), wob = Math.sin(t * 9) * k * 0.02;
+    ctx.strokeStyle = `rgba(255,255,255,${(0.28 * sp).toFixed(2)})`; ctx.lineWidth = Math.max(1.5, k * 0.035); ctx.lineCap = "round";
+    for (const s of [-1, 1]) {
+      ctx.beginPath(); ctx.moveTo(k * 0.85, s * k * 0.1);
+      ctx.quadraticCurveTo(k * 0.1, s * (k * 0.32 + wob), -k * 1.5 * sp, s * k * 0.62 * sp); ctx.stroke();
+    }
   }
   // sombra en el fondo de la pileta
   ctx.fillStyle = "rgba(0,45,100,0.22)";
@@ -640,8 +752,11 @@ function drawHud(ctx, race, W, H) {
   ctx.save();
   // franja de arriba
   const g = ctx.createLinearGradient(0, 0, 0, POOL_TOP);
-  g.addColorStop(0, "#0E4C7E"); g.addColorStop(1, "#1A6FA8");
+  g.addColorStop(0, "#082A4A"); g.addColorStop(1, "#0F4E82");
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, POOL_TOP - 3);
+  const gl = ctx.createLinearGradient(0, 0, W, 0);
+  gl.addColorStop(0, "rgba(95,208,245,0)"); gl.addColorStop(0.5, "rgba(95,208,245,0.9)"); gl.addColorStop(1, "rgba(95,208,245,0)");
+  ctx.fillStyle = gl; ctx.fillRect(0, POOL_TOP - 4, W, 2);
   // tu cara y tu puesto
   drawFaceBadge(ctx, p, 28, 29, 38, race.t);
   ctx.font = "bold 30px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";

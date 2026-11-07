@@ -62,13 +62,39 @@ input { user-select: text; -webkit-user-select: text; }
 .pts { color: #FFD84A; font-weight: bold; opacity: 1 !important; }
 .podio .plus { color: #7CFC6A; font-size: 18px; }
 .podio .ex { color: #FFD84A; }
-.podium { display: flex; align-items: flex-end; justify-content: center; gap: 6px; margin: 6px 0 2px; }
-.podium .step { display: flex; flex-direction: column; align-items: center; width: 118px; position: relative; font-size: 13px; }
-.podium .step b { margin-top: 2px; } .podium .step small { opacity: 0.9; }
-.podium .step i { position: absolute; top: -6px; right: 22px; font-style: normal; font-size: 22px; }
-.podium .block { width: 100%; margin-top: 4px; border-radius: 10px 10px 0 0; font: bold 22px system-ui, sans-serif; color: #10324F; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 -4px 0 #0002; }
-.podium .s1 .block { height: 64px; background: #FFD84A; } .podium .s2 .block { height: 44px; background: #D9E4EE; } .podium .s3 .block { height: 30px; background: #E7A46A; }
-.podium .me b { color: #FFD84A; }
+/* el podio: suben los escalones (3º, 2º, 1º), caen las caras, y el 1º brilla */
+.podium { display: flex; align-items: flex-end; justify-content: center; gap: 4px; margin: 10px 0 4px; position: relative; padding-top: 14px; }
+.podium .step { display: flex; flex-direction: column; align-items: center; width: 122px; position: relative; font-size: 13px; }
+.podium .who { display: flex; flex-direction: column; align-items: center; position: relative; opacity: 0; animation: npgDrop 0.55s cubic-bezier(.3,1.6,.5,1) forwards; }
+.podium .who b { margin-top: 3px; white-space: nowrap; } .podium .who small { opacity: 0.9; }
+.podium .who em { font-style: normal; font-size: 10px; background: #FFD84A; color: #10324F; border-radius: 8px; padding: 1px 5px; vertical-align: 2px; }
+.podium .pic { position: relative; z-index: 1; display: inline-block; border-radius: 22%; }
+.podium .s1 .pic { animation: npgBob 1.6s ease-in-out 1.6s infinite; box-shadow: 0 0 18px 4px #FFD84A88; }
+.podium .cup { position: absolute; top: -20px; right: -6px; z-index: 2; font-style: normal; font-size: 26px; animation: npgWiggle 1.2s ease-in-out 1.6s infinite; }
+.podium .rays { position: absolute; left: 50%; top: 30px; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%; z-index: 0; pointer-events: none;
+  background: repeating-conic-gradient(#FFD84A55 0 10deg, transparent 10deg 24deg); -webkit-mask: radial-gradient(circle, #000 25%, transparent 70%); mask: radial-gradient(circle, #000 25%, transparent 70%); animation: npgSpin 9s linear infinite; }
+.podium .block { width: 100%; margin-top: 6px; border-radius: 12px 12px 0 0; display: flex; align-items: flex-start; justify-content: center; position: relative; overflow: hidden;
+  transform-origin: bottom; transform: scaleY(0); animation: npgRise 0.6s cubic-bezier(.3,1.4,.5,1) forwards; box-shadow: inset 0 -6px 0 #0002, 0 6px 16px #0004; }
+.podium .block::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 8px; background: #ffffff70; }
+.podium .block span { font: 900 30px system-ui, sans-serif; color: #10324Fcc; margin-top: 10px; text-shadow: 0 2px 0 #fff6; }
+.podium .s1 .block { height: 86px; background: linear-gradient(160deg, #FFE98A, #FFC21A 55%, #E09A00); }
+.podium .s1 .block::after { content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; background: linear-gradient(90deg, transparent, #fff9, transparent); transform: skewX(-20deg); animation: npgShine 2.6s ease-in-out 1.6s infinite; }
+.podium .s2 .block { height: 60px; background: linear-gradient(160deg, #F4F8FB, #BFCEDC 60%, #95A9BC); }
+.podium .s3 .block span { font-size: 22px; margin-top: 4px; }
+.podium .s3 .block { height: 42px; background: linear-gradient(160deg, #F6C08E, #D9864A 60%, #B0612A); }
+.podium .s3 .block, .podium .s3 .who { animation-delay: 0.1s; } .podium .s3 .who { animation-delay: 0.45s; }
+.podium .s2 .block { animation-delay: 0.4s; } .podium .s2 .who { animation-delay: 0.75s; }
+.podium .s1 .block { animation-delay: 0.7s; } .podium .s1 .who { animation-delay: 1.05s; }
+.podium .me b { color: #FFD84A; } .podium .me .block { outline: 3px solid #FFD84A; outline-offset: -3px; }
+.podium .bit { position: absolute; top: -10px; width: 8px; height: 12px; border-radius: 2px; opacity: 0; z-index: 3; pointer-events: none; animation: npgFall 1.8s ease-in forwards; }
+@keyframes npgRise { to { transform: scaleY(1); } }
+@keyframes npgDrop { from { opacity: 0; transform: translateY(-40px) scale(0.6); } to { opacity: 1; transform: none; } }
+@keyframes npgBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes npgWiggle { 0%, 100% { transform: rotate(-10deg); } 50% { transform: rotate(12deg) scale(1.1); } }
+@keyframes npgSpin { to { transform: rotate(360deg); } }
+@keyframes npgShine { 0% { left: -60%; } 60%, 100% { left: 130%; } }
+@keyframes npgFall { 0% { opacity: 1; transform: translate(0, 0) rotate(0); } 100% { opacity: 0; transform: translate(var(--dx), 220px) rotate(540deg); } }
+@media (prefers-reduced-motion: reduce) { .podium *, .podium *::after { animation-duration: 0.01s !important; animation-iteration-count: 1 !important; } }
 .trophy { position: relative; margin: 4px 0; }
 .boards { margin: 4px 0; } .boards .circ { font-size: 11px; padding: 4px 8px; }
 .stars { display: flex; gap: 6px; } .star { font-size: 34px; background: none; border: 0; color: #ffffff55; cursor: pointer; padding: 0 2px; }

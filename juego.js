@@ -255,11 +255,15 @@ const store = {
   // El podio: el 1º en el medio y más alto, el 2º a la izquierda y el 3º a la derecha.
   // items: [{ ch, isPlayer, sub, extra }] ya ordenados del 1º al 3º.
   function podium(items) {
+    const MEDAL = ["🥇", "🥈", "🥉"];
     const col = (x, i) => !x ? "" : `<div class="step s${i + 1} ${x.isPlayer ? "me" : ""}">
-      ${faceImg(x.ch, i ? 40 : 52, i ? (x.isPlayer ? "hurt" : "normal") : "happy")}${i ? "" : "<i>🏆</i>"}
-      <b>${x.ch.name}${x.isPlayer ? " (vos)" : ""}</b><small>${x.sub}</small>${x.extra || ""}
-      <div class="block">${i + 1}º</div></div>`;
-    return `<div class="podium">${col(items[1], 1)}${col(items[0], 0)}${col(items[2], 2)}</div>`;
+      <div class="who">${i ? "" : `<span class="rays"></span><i class="cup">🏆</i>`}
+        <span class="pic">${faceImg(x.ch, i ? 46 : 60, i ? (x.isPlayer ? "hurt" : "normal") : "happy")}</span>
+        <b>${MEDAL[i]} ${x.ch.name}${x.isPlayer ? ` <em>VOS</em>` : ""}</b><small>${x.sub}</small>${x.extra || ""}</div>
+      <div class="block"><span>${i + 1}</span></div></div>`;
+    const won = items[0] && items[0].isPlayer;
+    const bits = won ? Array.from({ length: 36 }, (_, i) => `<i class="bit" style="left:${(i * 37) % 100}%;background:${["#FFD84A", "#FF6FB0", "#7CFC6A", "#5FD0F5", "#FF8A2A"][i % 5]};animation-delay:${1.1 + (i % 9) * 0.12}s;--dx:${((i * 53) % 80) - 40}px"></i>`).join("") : "";
+    return `<div class="podium">${bits}${col(items[1], 1)}${col(items[0], 0)}${col(items[2], 2)}</div>`;
   }
   function endScreen() {
     const st = standings(race), pos = st.indexOf(player) + 1, win = pos === 1;

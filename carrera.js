@@ -239,7 +239,7 @@ function stepRace(race, dt, input) {
   for (const r of race.racers) {
     const ch = r.ch;
     if (r.bubble) { r.bubble.t -= dt; if (r.bubble.t <= 0) r.bubble = null; }
-    if (r.finished) { r.v *= 1 - dt * 1.5; r.x += r.v * dt; place(race, r); continue; }
+    if (r.finished) { r.v = 0; r.x = race.len; place(race, r); continue; } // ya llegó: queda agarrado de la pared
     const pressed = r.isPlayer && (!!input.tap || (!!input.breathe && !r.prevB)); // cualquier toque o tecla sirve para saltar y para la vuelta
     if (r.isPlayer) r.prevB = !!input.breathe;
     if (r.onBlock) { // en el partidor la barrita sube y baja; si no salta, a los 1,6 segundos se tira tarde
@@ -331,7 +331,7 @@ function stepRace(race, dt, input) {
     }
 
     place(race, r);
-    if (r.x >= race.len) { r.finished = true; r.finishT = race.t; r.breathing = false; emit(race, r, "finish"); }
+    if (r.x >= race.len) { r.finished = true; r.finishT = race.t; r.breathing = false; r.x = race.len; r.v = 0; place(race, r); emit(race, r, "finish"); }
   }
   const done = race.racers.filter((r) => r.finished).length;
   if (!race.over && (player.finished || done >= 2)) { race.over = true; race.overT = race.t; }
