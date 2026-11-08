@@ -40,7 +40,7 @@ const Nube = (() => {
     return true;
   })();
 
-  // Una carrera terminada. run: { alias, char, mode, dist, place, time, cup, dive, turns }
+  // Una carrera terminada. run: { alias, char, mode, dist, place, time, cup, lvl, dive, turns } (lvl: el nivel del camino, 0 si es práctica o copa)
   async function saveRun(run) {
     if (!(await ready)) return;
     try {
@@ -49,8 +49,8 @@ const Nube = (() => {
       b.set(fs.doc(fs.collection(db, "runs")), { ...run, plat: traffic().plat, device: dev, at });
       await b.commit();
     } catch (e) {}
-    // récord del grupo: solo si tiene apodo y mejoró su marca en ese modo
-    if (!run.alias || run.time == null) return;
+    // récord del grupo: solo en la práctica libre y la copa, si tiene apodo y mejoró su marca en ese modo
+    if (run.lvl || !run.alias || run.time == null) return;
     const key = run.mode + "-" + run.dist, mine = +(st("npg-best-" + key) || 1e9);
     if (run.time >= mine) return;
     try {
@@ -63,6 +63,19 @@ const Nube = (() => {
     if (!(await ready)) return null;
     try {
       const snap = await fs.getDocs(fs.query(fs.collection(db, "boards", key, "best"), fs.orderBy("time"), fs.limit(10)));
+      return snap.docs.map((d) => ({ ...d.data(), me: d.id === device() }));
+    } catch (e) { return null; }
+  }
+  // Cómo va cada uno en el camino: uno por dispositivo. p: { alias, lvl, stars, cups, char }
+  async function saveProgress(p) {
+    if (!p.alias || !(await ready)) return;
+    try { await fs.setDoc(fs.doc(db, "players", device()), { ...p, at: new Date().toISOString() }); } catch (e) {}
+  }
+  // Los que van más lejos en el camino.
+  async function players() {
+    if (!(await ready)) return null;
+    try {
+      const snap = await fs.getDocs(fs.query(fs.collection(db, "players"), fs.orderBy("lvl", "desc"), fs.limit(30)));
       return snap.docs.map((d) => ({ ...d.data(), me: d.id === device() }));
     } catch (e) { return null; }
   }
@@ -83,5 +96,5 @@ const Nube = (() => {
     try { if (navigator.share) { await navigator.share({ title: "Nadar por la gloria", text, url }); return "ok"; } } catch (e) { return "no"; }
     try { await navigator.clipboard.writeText(text + " " + url); return "copiado"; } catch (e) { return "no"; }
   }
-  return { ready, saveRun, board, feedback, share, online: () => !!db };
+  return { ready, saveRun, board, saveProgress, players, feedback, share, online: () => !!db };
 })();

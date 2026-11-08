@@ -775,7 +775,8 @@ function drawHud(ctx, race, W, H) {
     ctx.strokeText("LARGO " + lap + " DE " + race.laps, bx + bw, by + 20); ctx.fillText("LARGO " + lap + " DE " + race.laps, bx + bw, by + 20);
   }
   for (const r of race.racers.slice().reverse()) drawFaceBadge(ctx, r, bx + bw * clamp(r.x / race.len, 0, 1), by, r.isPlayer ? 22 : 18, race.t);
-  // la pila de aire: grande, por segmentos, y abajo cuánto gasta o si recarga
+  // la pila de aire: grande, por segmentos, y abajo cuánto gasta o si recarga (en los primeros niveles no se gasta: no se muestra)
+  if (race.air) {
   const bw2 = 150, bh2 = 26, ax = W - bw2 - 22, ay = 7, flying = flyingNow(p) && !p.finished && !p.breathing;
   ctx.fillStyle = "#0008"; ctx.beginPath(); ctx.roundRect(ax, ay, bw2, bh2, 6); ctx.fill();
   ctx.fillStyle = "#ffffffaa"; ctx.beginPath(); ctx.roundRect(ax + bw2 + 2, ay + 7, 6, bh2 - 14, 2); ctx.fill();
@@ -801,6 +802,7 @@ function drawHud(ctx, race, W, H) {
     : flying ? ["MARIPOSA: GASTA ▼▼▼", blink ? "#FFD84A" : "#FFB020"] : pechoNow(p) ? ["PECHO: CASI NO GASTA", "#9CF0B0"] : ["CROL: GASTA ▼", "#CFE9FF"];
   ctx.font = "bold 12px system-ui, sans-serif"; ctx.fillStyle = tc;
   ctx.strokeText(txt, ax + bw2 / 2, ay + bh2 + 13); ctx.fillText(txt, ax + bw2 / 2, ay + bh2 + 13);
+  }
   if (p.objT > 0) { // objeto activo, abajo de la barra de la carrera
     const it = ITEMS[p.objKind];
     ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = it.good ? "#7CFC6A" : "#FF8A7A";

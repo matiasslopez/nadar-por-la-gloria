@@ -23,15 +23,14 @@ const store = {
 
   // ---------- controles ----------
   // En la compu se juega con las flechas y el espacio: ↑↓ moverse, → (mantener) mariposa,
-  // espacio (mantener) respirar, Z (mantener) pecho, ← especial. Enter sirve para los botones de las pantallas.
+  // espacio (mantener) respirar, Z (mantener) pecho. Enter sirve para los botones de las pantallas.
   const PC = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   document.body.classList.toggle("pc", PC);
   const say2 = (touch, pc) => (PC ? pc : touch);
-  const input = { up: false, down: false, fly: false, pecho: false, breathe: false, specialPressed: false, tap: false };
+  const input = { up: false, down: false, fly: false, pecho: false, breathe: false, tap: false };
   // en la largada y llegando a la pared, cualquier tecla o toque en la pantalla sirve para saltar o girar
   const pushOpen = () => race && !race.over && !paused && scr.style.display === "none" && ((player.onBlock && race.t >= 0) || (player.wallBar && player.turnQ === null));
   const keys = { ArrowUp: "up", ArrowDown: "down", ArrowRight: "fly", w: "up", W: "up", s: "down", S: "down", d: "fly", D: "fly", z: "pecho", Z: "pecho", " ": "breathe" };
-  const presses = { ArrowLeft: "specialPressed", a: "specialPressed", A: "specialPressed" };
   window.addEventListener("keydown", (e) => {
     Sound.unlock();
     if (scr.style.display !== "none") { // en las pantallas, Enter o espacio aprietan el botón amarillo
@@ -42,7 +41,6 @@ const store = {
     const push = pushOpen() && !e.repeat && !"pP".includes(e.key) && e.key !== "Escape";
     if (push) { input.tap = true; e.preventDefault(); }
     if (keys[e.key]) { input[keys[e.key]] = true; e.preventDefault(); }
-    if (presses[e.key] && !e.repeat && !push) { input[presses[e.key]] = true; e.preventDefault(); }
     if ((e.key === "p" || e.key === "P" || e.key === "Escape") && race && !race.over) setPaused(!paused);
     else if (paused && !e.repeat) setPaused(false);
   });
@@ -65,10 +63,10 @@ const store = {
 
   // botones de la derecha: el dedo puede moverse un poco sin soltar el botón
   for (const el of pad.querySelectorAll(".btn")) {
-    const hold = el.dataset.hold, press = el.dataset.press;
+    const hold = el.dataset.hold;
     el.addEventListener("pointerdown", (e) => {
       e.preventDefault(); Sound.unlock(); capture(el, e); el.classList.add("on");
-      if (hold) input[hold] = true; if (press) input[press] = true;
+      if (hold) input[hold] = true;
     });
     const off = () => { el.classList.remove("on"); if (hold) input[hold] = false; };
     el.addEventListener("pointerup", off); el.addEventListener("pointercancel", off);
@@ -100,67 +98,98 @@ const store = {
     } catch (e) {}
   }
 
-  // ---------- guía de los primeros segundos (solo la primera carrera) ----------
+  // ---------- guía de la carrera ----------
+  // En los niveles que enseñan (1 a 10) los avisos salen siempre; en la práctica y la copa, solo la primera vez.
   const guide = { on: false, seen: new Set(), cur: null };
-  function startGuide() { guide.on = store.get("npg-guia") !== "vista"; guide.seen.clear(); guide.cur = null; }
+  function startGuide() { guide.on = mode === "level" ? level.n <= 10 : store.get("npg-guia") !== "vista"; guide.seen.clear(); guide.cur = null; }
   function tip(id, text, secs, force) {
     if (!guide.on || guide.seen.has(id) || (guide.cur && !force)) return;
     guide.seen.add(id); guide.cur = { id, text, t: secs };
   }
-  function guideStep(dt, events) {
+  function guideStep(dt) {
     if (!guide.on || race.t < 0) return;
     const p = player;
     if (guide.cur) { guide.cur.t -= dt; if (guide.cur.t <= 0 || (guide.cur.id === "breath" && p.breathing)) guide.cur = null; }
     if (p.onBlock || p.wallBar) return;
-    if (p.air < 0.45) tip("breath", say2("SE TE VA EL AIRE: MANTENÉ RESPIRAR PARA RECARGAR LA PILA", "SE TE VA EL AIRE: MANTENÉ ESPACIO PARA RECARGAR LA PILA"), 4, true);
+    if (race.air && p.air < 0.45) tip("breath", say2("SE TE VA EL AIRE: MANTENÉ RESPIRAR PARA RECARGAR LA PILA", "SE TE VA EL AIRE: MANTENÉ ESPACIO PARA RECARGAR LA PILA"), 4, true);
     tip("move", say2("TOCÁ ARRIBA O ABAJO DE LA IZQUIERDA PARA MOVERTE", "USÁ LAS FLECHAS ↑ Y ↓ PARA MOVERTE"), 3.5);
-    if (race.objs.some((o) => !o.gone && o.x - p.x > 0 && o.x - p.x < 7)) tip("items", "LO VERDE TE ACELERA, LO ROJO TE FRENA", 3);
-    if (guide.seen.has("breath") && race.t > 8) tip("fly", say2("MANTENÉ MARIPOSA: VAS MÁS RÁPIDO, PERO LA PILA BAJA MÁS RÁPIDO", "MANTENÉ →: MARIPOSA VA MÁS RÁPIDO, PERO LA PILA BAJA MÁS RÁPIDO"), 4);
-    if (specialReady(p)) tip("special", say2("¡TU ESPECIAL ESTÁ LISTO! TOCÁ " + p.ch.special, "¡TU ESPECIAL ESTÁ LISTO! APRETÁ ← PARA " + p.ch.special), 3);
+    if (race.objs.some((o) => !o.gone && o.x - p.x > 0 && o.x - p.x < 7)) tip("items", race.objs.some((o) => !ITEMS[o.kind].good) ? "LO VERDE TE ACELERA, LO ROJO TE FRENA" : "AGARRÁ LO VERDE: TE ACELERA", 3);
+    if (race.fly && race.t > (race.air ? 6 : 2)) tip("fly", say2("MANTENÉ MARIPOSA: VAS MÁS RÁPIDO, PERO LA PILA BAJA MÁS RÁPIDO", "MANTENÉ →: MARIPOSA VA MÁS RÁPIDO, PERO LA PILA BAJA MÁS RÁPIDO"), 4);
+    if (race.pecho && race.air && p.air < 0.25 && race.len - p.x < 25) tip("pecho", say2("MANTENÉ PECHO: CASI NO GASTA AIRE Y LLEGÁS SIN PARAR", "MANTENÉ Z: PECHO CASI NO GASTA AIRE Y LLEGÁS SIN PARAR"), 4, true);
+  }
+
+  // ---------- el progreso (en este celu) ----------
+  const myLevel = () => Math.max(1, +store.get("npg-lvl") || 1);
+  function starsMap() { try { return JSON.parse(store.get("npg-stars") || "{}"); } catch (e) { return {}; } }
+  const totalStars = () => Object.values(starsMap()).reduce((a, b) => a + b, 0);
+  const cupsWon = () => +store.get("npg-copas") || 0;
+  const starStr = (n, of = 3) => "★".repeat(n) + `<i>${"★".repeat(of - n)}</i>`;
+  // tu nivel en la comunidad: solo si tenés apodo
+  function pushProgress() {
+    if (!alias()) return;
+    Nube.saveProgress({ alias: alias().slice(0, 16), lvl: myLevel(), stars: totalStars(), cups: cupsWon(), char: store.get("npg-char") || "facu" });
   }
 
   // ---------- pantallas ----------
-  // Inicio → (copa o carrera rápida) → elegir nadador → sorteo y circuito → carrera → resultado.
-  // La copa son 3 carreras con los mismos rivales; lo que sumás va al ranking guardado en este celu.
-  let race = null, player = null, chosen = null, lastCount = 99, endShown = false;
-  let mode = "quick", cup = null, quickCirc = store.get("npg-circ") || "sprint";
-  // largo de la carrera rápida en cada pileta (100, 200 o 400 m en la olímpica)
+  // Inicio → camino (nivel → carrera → estrellas) · copa (desde Asiduo) · práctica libre (no suma).
+  // La copa son 3 carreras con los mismos rivales.
+  let race = null, player = null, chosen = null, lastCount = 99, endShown = false, level = null, after = null;
+  let mode = "level", cup = null, quickCirc = store.get("npg-circ") || "sprint";
   if (!CIRCUITS[quickCirc]) quickCirc = "sprint";
+  chosen = CHARS.find((c) => c.id === store.get("npg-char")) || null;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const alias = () => (store.get("npg-apodo") || "").trim();
-  function ranking() { try { return JSON.parse(store.get("npg-ranking") || "{}"); } catch (e) { return {}; } }
-  const rankRows = () => Object.entries(ranking()).sort((a, b) => b[1].pts - a[1].pts);
 
   function show(html) { scr.innerHTML = html; scr.style.display = "flex"; pad.style.display = "none"; keepAwake(false); scr.scrollTop = 0; }
+  function aliasField(id) {
+    const inp = document.getElementById(id); if (!inp) return;
+    inp.oninput = () => { store.set("npg-apodo", inp.value.trim()); const e = document.getElementById("aliasErr"); if (e) e.hidden = true; };
+    inp.onchange = pushProgress;
+  }
+
+  // El camino: unas burbujas con los niveles alrededor del tuyo y sus estrellas.
+  function pathHtml() {
+    const lv = myLevel(), sm = starsMap(), a = Math.max(1, lv - 3);
+    let h = "";
+    for (let n = a; n <= a + 7; n++) {
+      const st = STAGES.find((s) => s.from === n && n > 1);
+      if (st) h += `<span class="flag" title="${st.name}">${st.icon}</span>`;
+      if (n === CUP_LEVEL) h += `<span class="flag">🏆</span>`;
+      const cls = n < lv ? "done" : n === lv ? "now" : "locked";
+      h += `<button class="lv ${cls}" data-n="${n}" ${n > lv ? "disabled" : ""}><b>${n > lv ? "🔒" : n}</b><small>${n < lv ? starStr(sm[n] || 0) : n === lv ? "JUGÁ" : ""}</small></button>`;
+    }
+    return `<div class="path">${h}</div>`;
+  }
+  function stageBox() {
+    const lv = myLevel(), st = stageOf(lv), nx = nextStage(lv);
+    const pct = nx ? Math.round(100 * (lv - st.from) / (nx.from - st.from)) : 100;
+    return `<div class="stage"><span class="ic">${st.icon}</span><div><b>${st.name}</b> · NIVEL ${lv} · ★ ${totalStars()}${cupsWon() ? ` · 🏆 ${cupsWon()}` : ""}
+      <div class="prog"><i style="width:${pct}%"></i></div><small>${nx ? `Te ${nx.from - lv === 1 ? "falta 1 nivel" : "faltan " + (nx.from - lv) + " niveles"} para ${nx.icon} ${nx.name}` : "Llegaste a lo más alto"}</small></div></div>`;
+  }
 
   function homeScreen() {
-    race = null; cup = null;
-    const rows = rankRows();
+    race = null; cup = null; level = null;
+    const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL;
     show(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Las carreras del grupo de natación</p>
-      <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Para el ranking"></label>
-      <p class="err" id="aliasErr" hidden>Poné tu apodo para jugar la copa.</p>
+      ${stageBox()}${pathHtml()}
+      <button class="go big" id="play">▶ NIVEL ${lv}<small>${L.learn}</small></button>
       <div class="modes">
-        <button class="go mode" id="mCup">🏆 COPA<small>3 carreras seguidas: sumás puntos para el ranking</small></button>
-        <button class="mode alt" id="mQuick">CARRERA RÁPIDA<small>Una carrera suelta para practicar</small></button>
+        <button class="mode ${cupOpen ? "cupon" : "alt locked"}" id="mCup">${cupOpen ? "🏆 COPA<small>3 carreras seguidas contra los mismos rivales</small>" : `🔒 COPA<small>Se abre en el nivel ${CUP_LEVEL}, cuando seas Asiduo</small>`}</button>
+        ${cupOpen ? `<button class="mode alt" id="mQuick">PRÁCTICA LIBRE<small>Elegís el modo · no suma nivel</small></button>` : ""}
       </div>
-      <div class="cols"><div class="how"><b>Cómo se juega</b>
-        <span>🏁 Tres modos: SPRINT (100 m sin vueltas), IDA Y VUELTA (200 m con vueltas americanas) y AGUAS ABIERTAS (500 m con corriente que cambia).</span>
-        <span>🏊 Nadás crol solo. ${say2("Tocá arriba o abajo de la izquierda", "Con ↑ y ↓")} te movés.</span>
-        <span>🔋 El aire es tu pila. En crol baja despacio; ${say2("manteniendo MARIPOSA", "manteniendo →")} vas mucho más rápido, pero baja rápido.</span>
-        <span>🐸 ${say2("Manteniendo PECHO", "Manteniendo Z")} vas más lento que en crol, pero casi no gastás aire: sirve para llegar al final sin parar.</span>
-        <span>💨 ${say2("Mantené RESPIRAR", "Mantené ESPACIO")} para recargarla: mientras respirás vas más lento. Sin aire, casi no avanzás.</span>
-        <span>🚀 En la salida y en cada vuelta americana aparece una barra que va y viene: ${say2("tocá la pantalla", "apretá cualquier tecla")} cuando llega al verde y salís disparado, con turbo.</span>
-        <span>🟢 Lo verde te acelera, 🔴 lo rojo te frena. El especial ${say2("", "(←) ")}se carga solo.</span>
-        <span>🏅 En la copa: 1º suma 10, 2º suma 6, 3º suma 3. Extra: +2 si agarrás dulce de leche y +2 si nunca te quedás sin aire.</span>
-      </div>
-      <div class="side"><div class="rank"><b>RÉCORDS DEL GRUPO</b><div class="circs boards">${BOARDS.map(([k, n]) => `<button class="circ ${k === boardKey ? "on" : ""}" data-b="${k}">${n}</button>`).join("")}</div><div id="board"><small>Cargando…</small></div></div>
-      <div class="rank"><b>RANKING DE COPAS (este ${say2("celu", "navegador")})</b>${rows.length ? `<table><tr><th></th><th>Apodo</th><th>Puntos</th><th>Copas ganadas</th></tr>${rows.slice(0, 10).map(([n, v], i) => `<tr class="${n === alias() ? "me" : ""}"><td>${i + 1}º</td><td>${esc(n)}</td><td>${v.pts}</td><td>${v.won} de ${v.played}</td></tr>`).join("")}</table>` : `<small>Todavía no se jugó ninguna copa en este ${say2("celu", "navegador")}.</small>`}</div></div></div>
-      <button class="link" id="opinar">💬 Contanos qué te parece el juego</button>
-      ${store.get("npg-guia") === "vista" ? `<button class="link" id="reguide">Ver la guía otra vez en la próxima carrera</button>` : ""}`);
-    const inp = document.getElementById("alias");
-    inp.oninput = () => { store.set("npg-apodo", inp.value.trim()); document.getElementById("aliasErr").hidden = true; };
+      <p class="err" id="aliasErr" hidden></p>
+      <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Para el ranking del grupo"></label>
+      <div class="cols"><div class="side"><div class="rank"><b>EL GRUPO: QUIÉN VA MÁS LEJOS</b><div id="players"><small>Cargando…</small></div></div></div>
+      <div class="side"><div class="rank"><b>RÉCORDS DEL GRUPO</b><div class="circs boards">${BOARDS.map(([k, n]) => `<button class="circ ${k === boardKey ? "on" : ""}" data-b="${k}">${n}</button>`).join("")}</div><div id="board"><small>Cargando…</small></div></div></div></div>
+      ${cupOpen ? "" : `<button class="link" id="mQuick">Práctica libre (no suma nivel)</button>`}
+      <button class="link" id="opinar">💬 Contanos qué te parece el juego</button>`);
+    aliasField("alias");
+    document.getElementById("play").onclick = () => { Sound.unlock(); goFull(); levelScreen(lv); };
+    scr.querySelectorAll(".lv[data-n]").forEach((b) => b.onclick = () => { Sound.unlock(); goFull(); levelScreen(+b.dataset.n); });
     document.getElementById("mCup").onclick = () => {
-      if (!alias()) { document.getElementById("aliasErr").hidden = false; inp.focus(); return; }
+      const err = document.getElementById("aliasErr");
+      if (!cupOpen) { err.textContent = `La copa se abre en el nivel ${CUP_LEVEL}. Te ${CUP_LEVEL - lv === 1 ? "falta 1 nivel" : "faltan " + (CUP_LEVEL - lv) + " niveles"}: ¡dale que llegás!`; err.hidden = false; return; }
+      if (!alias()) { err.textContent = "Poné tu apodo para jugar la copa."; err.hidden = false; document.getElementById("alias").focus(); return; }
       Sound.unlock(); goFull(); mode = "cup"; selectScreen();
     };
     document.getElementById("mQuick").onclick = () => { Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
@@ -168,19 +197,30 @@ const store = {
     scr.querySelectorAll("[data-b]").forEach((b) => b.onclick = () => {
       boardKey = b.dataset.b; scr.querySelectorAll("[data-b]").forEach((x) => x.classList.toggle("on", x === b)); fillBoard();
     });
-    fillBoard();
-    const rg = document.getElementById("reguide");
-    if (rg) rg.onclick = () => { store.set("npg-guia", ""); rg.textContent = "Listo: la próxima carrera viene con guía"; };
+    fillBoard(); fillPlayers();
   }
 
-  // Los récords del grupo (en la nube): los 10 mejores tiempos de cada modo.
+  // Quién va más lejos en el camino (en la nube): nivel, etapa, estrellas y copas ganadas.
+  async function fillPlayers() {
+    const rows = await Nube.players(), el = document.getElementById("players");
+    if (!el) return;
+    if (!rows) { el.innerHTML = `<small>Aparece cuando el juego está conectado a internet.</small>`; return; }
+    rows.sort((a, b) => b.lvl - a.lvl || b.stars - a.stars || b.cups - a.cups);
+    const me = rows.findIndex((x) => x.me);
+    if (!rows.length) { el.innerHTML = `<small>Todavía no hay nadie. Poné tu apodo y pasá un nivel para ser el primero.</small>`; return; }
+    el.innerHTML = `<table><tr><th></th><th>Apodo</th><th>Etapa</th><th>Nivel</th><th>★</th><th>🏆</th></tr>${rows.slice(0, 10).map((x, i) => { const c = CHARS.find((k) => k.id === x.char), st = stageOf(x.lvl);
+      return `<tr class="${x.me ? "me" : ""}"><td>${i + 1}º</td><td>${c ? faceImg(c, 20) + " " : ""}${esc(x.alias)}</td><td>${st.icon} ${st.name}</td><td>${x.lvl}</td><td>${x.stars}</td><td>${x.cups || ""}</td></tr>`; }).join("")}</table>
+      ${me >= 10 ? `<small>Vos vas ${me + 1}º.</small>` : me < 0 ? `<small>${alias() ? "Pasá un nivel para aparecer." : "Poné tu apodo para aparecer."}</small>` : ""}`;
+  }
+
+  // Los récords del grupo (en la nube): los 10 mejores tiempos de cada modo, de la práctica libre y la copa.
   const BOARDS = [["sprint-100", "SPRINT 100 m"], ["idavuelta-200", "IDA Y VUELTA 200 m"], ["abiertas-150", "AGUAS ABIERTAS 500 m"]];
   let boardKey = "sprint-100";
   async function fillBoard() {
     const key = boardKey, rows = await Nube.board(key), el = document.getElementById("board");
     if (!el || key !== boardKey) return;
     if (!rows) { el.innerHTML = `<small>Los récords del grupo aparecen cuando el juego está conectado a internet.</small>`; return; }
-    if (!rows.length) { el.innerHTML = `<small>Todavía nadie marcó tiempo acá. ¡Sé el primero!</small>`; return; }
+    if (!rows.length) { el.innerHTML = `<small>Todavía nadie marcó tiempo acá. Se juegan en la práctica libre y en la copa.</small>`; return; }
     el.innerHTML = `<table>${rows.map((x, i) => { const c = CHARS.find((k) => k.id === x.char);
       return `<tr class="${x.me ? "me" : ""}"><td>${i + 1}º</td><td>${esc(x.alias)}</td><td>${c ? faceImg(c, 20) + " " + c.name : ""}</td><td>${x.time.toFixed(2)} s</td></tr>`; }).join("")}</table>`;
   }
@@ -202,7 +242,7 @@ const store = {
       if (!rating) { msg.textContent = "Elegí de 1 a 5 estrellas."; return; }
       if (/http|www\.|\.com\b/i.test(text)) { msg.textContent = "Sin links, porfa."; return; }
       send.disabled = true; msg.textContent = "Enviando…";
-      const ok = await Nube.feedback(rating, text, { alias: alias().slice(0, 16), char: chosen ? chosen.id : "", mode: quickCirc });
+      const ok = await Nube.feedback(rating, text, { alias: alias().slice(0, 16), char: chosen ? chosen.id : "", mode: level ? level.c : quickCirc });
       send.disabled = false;
       if (ok) { msg.textContent = "¡Gracias! Lo vamos a leer."; send.remove(); document.getElementById("fbBack").textContent = "LISTO"; }
       else msg.textContent = "No se pudo enviar ahora. Esperá un minuto y probá de nuevo.";
@@ -214,38 +254,75 @@ const store = {
     b.onclick = async () => { const r = await Nube.share(text); if (r === "copiado") b.textContent = "✔ LINK COPIADO"; };
   }
 
+  // Elegir nadador. En el camino se elige una vez y queda guardado; después se cambia desde el nivel.
   function selectScreen() {
     race = null;
-    const qc = CIRCUITS[quickCirc];
     const circs = mode === "quick" ? `<div class="circs">${Object.values(CIRCUITS).map((c) => `<button class="circ ${c.id === quickCirc ? "on" : ""}" data-c="${c.id}">${c.name}<small>${c.open ? c.show + " m en el río" : c.len > c.pool ? c.len + " m, ida y vuelta" : c.len + " m, sin vueltas"}</small></button>`).join("")}</div>` : "";
-    show(`<p class="sub">${mode === "cup" ? "🏆 COPA · " + esc(alias()) : "CARRERA RÁPIDA"}</p><h1 class="small">Elegí tu nadador</h1>${circs}
-      <div class="grid">${CHARS.map((c) => `<button class="ch" data-id="${c.id}">${faceImg(c, 56)}<b>${c.name}</b><small>${c.tag}</small>${statBars(c)}</button>`).join("")}</div>
-      <button class="link" id="back">← Volver al inicio</button>`);
+    const head = mode === "cup" ? "🏆 COPA · " + esc(alias()) : mode === "quick" ? "PRÁCTICA LIBRE · NO SUMA NIVEL" : "NIVEL " + after;
+    show(`<p class="sub">${head}</p><h1 class="small">Elegí tu nadador</h1>${circs}
+      <div class="grid">${CHARS.map((c) => `<button class="ch ${chosen === c ? "on" : ""}" data-id="${c.id}">${faceImg(c, 56)}<b>${c.name}</b><small>${c.tag}</small>${statBars(c)}<small class="qk">${c.quirk}</small></button>`).join("")}</div>
+      <button class="link" id="back">← Volver</button>`);
     scr.querySelectorAll(".circ[data-c]").forEach((b) => b.onclick = () => { quickCirc = b.dataset.c; store.set("npg-circ", quickCirc); selectScreen(); });
     scr.querySelectorAll(".ch").forEach((b) => b.onclick = () => {
-      Sound.unlock(); chosen = CHARS.find((c) => c.id === b.dataset.id);
+      Sound.unlock(); chosen = CHARS.find((c) => c.id === b.dataset.id); store.set("npg-char", chosen.id); pushProgress();
+      if (mode === "level") { levelScreen(after); return; }
       if (mode === "cup") cup = { rivals: drawRivals(chosen), i: 0, pts: {}, done: false };
       drawScreen();
     });
+    document.getElementById("back").onclick = mode === "level" ? () => levelScreen(after) : homeScreen;
+  }
+
+  const legendHtml = (goodOnly, air = true) => `<div class="legend">${Object.keys(ITEMS).filter((k) => !goodOnly || ITEMS[k].good).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air && air ? " +AIRE" : ""}</span>`).join("")}</div>`;
+  function controlsHelp(r) {
+    const t = [say2("tocá arriba o abajo de la izquierda para moverte", "↑ ↓ moverte")];
+    if (r.fly) t.push(say2("MARIPOSA va más rápido y gasta más pila", "→ mariposa"));
+    if (r.pecho) t.push(say2("PECHO va lento y casi no gasta", "Z pecho"));
+    if (r.air) t.push(say2("mantené RESPIRAR para recargar", "ESPACIO respirar (mantener)"));
+    if (PC) t.push("P pausa");
+    return `<p class="help">${say2("Nadás crol solo. ", "")}${t.join(" · ")}</p>`;
+  }
+  const cardHtml = (r, i, extra = "") => `<div class="card ${i ? "" : "me"}">${faceImg(r.ch, 52, i ? "normal" : "happy")}<b>${r.ch.name}${i ? "" : " (vos)"}</b>${extra}<small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small></div>`;
+
+  // Un nivel del camino: qué enseña, el objetivo y las estrellas, y contra quién nadás.
+  function levelScreen(n) {
+    mode = "level"; cup = null; race = null; after = n;
+    if (!chosen) { selectScreen(); return; }
+    level = levelDef(n);
+    const L = level, circ = CIRCUITS[L.c], st = stageOf(n), done = starsMap()[n] || 0;
+    const draft = newRace(chosen, circ, undefined, L.len, { pool: L.pool, rivals: L.r, skill: L.skill, pace: L.pace, fly: L.fly, pecho: L.pecho, air: L.air, items: L.items, quirks: L.quirks, gap: L.gap });
+    const where = circ.open ? `${shownLen(draft)} m en el río` : `${shownLen(draft)} m` + (draft.laps > 1 ? `, ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}` : ", sin vueltas");
+    show(`<p class="sub">${st.icon} ${st.name} · NIVEL ${n}${done ? ` · tu mejor: <span class="st">${starStr(done)}</span>` : ""}</p>
+      <h1 class="small">${L.learn}</h1><p class="help">${circ.name} · ${where}</p>
+      ${L.tip ? `<div class="tipbox">💡 ${L.tip}</div>` : ""}
+      <div class="goals"><span><b class="st">${starStr(1)}</b> Terminá la carrera</span><span><b class="st">${starStr(2)}</b> ${goalText(L.two)} <em>para pasar</em></span><span><b class="st">${starStr(3)}</b> Además: ${goalText(L.three).toLowerCase()}</span></div>
+      <div class="vs">${draft.racers.map((r, i) => cardHtml(r, i)).join("")}${L.r ? "" : `<div class="card solo"><b>Nadás solo</b><small>Sin apuro: es para aprender.</small></div>`}</div>
+      ${controlsHelp(draft)}${L.items === "none" ? "" : legendHtml(L.items === "good", L.air)}
+      <button class="go" id="goRace">¡AL AGUA!</button>
+      <div class="row"><button class="link" id="chg">Cambiar nadador (${chosen.name})</button><button class="link" id="back">← Inicio</button></div>`);
+    document.getElementById("goRace").onclick = () => startRace(draft);
+    document.getElementById("chg").onclick = selectScreen;
     document.getElementById("back").onclick = homeScreen;
   }
 
+  // La práctica libre y la copa: el sorteo y el circuito.
   function drawScreen() {
-    const circ = cup ? CIRCUITS[CUP[cup.i]] : CIRCUITS[quickCirc];
-    const draft = newRace(chosen, circ, cup ? cup.rivals : undefined, circ.len);
-    const [p, a, b] = draft.racers;
-    const legend = Object.keys(ITEMS).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air ? " +AIRE" : ""}</span>`).join("");
-    const head = cup ? `🏆 COPA · CARRERA ${cup.i + 1} DE ${CUP.length}` : "CARRERA RÁPIDA";
+    const circ = cup ? CIRCUITS[CUP[cup.i]] : CIRCUITS[quickCirc], can = cup ? { fly: true, pecho: true } : learned(myLevel());
+    const draft = newRace(chosen, circ, cup ? cup.rivals : undefined, circ.len, can);
+    const head = cup ? `🏆 COPA · CARRERA ${cup.i + 1} DE ${CUP.length}` : "PRÁCTICA LIBRE · NO SUMA NIVEL";
     const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
     show(`<p class="sub">${head}</p><h1 class="small">${circ.name} · ${shownLen(draft)} m</h1><p class="help">${circ.info}${draft.laps > 1 ? ` Son ${draft.laps} largos: ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}.` : ""}</p>
-      <div class="vs">${[p, a, b].map((r, i) => `<div class="card ${i ? "" : "me"}">${faceImg(r.ch, 52, i ? "normal" : "happy")}<b>${r.ch.name}${i ? "" : " (vos)"}</b>${pts(r)}<small>${r.ch.tag}</small>${statBars(r.ch)}<small>${r.ch.quirk}</small><small class="sp">${r.ch.special}: ${r.ch.specialInfo}</small></div>`).join("")}</div>
-      <p class="help">${say2("Nadás crol solo. MARIPOSA va más rápido y gasta más pila; PECHO va lento y casi no gasta. Mantené RESPIRAR para recargar.", "↑ ↓ moverte · → mariposa · Z pecho · ESPACIO respirar (mantener) · ← especial · P pausa")}</p>
-      <div class="legend">${legend}</div><button class="go">¡AL AGUA!</button>`);
-    scr.querySelector(".go").onclick = () => {
-      race = draft; player = race.racers[0]; lastCount = 99; endShown = false;
-      startGuide(); setPaused(false);
-      scr.style.display = "none"; pad.style.display = "block"; keepAwake(true);
-    };
+      <div class="vs">${draft.racers.map((r, i) => cardHtml(r, i, pts(r))).join("")}</div>
+      ${controlsHelp(draft)}${cup ? "" : !can.fly ? `<p class="help">La mariposa se aprende en el nivel 7 y el pecho en el 9.</p>` : !can.pecho ? `<p class="help">El pecho se aprende en el nivel 9.</p>` : ""}
+      ${legendHtml(false)}<button class="go">¡AL AGUA!</button>${cup ? "" : `<button class="link" id="back">← Volver</button>`}`);
+    scr.querySelector(".go").onclick = () => startRace(draft);
+    const bk = document.getElementById("back"); if (bk) bk.onclick = selectScreen;
+  }
+  function startRace(draft) {
+    race = draft; player = race.racers[0]; lastCount = 99; endShown = false;
+    startGuide(); setPaused(false);
+    pad.querySelector(".fly").style.display = race.fly ? "" : "none";
+    pad.querySelector(".pe").style.display = race.pecho ? "" : "none";
+    scr.style.display = "none"; pad.style.display = "block"; keepAwake(true);
   }
 
   // El podio: el 1º en el medio y más alto, el 2º a la izquierda y el 3º a la derecha.
@@ -258,25 +335,28 @@ const store = {
         <b>${MEDAL[i]} ${x.ch.name}${x.isPlayer ? ` <em>VOS</em>` : ""}</b><small>${x.sub}</small>${x.extra || ""}</div>
       <div class="block"><span>${i + 1}</span></div></div>`;
     const won = items[0] && items[0].isPlayer;
-    const bits = won ? Array.from({ length: 36 }, (_, i) => `<i class="bit" style="left:${(i * 37) % 100}%;background:${["#FFD84A", "#FF6FB0", "#7CFC6A", "#5FD0F5", "#FF8A2A"][i % 5]};animation-delay:${1.1 + (i % 9) * 0.12}s;--dx:${((i * 53) % 80) - 40}px"></i>`).join("") : "";
+    const bits = won ? confetti() : "";
     return `<div class="podium">${bits}${col(items[1], 1)}${col(items[0], 0)}${col(items[2], 2)}</div>`;
   }
+  const confetti = () => Array.from({ length: 36 }, (_, i) => `<i class="bit" style="left:${(i * 37) % 100}%;background:${["#FFD84A", "#FF6FB0", "#7CFC6A", "#5FD0F5", "#FF8A2A"][i % 5]};animation-delay:${1.1 + (i % 9) * 0.12}s;--dx:${((i * 53) % 80) - 40}px"></i>`).join("");
+  const timeOf = (r) => r.finished ? r.finishT.toFixed(1) + " s" : shownM(race, r.x) + " m";
+  const placeTitle = (pos) => `<h1 class="${pos === 1 ? "win" : "lose"}">${pos === 1 ? "¡GANASTE!" : "SALISTE " + pos + "º"}</h1>`;
+
   function endScreen() {
     const st = standings(race), pos = st.indexOf(player) + 1, win = pos === 1;
-    if (guide.on) store.set("npg-guia", "vista");
-    const time = (r) => r.finished ? r.finishT.toFixed(1) + " s" : shownM(race, r.x) + " m";
-    const title = `<h1 class="${win ? "win" : "lose"}">${win ? "¡GANASTE!" : pos === 2 ? "SALISTE 2º" : "SALISTE 3º"}</h1>`;
+    if (guide.on && mode !== "level") store.set("npg-guia", "vista");
     const qs = player.qs || [], key = race.circ.id + "-" + race.len, myTime = player.finished ? Math.round(player.finishT * 100) / 100 : null;
+    Nube.saveRun({ alias: alias().slice(0, 16), char: player.ch.id, mode: race.circ.id, dist: race.len, place: pos, time: myTime, cup: !!cup, lvl: mode === "level" ? level.n : 0,
+      dive: Math.round((qs[0] || 0) * 100) / 100, turns: qs.length > 1 ? Math.round(qs.slice(1).reduce((a, b) => a + b, 0) / (qs.length - 1) * 100) / 100 : null });
+    if (mode === "level") { levelEndScreen(pos); return; }
     const prevBest = +(store.get("npg-pb-" + key) || 0); // tu mejor marca en este celu
     if (myTime && (!prevBest || myTime < prevBest)) store.set("npg-pb-" + key, myTime);
-    Nube.saveRun({ alias: alias().slice(0, 16), char: player.ch.id, mode: race.circ.id, dist: race.len, place: pos, time: myTime, cup: !!cup,
-      dive: Math.round((qs[0] || 0) * 100) / 100, turns: qs.length > 1 ? Math.round(qs.slice(1).reduce((a, b) => a + b, 0) / (qs.length - 1) * 100) / 100 : null });
     const record = myTime && (!prevBest || myTime < prevBest) ? `<p class="sub rec">⏱️ ¡Tu mejor marca en ${race.circ.name} ${shownLen(race)} m! ${!Nube.online() ? "" : alias() ? "Va a los récords del grupo." : "Poné tu apodo en el inicio para entrar a los récords del grupo."}</p>` : "";
     const shareText = `Nadé ${shownLen(race)} m de ${race.circ.name} con ${player.ch.name} en ${myTime ? myTime.toFixed(1) + " s" : "—"} y salí ${pos}º en Nadar por la gloria. ¿Me ganás?`;
     if (!cup) {
-      show(`${title}<p class="sub">${win ? "La gloria es tuya." : "Sin gloria esta vez. ¿La revancha?"}</p>
-        ${podium(st.map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: time(r) })))}${record}
-        <div class="row"><button class="go" id="again">OTRA VEZ</button><button id="change">CAMBIAR NADADOR</button></div>
+      show(`<p class="sub">PRÁCTICA LIBRE</p>${placeTitle(pos)}<p class="sub">${win ? "La gloria es tuya." : "Sin gloria esta vez. ¿La revancha?"}</p>
+        ${podium(st.map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) })))}${record}
+        <div class="row"><button class="go" id="again">OTRA VEZ</button><button id="change">CAMBIAR</button></div>
         <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>
         <button class="link" id="home">← Volver al inicio</button>`);
       shareBtn(shareText); document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
@@ -291,11 +371,41 @@ const store = {
     cup.i++;
     const last = cup.i >= CUP.length;
     const extras = (x) => [x.r.gotDulce ? "dulce +" + BONUS.dulce : "", !x.r.ranOut ? "aire +" + BONUS.air : ""].filter(Boolean).join(" · ");
-    show(`<p class="sub">🏆 COPA · CARRERA ${cup.i} DE ${CUP.length} · ${race.circ.name}</p>${title}
-      ${podium(pts.map((x) => ({ ch: x.r.ch, isPlayer: x.r.isPlayer, sub: time(x.r), extra: `<span class="plus">+${x.total}</span>${extras(x) ? `<small class="ex">${extras(x)}</small>` : ""}` })))}
+    show(`<p class="sub">🏆 COPA · CARRERA ${cup.i} DE ${CUP.length} · ${race.circ.name}</p>${placeTitle(pos)}
+      ${podium(pts.map((x) => ({ ch: x.r.ch, isPlayer: x.r.isPlayer, sub: timeOf(x.r), extra: `<span class="plus">+${x.total}</span>${extras(x) ? `<small class="ex">${extras(x)}</small>` : ""}` })))}
       ${record}${cupTable()}
       <button class="go" id="next">${last ? "VER QUIÉN GANÓ LA COPA" : "SIGUIENTE: " + CIRCUITS[CUP[cup.i]].name}</button>`);
     document.getElementById("next").onclick = last ? cupEndScreen : drawScreen;
+  }
+
+  // Fin de un nivel: las estrellas, qué se cumplió, y si pasaste, lo que viene (otra etapa, la copa).
+  function levelEndScreen(pos) {
+    const L = level, res = levelStars(L, race), passed = res.n >= 2, before = myLevel(), sm = starsMap();
+    if (res.n > (sm[L.n] || 0)) { sm[L.n] = res.n; store.set("npg-stars", JSON.stringify(sm)); }
+    const up = passed && L.n === before;
+    if (up) store.set("npg-lvl", before + 1);
+    const now = myLevel(), newStage = up && stageOf(now) !== stageOf(before) ? stageOf(now) : null, cupNow = up && now === CUP_LEVEL;
+    if (passed) pushProgress();
+    const checks = [["Terminaste la carrera", true], [goalText(L.two), res.checks[1]], [goalText(L.three), res.checks[2]]];
+    const st = standings(race);
+    show(`<p class="sub">${stageOf(L.n).icon} NIVEL ${L.n} · ${L.learn}</p>
+      <div class="bigstars">${[1, 2, 3].map((k) => `<span class="${k <= res.n ? "on" : ""}" style="animation-delay:${0.2 + k * 0.35}s">★</span>`).join("")}</div>
+      <h1 class="${passed ? "win" : "lose"}">${passed ? (res.n === 3 ? "¡PERFECTO!" : "¡NIVEL SUPERADO!") : "¡CASI!"}</h1>
+      <div class="checks">${checks.map(([t, ok], i) => `<span class="${ok ? "ok" : "no"}">${ok ? "✔" : "✘"} ${t}${i === 1 && !passed ? " <em>(para pasar)</em>" : ""}</span>`).join("")}</div>
+      ${newStage ? `<div class="levelup">${confetti()}<b>${newStage.icon} ¡AHORA SOS ${newStage.name}!</b>${cupNow ? `<span>🏆 Se abrió la COPA: jugala desde el inicio.</span>` : ""}</div>` : ""}
+      ${L.r ? podium(st.slice(0, 3).map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) }))) : `<p class="sub">Tu tiempo: ${timeOf(player)}</p>`}
+      ${now < CUP_LEVEL ? `<p class="sub teaser">🏆 Te ${CUP_LEVEL - now === 1 ? "falta 1 nivel" : "faltan " + (CUP_LEVEL - now) + " niveles"} para que se abra la copa</p>` : ""}
+      ${passed && !alias() ? `<label class="alias">TU APODO <input id="alias2" maxlength="16" autocomplete="off" placeholder="Para aparecer en el ranking"></label>` : ""}
+      <div class="row">${passed ? `<button class="go" id="next">SIGUIENTE: NIVEL ${L.n + 1}</button><button id="change">REPETIR</button>` : `<button class="go" id="again">OTRA VEZ</button>`}</div>
+      <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>
+      <button class="link" id="home">← Volver al inicio</button>`);
+    aliasField("alias2");
+    const st2 = stageOf(now);
+    shareBtn(passed ? `Pasé el nivel ${L.n} de Nadar por la gloria con ${res.n} estrella${res.n > 1 ? "s" : ""}: ya soy ${st2.name} ${st2.icon}. ¿Me alcanzás?` : `Estoy en el nivel ${now} de Nadar por la gloria (${st2.name} ${st2.icon}). ¿Me alcanzás?`);
+    document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
+    const nx = document.getElementById("next"); if (nx) nx.onclick = () => levelScreen(L.n + 1);
+    const ag = document.getElementById("again") || document.getElementById("change"); ag.onclick = () => levelScreen(L.n);
+    document.getElementById("home").onclick = homeScreen;
   }
   function cupOrder() { return [chosen, ...cup.rivals].sort((a, b) => (cup.pts[b.id] || 0) - (cup.pts[a.id] || 0)); }
   function cupTable() {
@@ -303,18 +413,15 @@ const store = {
   }
   function cupEndScreen() {
     const order = cupOrder(), champ = order[0] === chosen, mine = cup.pts[chosen.id] || 0;
-    if (!cup.done) { // al ranking, una sola vez por copa
+    if (!cup.done) { // se cuenta una sola vez por copa
       cup.done = true;
-      const rk = ranking(), me = rk[alias()] || { pts: 0, won: 0, played: 0 };
-      me.pts += mine; me.played++; if (champ) me.won++;
-      rk[alias()] = me; store.set("npg-ranking", JSON.stringify(rk));
+      if (champ) { store.set("npg-copas", cupsWon() + 1); pushProgress(); }
       Sound.play(champ ? "win" : "lose");
     }
-    const place = rankRows().findIndex(([n]) => n === alias()) + 1;
     show(`<p class="sub">🏆 FIN DE LA COPA</p>
       <h1 class="${champ ? "win" : "lose"}">${champ ? "¡GANASTE LA COPA!" : "GANÓ " + order[0].name}</h1>
       ${podium(order.map((c) => ({ ch: c, isPlayer: c === chosen, sub: (cup.pts[c.id] || 0) + " puntos" })))}
-      <p class="sub">Sumaste <b>${mine}</b> puntos para ${esc(alias())}. Vas <b>${place}º</b> en el ranking.</p>
+      <p class="sub">Sumaste <b>${mine}</b> puntos. ${cupsWon() ? `Llevás <b>${cupsWon()}</b> copa${cupsWon() > 1 ? "s" : ""} ganada${cupsWon() > 1 ? "s" : ""}.` : ""}</p>
       <div class="row"><button class="go" id="again">OTRA COPA</button><button id="change">AL INICIO</button></div>
       <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`);
     shareBtn(`${champ ? "¡Gané la copa" : "Jugué la copa"} de Nadar por la gloria con ${chosen.name}: ${mine} puntos. ¿Me ganás?`);
@@ -334,6 +441,7 @@ const store = {
     el.classList.toggle("ready", ready); el.querySelector(".fill").style.width = (fill * 100) + "%";
     if (label) el.querySelector("span").textContent = label;
   };
+  const bbr = document.getElementById("bbr");
   let last = performance.now();
   function frame(now) {
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
@@ -342,7 +450,7 @@ const store = {
       if (!paused) {
         stepRace(race, dt, input);
         const events = race.events; race.events = [];
-        input.specialPressed = false; input.tap = false;
+        input.tap = false;
         playEvents(events); guideStep(dt, events);
         const n = race.t < 0 ? Math.ceil(-race.t) : 0;
         if (n !== lastCount) { Sound.play(n ? "count" : "go"); lastCount = n; }
@@ -351,9 +459,9 @@ const store = {
       drawHud(ctx, race, W, H);
       if (guide.cur) drawTip(ctx, W, guide.cur.text, Math.min(1, guide.cur.t * 3));
       const bar = (player.onBlock && race.t >= 0) || (player.wallBar && player.turnQ === null);
+      bbr.style.display = race.air || bar ? "" : "none"; // sin aire que gastar, el botón aparece solo para la salida y las vueltas
       if (bar) setBtn("bbr", true, player.onBlock ? barAt(0, race.t) : barAt(player.barT0, race.t), "¡TOCÁ!");
       else setBtn("bbr", player.air < 0.3 && !player.breathing, player.air, player.breathing ? "RECARGANDO" : "RESPIRAR");
-      setBtn("bsp", specialReady(player), player.charge, player.ch.special);
       if (race.over && !endShown && race.t - race.overT > 1.4) {
         endShown = true; Sound.play(standings(race)[0] === player ? "win" : "lose"); endScreen();
       }

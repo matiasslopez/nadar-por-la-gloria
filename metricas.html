@@ -113,6 +113,11 @@ button.link { background: none; color: #8FE3FF; text-decoration: underline; padd
     const dive = avg(runs.map((r) => r.dive).filter((x) => typeof x === "number"));
     const turns = avg(runs.map((r) => r.turns).filter((x) => typeof x === "number"));
     const stars = avg(fbs.map((f) => f.rating));
+    // el camino: el nivel más alto que jugó cada uno (si jugó el nivel N, llegó hasta ahí)
+    const top = {};
+    for (const r of runs) if (r.lvl > 0) top[r.device] = Math.max(top[r.device] || 0, r.lvl);
+    const tops = Object.values(top), reached = (n) => tops.filter((x) => x >= n).length;
+    const STG = [[101, "Pro"], [51, "Master"], [36, "Premaster"], [21, "Nadador"], [11, "Asiduo"], [6, "Va queriendo"], [1, "Primeros pasos"]];
 
     // últimos 14 días: personas nuevas y carreras
     const days = [];
@@ -129,6 +134,18 @@ button.link { background: none; color: #8FE3FF; text-decoration: underline; padd
         ${tile(entries, "entradas en total")}
         ${tile(pct(back, visits.length), "volvieron a entrar")}
         ${tile(pct(players.size, visits.length), "de los que entraron jugaron al menos una carrera")}
+      </div>
+      <h2>El camino</h2>
+      <div class="tiles">
+        ${tile(tops.length, "personas que jugaron el camino")}
+        ${tile(pct(reached(3), tops.length), "llegaron al nivel 3 (primer rival)")}
+        ${tile(pct(reached(6), tops.length), "llegaron al nivel 6 (Va queriendo)")}
+        ${tile(pct(reached(11), tops.length), "llegaron al nivel 11 (Asiduo, se abre la copa)")}
+        ${tile(tops.length ? Math.max(...tops) : "—", "el nivel más alto que se jugó")}
+      </div>
+      <div class="cols" style="margin-top:10px">
+        ${bars("Hasta qué etapa llegaron", count(tops, (x) => STG.find(([f]) => x >= f)[1]))}
+        ${bars("Nivel más alto de cada uno", count(tops, (x) => "nivel " + x).sort((a, b) => +a[0].slice(6) - +b[0].slice(6)))}
       </div>
       <h2>Últimos 14 días</h2>
       <div class="box"><div class="days">${days.map((d) => `<div><div class="pair"><i class="v" style="height:${get(nNew, d) / dmax * 100}%" title="${get(nNew, d)} personas nuevas"></i><i style="height:${get(nRuns, d) / dmax * 100}%" title="${get(nRuns, d)} carreras"></i></div>${+d.slice(8)}</div>`).join("")}</div>
@@ -155,7 +172,7 @@ button.link { background: none; color: #8FE3FF; text-decoration: underline; padd
         ${bars("Modo", count(runs, (r) => (MODES[r.mode] || r.mode) + (r.mode === "idavuelta" ? " " + r.dist + " m" : "")))}
         ${bars("Puesto del jugador", count(runs, (r) => r.place + "º").sort())}
         ${bars("Nadador elegido", count(runs, (r) => NAMES[r.char] || r.char))}
-        ${bars("Copa o carrera suelta", count(runs, (r) => r.cup ? "en la copa" : "carrera suelta"))}
+        ${bars("Dónde jugaron", count(runs, (r) => r.cup ? "en la copa" : r.lvl > 0 ? "en el camino" : "práctica libre o carrera suelta"))}
         ${bars("Desde", count(runs, (r) => r.plat))}
       </div>
       <h2>Comentarios ${fbs.length ? `· ${stars.toFixed(1)} ★ promedio de ${fbs.length}` : ""}</h2>

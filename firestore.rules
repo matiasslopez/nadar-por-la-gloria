@@ -13,10 +13,11 @@ service cloud.firestore {
     // Carreras terminadas: todos leen (para las métricas), nadie edita; máx. una cada 8 s por dispositivo
     match /runs/{id} {
       allow read: if true;
-      allow create: if request.resource.data.keys().hasOnly(['alias', 'char', 'mode', 'dist', 'place', 'time', 'cup', 'dive', 'turns', 'plat', 'device', 'at'])
+      allow create: if request.resource.data.keys().hasOnly(['alias', 'char', 'mode', 'dist', 'place', 'time', 'cup', 'lvl', 'dive', 'turns', 'plat', 'device', 'at'])
+        && (!('lvl' in request.resource.data) || (request.resource.data.lvl is int && request.resource.data.lvl >= 0 && request.resource.data.lvl <= 100000))
         && okAlias(request.resource.data.alias) && okChar(request.resource.data.char) && okMode(request.resource.data.mode)
         && request.resource.data.dist is int && request.resource.data.dist >= 50 && request.resource.data.dist <= 400
-        && request.resource.data.place is int && request.resource.data.place >= 1 && request.resource.data.place <= 3
+        && request.resource.data.place is int && request.resource.data.place >= 1 && request.resource.data.place <= 4
         && (request.resource.data.time == null || (request.resource.data.time is number
             && request.resource.data.time >= request.resource.data.dist / 8 && request.resource.data.time <= 1200))
         && request.resource.data.device is string && request.resource.data.device.size() <= 40
@@ -32,6 +33,21 @@ service cloud.firestore {
         && okAlias(request.resource.data.alias) && request.resource.data.alias.size() > 0 && okChar(request.resource.data.char)
         && request.resource.data.time is number && request.resource.data.time >= 5 && request.resource.data.time <= 1200
         && (resource == null || request.resource.data.time < resource.data.time);
+      allow delete: if isAdmin();
+    }
+    // El camino: cómo va cada uno (uno por dispositivo). Todos lo leen para el ranking.
+    // El nivel nunca baja y sube de a poco (como mucho 10 de golpe, por si jugó sin internet).
+    match /players/{dev} {
+      allow read: if true;
+      allow create, update: if request.resource.data.keys().hasOnly(['alias', 'lvl', 'stars', 'cups', 'char', 'at'])
+        && okAlias(request.resource.data.alias) && request.resource.data.alias.size() > 0 && okChar(request.resource.data.char)
+        && request.resource.data.lvl is int && request.resource.data.lvl >= 1
+        && request.resource.data.stars is int && request.resource.data.stars >= 0 && request.resource.data.stars <= request.resource.data.lvl * 3
+        && request.resource.data.cups is int && request.resource.data.cups >= 0
+        && request.resource.data.at is string && request.resource.data.at.size() <= 30
+        && (resource == null ? request.resource.data.lvl <= 30 && request.resource.data.cups <= 30
+            : request.resource.data.lvl >= resource.data.lvl && request.resource.data.lvl <= resource.data.lvl + 10
+              && request.resource.data.cups >= resource.data.cups && request.resource.data.cups <= resource.data.cups + 5);
       allow delete: if isAdmin();
     }
     // Visitas: un documento por dispositivo; el contador solo sube de a 1; solo el admin las lee
