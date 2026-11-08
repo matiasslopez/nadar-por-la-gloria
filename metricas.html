@@ -20,9 +20,9 @@ h2 { margin: 26px 0 8px; font-size: 17px; color: #8FE3FF; text-transform: upperc
 .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
 .box { background: #ffffff10; border-radius: 12px; padding: 10px 12px; }
 .box h3 { margin: 0 0 8px; font-size: 13px; opacity: 0.9; }
-.bar { display: grid; grid-template-columns: 110px 1fr 44px; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0; }
+.bar { display: grid; grid-template-columns: 110px 1fr auto; align-items: center; gap: 8px; font-size: 13px; margin: 4px 0; }
 .bar i { display: block; height: 12px; border-radius: 6px; background: #FFD84A; min-width: 2px; }
-.bar em { font-style: normal; text-align: right; opacity: 0.9; }
+.bar em { font-style: normal; text-align: right; opacity: 0.9; white-space: nowrap; }
 .days { display: flex; align-items: flex-end; gap: 3px; height: 120px; }
 .days > div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; font-size: 10px; }
 .days i { display: block; width: 100%; background: #FFD84A; border-radius: 3px 3px 0 0; min-height: 1px; }
@@ -40,7 +40,7 @@ button { font: bold 16px system-ui, sans-serif; padding: 10px 22px; border: 0; b
 button.link { background: none; color: #8FE3FF; text-decoration: underline; padding: 0; font-weight: normal; font-size: 13px; }
 .err { color: #FFB4A8; }
 .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-@media (max-width: 480px) { .bar { grid-template-columns: 90px 1fr 38px; } }
+@media (max-width: 480px) { .bar { grid-template-columns: 90px 1fr auto; } }
 </style>
 </head>
 <body>
