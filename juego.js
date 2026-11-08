@@ -291,8 +291,8 @@ const store = {
     if (!chosen) { selectScreen(); return; }
     level = levelDef(n);
     const L = level, circ = CIRCUITS[L.c], st = stageOf(n), done = starsMap()[n] || 0;
-    const draft = newRace(chosen, circ, undefined, L.len, { pool: L.pool, rivals: L.r, skill: L.skill, pace: L.pace, fly: L.fly, pecho: L.pecho, air: L.air, items: L.items, quirks: L.quirks, gap: L.gap });
-    const where = circ.open ? `${shownLen(draft)} m en el río` : `${shownLen(draft)} m` + (draft.laps > 1 ? `, ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}` : ", sin vueltas");
+    const draft = levelRace(chosen, L);
+    const where = circ.open ? `${shownLen(draft)} m en el río, ${RIVER_TXT[L.river || "mix"]}` : `${shownLen(draft)} m` + (draft.laps > 1 ? `, ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}` : ", sin vueltas");
     show(split(`<p class="sub">${st.icon} ${st.name} · NIVEL ${n}${done ? ` · tu mejor: <span class="st">${starStr(done)}</span>` : ""}</p>
       <h1 class="small">${L.learn}</h1><p class="help">${circ.name} · ${where}</p>
       ${L.tip ? `<div class="tipbox">💡 ${L.tip}</div>` : ""}
@@ -313,7 +313,7 @@ const store = {
     const head = cup ? `🏆 COPA · CARRERA ${cup.i + 1} DE ${CUP.length}` : "PRÁCTICA LIBRE · NO SUMA NIVEL";
     const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
     show(split(`<p class="sub">${head}</p><h1 class="small">${circ.name} · ${shownLen(draft)} m</h1><p class="help">${circ.info}${draft.laps > 1 ? ` Son ${draft.laps} largos: ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}.` : ""}</p>
-      ${cup ? "" : !can.fly ? `<p class="help">La mariposa se aprende en el nivel 7 y el pecho en el 9.</p>` : !can.pecho ? `<p class="help">El pecho se aprende en el nivel 9.</p>` : ""}
+      ${cup ? "" : !can.pecho ? `<p class="help">El pecho se aprende en el nivel 7 y la mariposa en el 8.</p>` : !can.fly ? `<p class="help">La mariposa se aprende en el nivel 8.</p>` : ""}
       <button class="go">¡AL AGUA!</button>${cup ? "" : `<button class="link" id="back">← Volver</button>`}`, `
       <div class="vs">${draft.racers.map((r, i) => cardHtml(r, i, pts(r))).join("")}</div>
       ${controlsHelp(draft)}${legendHtml(false)}`));

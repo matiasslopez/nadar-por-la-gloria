@@ -125,7 +125,7 @@ function newRace(playerCh, circ = CIRCUITS.sprint, rivals, len = circ.len, opts 
     }
   }
   return { t: -3, len, pool, laps, circ, racers, objs, over: false, overT: 0, events: [], cur: 0, against: 0, curPlan: null,
-    skill, pace: opts.pace || 1, fly: opts.fly !== false, pecho: opts.pecho !== false, air: opts.air !== false, quirks: opts.quirks !== false };
+    skill, pace: opts.pace || 1, river: opts.river || "mix", fly: opts.fly !== false, pecho: opts.pecho !== false, air: opts.air !== false, quirks: opts.quirks !== false };
 }
 
 function say(r, text, dur = 1.4) { r.bubble = { text, t: dur }; }
@@ -153,20 +153,24 @@ function turnAround(race, r) {
 }
 function place(race, r) { const a = poolAt(race, r.x); r.pp = a.p; r.dir = a.dir; }
 
-// La corriente del río cambia cada tantos segundos: calma, de frente o de costado (para un lado o el otro).
+// La corriente del río cambia cada tantos segundos: calma, de frente, a favor o de costado (para un lado o el otro).
+// Un nivel puede elegir qué río tiene (race.river): siempre a favor, de costado, en contra, o que cambia de todo (mix).
 const CURRENTS = [
   { kind: "calm", side: 0, against: 0, say: "EL RÍO SE CALMA" },
+  { kind: "with", side: 0, against: -1, say: "¡CORRIENTE A FAVOR!" },
   { kind: "against", side: 0, against: 1, say: "¡CORRIENTE EN CONTRA!" },
   { kind: "up", side: -1, against: 0.25, say: "CORRIENTE DE COSTADO ↑" },
   { kind: "down", side: 1, against: 0.25, say: "CORRIENTE DE COSTADO ↓" }
 ];
+const RIVERS = { favor: ["with"], side: ["up", "down"], against: ["against", "calm"], mix: ["calm", "against", "up", "down", "with"] };
 function stepCurrent(race, dt) {
-  const c = race.circ;
+  const c = race.circ, kinds = RIVERS[race.river] || RIVERS.mix;
   if (!race.curPlan || race.t >= race.curPlan.until) {
-    const prev = race.curPlan ? race.curPlan.kind : "calm";
-    const opts = CURRENTS.filter((k) => k.kind !== prev), next = race.curPlan ? pick(opts) : CURRENTS[2 + (Math.random() < 0.5 ? 0 : 1)];
+    const prev = race.curPlan ? race.curPlan.kind : null, opts = kinds.filter((k) => k !== prev);
+    const kind = !prev ? (race.river && race.river !== "mix" ? kinds[0] : pick(["up", "down"])) : opts.length ? pick(opts) : prev;
+    const next = CURRENTS.find((k) => k.kind === kind);
     race.curPlan = { ...next, until: race.t + rnd(6, 10), at: race.t };
-    race.events.push({ kind: "current", r: null, say: next.say });
+    if (kind !== prev) race.events.push({ kind: "current", r: null, say: next.say });
   }
   const k = Math.min(1, dt * 0.8); // cambia de a poco
   race.cur += (race.curPlan.side * c.current - race.cur) * k;
