@@ -22,7 +22,8 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0B3D63; col
 .card.me .face { border-color: #FFD84A; }
 #scr button.go, #scr button#change { margin-top: 6px; padding: 10px 22px; font: bold 17px system-ui, sans-serif; color: #10324F; background: #FFD84A; border: 0; border-radius: 30px; cursor: pointer; box-shadow: 0 4px 0 #C0861E; }
 #scr button.go:active { transform: translateY(3px); box-shadow: 0 1px 0 #C0861E; }
-#scr button#change { background: #ffffff30; color: #fff; box-shadow: 0 4px 0 #0003; }
+#scr button#home { margin-top: 6px; padding: 10px 18px; font: bold 15px system-ui, sans-serif; color: #fff; border: 2px solid #ffffff70; border-radius: 30px; cursor: pointer; }
+#scr button#change, #scr button#home { background: #ffffff30; color: #fff; box-shadow: 0 4px 0 #0003; }
 #scr button.link { background: none; border: 0; color: #8FE3FF; font: 13px system-ui, sans-serif; text-decoration: underline; margin-top: 6px; cursor: pointer; }
 .row { display: flex; gap: 10px; }
 .podio { text-align: left; font-size: 16px; margin: 4px 0; }
@@ -138,6 +139,29 @@ input { user-select: text; -webkit-user-select: text; }
 .levelup .bit { position: absolute; top: -10px; width: 8px; height: 12px; border-radius: 2px; opacity: 0; pointer-events: none; animation: npgFall 1.8s ease-in forwards; }
 .teaser { color: #FFD84A; font-weight: bold; }
 @media (prefers-reduced-motion: reduce) { .bigstars span, .levelup, #scr button.lv.now { animation-duration: 0.01s !important; animation-iteration-count: 1 !important; } }
+
+/* el celu acostado: dos columnas, lo que se toca a la izquierda, para no tener que bajar */
+.split, .pane { display: contents; }
+@media (orientation: landscape) and (max-height: 540px) {
+  #scr { padding: 6px 12px; }
+  .split { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; max-width: 980px; }
+  .pane { display: flex; flex-direction: column; align-items: center; justify-content: safe center; gap: 3px; flex: 1; min-width: 0; max-height: calc(100dvh - 12px); overflow-y: auto; overflow-x: hidden; }
+  .podium .step { width: 108px; }
+  #scr h1 { font-size: 26px; } #scr h1.small { font-size: 22px; }
+  .sub { font-size: 12px; }
+  .stage { padding: 4px 12px; margin: 0; } .stage .ic { font-size: 24px; }
+  .path { margin: 0; padding: 4px; } #scr button.lv { width: 42px; height: 42px; font-size: 15px; } #scr button.lv.now { width: 50px; height: 50px; }
+  #scr button.go.big { padding: 6px 34px; font-size: 20px; }
+  .modes { margin: 2px 0; } #scr button.mode { padding: 6px 18px; font-size: 16px; }
+  .cols { flex-direction: column; align-items: stretch; width: 100%; } .rank { min-width: 0; }
+  .bigstars { font-size: 38px; } .bigstars span:nth-child(2) { font-size: 46px; margin-top: -6px; }
+  .podium { margin: 4px 0 2px; padding-top: 22px; }
+  .podium .s1 .block { height: 58px; } .podium .s2 .block { height: 42px; } .podium .s3 .block { height: 30px; }
+  .podium .block span { font-size: 22px; margin-top: 4px; } .podium .s3 .block span { font-size: 16px; margin-top: 2px; }
+  .tipbox, .goals, .checks { margin: 2px 0; }
+  .levelup { padding: 5px 14px; margin: 2px 0; } .levelup b { font-size: 17px; }
+  .card .stats, .card > small:last-child { display: none; }
+}
 
 /* controles de la carrera */
 #pad { position: fixed; inset: 0; pointer-events: none; display: none; }

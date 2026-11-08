@@ -140,6 +140,8 @@ const store = {
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const alias = () => (store.get("npg-apodo") || "").trim();
 
+  const split = (a, b) => `<div class="split"><div class="pane">${a}</div><div class="pane">${b}</div></div>`;
+  const homeBtn = `<button id="home">🏠 MENÚ</button>`;
   function show(html) { scr.innerHTML = html; scr.style.display = "flex"; pad.style.display = "none"; keepAwake(false); scr.scrollTop = 0; }
   function aliasField(id) {
     const inp = document.getElementById(id); if (!inp) return;
@@ -170,19 +172,19 @@ const store = {
   function homeScreen() {
     race = null; cup = null; level = null;
     const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL;
-    show(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Las carreras del grupo de natación</p>
+    show(split(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Las carreras del grupo de natación</p>
       ${stageBox()}${pathHtml()}
       <button class="go big" id="play">▶ NIVEL ${lv}<small>${L.learn}</small></button>
       <div class="modes">
         <button class="mode ${cupOpen ? "cupon" : "alt locked"}" id="mCup">${cupOpen ? "🏆 COPA<small>3 carreras seguidas contra los mismos rivales</small>" : `🔒 COPA<small>Se abre en el nivel ${CUP_LEVEL}, cuando seas Asiduo</small>`}</button>
         ${cupOpen ? `<button class="mode alt" id="mQuick">PRÁCTICA LIBRE<small>Elegís el modo · no suma nivel</small></button>` : ""}
       </div>
-      <p class="err" id="aliasErr" hidden></p>
+      <p class="err" id="aliasErr" hidden></p>`, `
       <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Para el ranking del grupo"></label>
       <div class="cols"><div class="side"><div class="rank"><b>EL GRUPO: QUIÉN VA MÁS LEJOS</b><div id="players"><small>Cargando…</small></div></div></div>
       <div class="side"><div class="rank"><b>RÉCORDS DEL GRUPO</b><div class="circs boards">${BOARDS.map(([k, n]) => `<button class="circ ${k === boardKey ? "on" : ""}" data-b="${k}">${n}</button>`).join("")}</div><div id="board"><small>Cargando…</small></div></div></div></div>
       ${cupOpen ? "" : `<button class="link" id="mQuick">Práctica libre (no suma nivel)</button>`}
-      <button class="link" id="opinar">💬 Contanos qué te parece el juego</button>`);
+      <button class="link" id="opinar">💬 Contanos qué te parece el juego</button>`));
     aliasField("alias");
     document.getElementById("play").onclick = () => { Sound.unlock(); goFull(); levelScreen(lv); };
     scr.querySelectorAll(".lv[data-n]").forEach((b) => b.onclick = () => { Sound.unlock(); goFull(); levelScreen(+b.dataset.n); });
@@ -291,14 +293,14 @@ const store = {
     const L = level, circ = CIRCUITS[L.c], st = stageOf(n), done = starsMap()[n] || 0;
     const draft = newRace(chosen, circ, undefined, L.len, { pool: L.pool, rivals: L.r, skill: L.skill, pace: L.pace, fly: L.fly, pecho: L.pecho, air: L.air, items: L.items, quirks: L.quirks, gap: L.gap });
     const where = circ.open ? `${shownLen(draft)} m en el río` : `${shownLen(draft)} m` + (draft.laps > 1 ? `, ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}` : ", sin vueltas");
-    show(`<p class="sub">${st.icon} ${st.name} · NIVEL ${n}${done ? ` · tu mejor: <span class="st">${starStr(done)}</span>` : ""}</p>
+    show(split(`<p class="sub">${st.icon} ${st.name} · NIVEL ${n}${done ? ` · tu mejor: <span class="st">${starStr(done)}</span>` : ""}</p>
       <h1 class="small">${L.learn}</h1><p class="help">${circ.name} · ${where}</p>
       ${L.tip ? `<div class="tipbox">💡 ${L.tip}</div>` : ""}
       <div class="goals"><span><b class="st">${starStr(1)}</b> Terminá la carrera</span><span><b class="st">${starStr(2)}</b> ${goalText(L.two)} <em>para pasar</em></span><span><b class="st">${starStr(3)}</b> Además: ${goalText(L.three).toLowerCase()}</span></div>
-      <div class="vs">${draft.racers.map((r, i) => cardHtml(r, i)).join("")}${L.r ? "" : `<div class="card solo"><b>Nadás solo</b><small>Sin apuro: es para aprender.</small></div>`}</div>
-      ${controlsHelp(draft)}${L.items === "none" ? "" : legendHtml(L.items === "good", L.air)}
       <button class="go" id="goRace">¡AL AGUA!</button>
-      <div class="row"><button class="link" id="chg">Cambiar nadador (${chosen.name})</button><button class="link" id="back">← Inicio</button></div>`);
+      <div class="row"><button class="link" id="chg">Cambiar nadador (${chosen.name})</button><button class="link" id="back">← Inicio</button></div>`, `
+      <div class="vs">${draft.racers.map((r, i) => cardHtml(r, i)).join("")}${L.r ? "" : `<div class="card solo"><b>Nadás solo</b><small>Sin apuro: es para aprender.</small></div>`}</div>
+      ${controlsHelp(draft)}${L.items === "none" ? "" : legendHtml(L.items === "good", L.air)}`));
     document.getElementById("goRace").onclick = () => startRace(draft);
     document.getElementById("chg").onclick = selectScreen;
     document.getElementById("back").onclick = homeScreen;
@@ -310,10 +312,11 @@ const store = {
     const draft = newRace(chosen, circ, cup ? cup.rivals : undefined, circ.len, can);
     const head = cup ? `🏆 COPA · CARRERA ${cup.i + 1} DE ${CUP.length}` : "PRÁCTICA LIBRE · NO SUMA NIVEL";
     const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
-    show(`<p class="sub">${head}</p><h1 class="small">${circ.name} · ${shownLen(draft)} m</h1><p class="help">${circ.info}${draft.laps > 1 ? ` Son ${draft.laps} largos: ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}.` : ""}</p>
+    show(split(`<p class="sub">${head}</p><h1 class="small">${circ.name} · ${shownLen(draft)} m</h1><p class="help">${circ.info}${draft.laps > 1 ? ` Son ${draft.laps} largos: ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}.` : ""}</p>
+      ${cup ? "" : !can.fly ? `<p class="help">La mariposa se aprende en el nivel 7 y el pecho en el 9.</p>` : !can.pecho ? `<p class="help">El pecho se aprende en el nivel 9.</p>` : ""}
+      <button class="go">¡AL AGUA!</button>${cup ? "" : `<button class="link" id="back">← Volver</button>`}`, `
       <div class="vs">${draft.racers.map((r, i) => cardHtml(r, i, pts(r))).join("")}</div>
-      ${controlsHelp(draft)}${cup ? "" : !can.fly ? `<p class="help">La mariposa se aprende en el nivel 7 y el pecho en el 9.</p>` : !can.pecho ? `<p class="help">El pecho se aprende en el nivel 9.</p>` : ""}
-      ${legendHtml(false)}<button class="go">¡AL AGUA!</button>${cup ? "" : `<button class="link" id="back">← Volver</button>`}`);
+      ${controlsHelp(draft)}${legendHtml(false)}`));
     scr.querySelector(".go").onclick = () => startRace(draft);
     const bk = document.getElementById("back"); if (bk) bk.onclick = selectScreen;
   }
@@ -354,11 +357,10 @@ const store = {
     const record = myTime && (!prevBest || myTime < prevBest) ? `<p class="sub rec">⏱️ ¡Tu mejor marca en ${race.circ.name} ${shownLen(race)} m! ${!Nube.online() ? "" : alias() ? "Va a los récords del grupo." : "Poné tu apodo en el inicio para entrar a los récords del grupo."}</p>` : "";
     const shareText = `Nadé ${shownLen(race)} m de ${race.circ.name} con ${player.ch.name} en ${myTime ? myTime.toFixed(1) + " s" : "—"} y salí ${pos}º en Nadar por la gloria. ¿Me ganás?`;
     if (!cup) {
-      show(`<p class="sub">PRÁCTICA LIBRE</p>${placeTitle(pos)}<p class="sub">${win ? "La gloria es tuya." : "Sin gloria esta vez. ¿La revancha?"}</p>
-        ${podium(st.map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) })))}${record}
-        <div class="row"><button class="go" id="again">OTRA VEZ</button><button id="change">CAMBIAR</button></div>
-        <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>
-        <button class="link" id="home">← Volver al inicio</button>`);
+      show(split(`<p class="sub">PRÁCTICA LIBRE</p>${placeTitle(pos)}<p class="sub">${win ? "La gloria es tuya." : "Sin gloria esta vez. ¿La revancha?"}</p>
+        ${record}<div class="row"><button class="go" id="again">OTRA VEZ</button><button id="change">CAMBIAR</button>${homeBtn}</div>`,
+        `${podium(st.map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) })))}
+        <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
       shareBtn(shareText); document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
       document.getElementById("again").onclick = drawScreen;
       document.getElementById("change").onclick = selectScreen;
@@ -371,10 +373,10 @@ const store = {
     cup.i++;
     const last = cup.i >= CUP.length;
     const extras = (x) => [x.r.gotDulce ? "dulce +" + BONUS.dulce : "", !x.r.ranOut ? "aire +" + BONUS.air : ""].filter(Boolean).join(" · ");
-    show(`<p class="sub">🏆 COPA · CARRERA ${cup.i} DE ${CUP.length} · ${race.circ.name}</p>${placeTitle(pos)}
-      ${podium(pts.map((x) => ({ ch: x.r.ch, isPlayer: x.r.isPlayer, sub: timeOf(x.r), extra: `<span class="plus">+${x.total}</span>${extras(x) ? `<small class="ex">${extras(x)}</small>` : ""}` })))}
+    show(split(`<p class="sub">🏆 COPA · CARRERA ${cup.i} DE ${CUP.length} · ${race.circ.name}</p>${placeTitle(pos)}
       ${record}${cupTable()}
-      <button class="go" id="next">${last ? "VER QUIÉN GANÓ LA COPA" : "SIGUIENTE: " + CIRCUITS[CUP[cup.i]].name}</button>`);
+      <button class="go" id="next">${last ? "VER QUIÉN GANÓ LA COPA" : "SIGUIENTE: " + CIRCUITS[CUP[cup.i]].name}</button>`,
+      podium(pts.map((x) => ({ ch: x.r.ch, isPlayer: x.r.isPlayer, sub: timeOf(x.r), extra: `<span class="plus">+${x.total}</span>${extras(x) ? `<small class="ex">${extras(x)}</small>` : ""}` })))));
     document.getElementById("next").onclick = last ? cupEndScreen : drawScreen;
   }
 
@@ -388,17 +390,16 @@ const store = {
     if (passed) pushProgress();
     const checks = [["Terminaste la carrera", true], [goalText(L.two), res.checks[1]], [goalText(L.three), res.checks[2]]];
     const st = standings(race);
-    show(`<p class="sub">${stageOf(L.n).icon} NIVEL ${L.n} · ${L.learn}</p>
+    show(split(`<p class="sub">${stageOf(L.n).icon} NIVEL ${L.n} · ${L.learn}</p>
       <div class="bigstars">${[1, 2, 3].map((k) => `<span class="${k <= res.n ? "on" : ""}" style="animation-delay:${0.2 + k * 0.35}s">★</span>`).join("")}</div>
       <h1 class="${passed ? "win" : "lose"}">${passed ? (res.n === 3 ? "¡PERFECTO!" : "¡NIVEL SUPERADO!") : "¡CASI!"}</h1>
       <div class="checks">${checks.map(([t, ok], i) => `<span class="${ok ? "ok" : "no"}">${ok ? "✔" : "✘"} ${t}${i === 1 && !passed ? " <em>(para pasar)</em>" : ""}</span>`).join("")}</div>
       ${newStage ? `<div class="levelup">${confetti()}<b>${newStage.icon} ¡AHORA SOS ${newStage.name}!</b>${cupNow ? `<span>🏆 Se abrió la COPA: jugala desde el inicio.</span>` : ""}</div>` : ""}
-      ${L.r ? podium(st.slice(0, 3).map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) }))) : `<p class="sub">Tu tiempo: ${timeOf(player)}</p>`}
+      <div class="row">${passed ? `<button class="go" id="next">SIGUIENTE: NIVEL ${L.n + 1}</button><button id="change">REPETIR</button>` : `<button class="go" id="again">OTRA VEZ</button>`}${homeBtn}</div>`, `
       ${now < CUP_LEVEL ? `<p class="sub teaser">🏆 Te ${CUP_LEVEL - now === 1 ? "falta 1 nivel" : "faltan " + (CUP_LEVEL - now) + " niveles"} para que se abra la copa</p>` : ""}
+      ${L.r ? podium(st.slice(0, 3).map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) }))) : `<p class="sub">Tu tiempo: ${timeOf(player)}</p>`}
       ${passed && !alias() ? `<label class="alias">TU APODO <input id="alias2" maxlength="16" autocomplete="off" placeholder="Para aparecer en el ranking"></label>` : ""}
-      <div class="row">${passed ? `<button class="go" id="next">SIGUIENTE: NIVEL ${L.n + 1}</button><button id="change">REPETIR</button>` : `<button class="go" id="again">OTRA VEZ</button>`}</div>
-      <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>
-      <button class="link" id="home">← Volver al inicio</button>`);
+      <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
     aliasField("alias2");
     const st2 = stageOf(now);
     shareBtn(passed ? `Pasé el nivel ${L.n} de Nadar por la gloria con ${res.n} estrella${res.n > 1 ? "s" : ""}: ya soy ${st2.name} ${st2.icon}. ¿Me alcanzás?` : `Estoy en el nivel ${now} de Nadar por la gloria (${st2.name} ${st2.icon}). ¿Me alcanzás?`);
@@ -418,16 +419,16 @@ const store = {
       if (champ) { store.set("npg-copas", cupsWon() + 1); pushProgress(); }
       Sound.play(champ ? "win" : "lose");
     }
-    show(`<p class="sub">🏆 FIN DE LA COPA</p>
+    show(split(`<p class="sub">🏆 FIN DE LA COPA</p>
       <h1 class="${champ ? "win" : "lose"}">${champ ? "¡GANASTE LA COPA!" : "GANÓ " + order[0].name}</h1>
-      ${podium(order.map((c) => ({ ch: c, isPlayer: c === chosen, sub: (cup.pts[c.id] || 0) + " puntos" })))}
       <p class="sub">Sumaste <b>${mine}</b> puntos. ${cupsWon() ? `Llevás <b>${cupsWon()}</b> copa${cupsWon() > 1 ? "s" : ""} ganada${cupsWon() > 1 ? "s" : ""}.` : ""}</p>
-      <div class="row"><button class="go" id="again">OTRA COPA</button><button id="change">AL INICIO</button></div>
-      <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`);
+      <div class="row"><button class="go" id="again">OTRA COPA</button>${homeBtn}</div>`,
+      `${podium(order.map((c) => ({ ch: c, isPlayer: c === chosen, sub: (cup.pts[c.id] || 0) + " puntos" })))}
+      <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
     shareBtn(`${champ ? "¡Gané la copa" : "Jugué la copa"} de Nadar por la gloria con ${chosen.name}: ${mine} puntos. ¿Me ganás?`);
     document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
     document.getElementById("again").onclick = () => { mode = "cup"; selectScreen(); };
-    document.getElementById("change").onclick = homeScreen;
+    document.getElementById("home").onclick = homeScreen;
   }
 
   // ---------- sonidos de lo que pasa ----------

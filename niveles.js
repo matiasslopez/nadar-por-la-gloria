@@ -5,7 +5,7 @@
 // Las etapas: el título que tenés según el nivel en el que estás.
 const STAGES = [
   { from: 1, name: "PRIMEROS PASOS", icon: "🐣" },
-  { from: 6, name: "VA QUERIENDO", icon: "🌊" },
+  { from: 6, name: "ROOKIE", icon: "🌊" },
   { from: 11, name: "ASIDUO", icon: "🏊" },
   { from: 21, name: "NADADOR", icon: "🥽" },
   { from: 36, name: "PREMASTER", icon: "⭐" },
