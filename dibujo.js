@@ -666,10 +666,7 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
     // tira y vidrios de las antiparras
     ctx.strokeStyle = "rgba(20,20,30,0.8)"; ctx.lineWidth = Math.max(1, k * 0.018);
     ctx.beginPath(); ctx.ellipse(hx, hy, k * 0.11, k * 0.115, 0, -1.2, 1.2, true); ctx.stroke();
-    ctx.fillStyle = "#1B2A3A";
-    for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(hx + k * 0.11, hy + s * k * 0.05, k * 0.03, k * 0.022, 0, 0, 7); ctx.fill(); }
-    ctx.fillStyle = "rgba(127,224,255,0.9)";
-    for (const s of [-1, 1]) { ctx.beginPath(); ctx.arc(hx + k * 0.115, hy + s * k * 0.05 - k * 0.006, k * 0.009, 0, 7); ctx.fill(); }
+    for (const s of [-1, 1]) { ctx.fillStyle = shade(skin, -0.12); ctx.beginPath(); ctx.ellipse(hx + k * 0.02, hy + s * k * 0.135, k * 0.035, k * 0.02, 0, 0, 7); ctx.fill(); } // las orejas
   }
   ctx.restore();
 
@@ -1030,18 +1027,20 @@ function drawStands(ctx, x0, x1, top, ph, ppm, t, hype, seed) {
   for (let i = 0; i < rows; i++) for (let j = 0, y = top + gap * 0.5; y < top + ph - gap * 0.3; j++, y += gap) {
     const n = seed * 1000 + i * 97 + j, h = hash(n);
     if (h < 0.12) continue; // algún lugar vacío
-    const cx = x0 + (i + 0.5) * rowW + (hash(n + 1) - 0.5) * rowW * 0.3, cy = y + (hash(n + 2) - 0.5) * gap * 0.3;
+    const cx = x0 + (i + 0.5) * rowW + (hash(n + 1) - 0.5) * rowW * 0.3, cy = y + (hash(n + 2) - 0.5) * gap * 0.3, fd = seed === 2 ? -1 : 1; // hacia dónde está la pileta
     const jump = Math.max(0, Math.sin(t * (6 + h * 4) + n)) * hype;
     const s = ppm * 0.2 * (1 + jump * 0.15);
     const shirt = FAN_SHIRTS[Math.floor(hash(n + 3) * FAN_SHIRTS.length)];
     // brazos arriba cuando se entusiasman
     if (jump > 0.3) {
       ctx.strokeStyle = FAN_SKIN[Math.floor(hash(n + 4) * FAN_SKIN.length)]; ctx.lineWidth = s * 0.4; ctx.lineCap = "round";
-      for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx, cy + d * s * 0.8); ctx.lineTo(cx + s * 0.9, cy + d * s * (1.1 + jump * 0.4)); ctx.stroke(); }
+      for (const d of [-1, 1]) { ctx.beginPath(); ctx.moveTo(cx, cy + d * s * 0.8); ctx.lineTo(cx + fd * s * 0.9, cy + d * s * (1.1 + jump * 0.4)); ctx.stroke(); }
     }
-    ctx.fillStyle = shirt; ctx.beginPath(); ctx.ellipse(cx - s * 0.2, cy, s * 0.8, s * 1.05, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = FAN_SKIN[Math.floor(hash(n + 4) * FAN_SKIN.length)]; ctx.beginPath(); ctx.arc(cx + s * 0.25, cy, s * 0.55, 0, 7); ctx.fill();
-    ctx.fillStyle = FAN_HAIR[Math.floor(hash(n + 5) * FAN_HAIR.length)]; ctx.beginPath(); ctx.arc(cx + s * 0.05, cy, s * 0.5, Math.PI * 0.6, Math.PI * 1.4); ctx.fill();
+    ctx.fillStyle = shirt; ctx.beginPath(); ctx.ellipse(cx - fd * s * 0.2, cy, s * 0.8, s * 1.05, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = FAN_SKIN[Math.floor(hash(n + 4) * FAN_SKIN.length)]; ctx.beginPath(); ctx.arc(cx + fd * s * 0.25, cy, s * 0.55, 0, 7); ctx.fill();
+    ctx.fillStyle = FAN_HAIR[Math.floor(hash(n + 5) * FAN_HAIR.length)]; ctx.beginPath();
+    if (fd > 0) ctx.arc(cx + s * 0.05, cy, s * 0.5, Math.PI * 0.6, Math.PI * 1.4); else ctx.arc(cx - s * 0.05, cy, s * 0.5, -Math.PI * 0.4, Math.PI * 0.4);
+    ctx.fill();
   }
   // banderas entre la gente
   const fw = Math.min(ppm * 1.7, (x1 - x0) * 0.45), fh = fw * 0.62, nf = Math.max(2, Math.floor(ph / (fh * 1.6)));

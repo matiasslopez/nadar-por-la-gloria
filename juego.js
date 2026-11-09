@@ -151,14 +151,14 @@ const store = {
 
   // El camino: unas burbujas con los niveles alrededor del tuyo y sus estrellas.
   function pathHtml() {
-    const lv = myLevel(), sm = starsMap(), a = Math.max(1, lv - 3);
+    const lv = myLevel(), sm = starsMap();
     let h = "";
-    for (let n = a; n <= a + 7; n++) {
+    for (let n = 1; n <= lv + 4; n++) { // todos los niveles hasta el tuyo (y algunos que vienen): se puede volver a cualquiera
       const st = STAGES.find((s) => s.from === n && n > 1);
       if (st) h += `<span class="flag" title="${st.name}">${st.icon}</span>`;
       if (n === CUP_LEVEL) h += `<span class="flag">🏆</span>`;
       const cls = n < lv ? "done" : n === lv ? "now" : "locked";
-      h += `<button class="lv ${cls}" data-n="${n}" ${n > lv ? "disabled" : ""}><b>${n > lv ? "🔒" : n}</b><small>${n < lv ? starStr(sm[n] || 0) : n === lv ? "JUGÁ" : ""}</small></button>`;
+      h += `<button class="lv ${cls}" data-n="${n}" title="${n > lv ? "" : esc(levelDef(n).learn)}" ${n > lv ? "disabled" : ""}><b>${n > lv ? "🔒" : n}</b><small>${n < lv ? starStr(sm[n] || 0) : n === lv ? "JUGÁ" : ""}</small></button>`;
     }
     return `<div class="path">${h}</div>`;
   }
@@ -186,6 +186,8 @@ const store = {
       ${cupOpen ? "" : `<button class="link" id="mQuick">Práctica libre (no suma nivel)</button>`}
       <button class="link" id="opinar">💬 Contanos qué te parece el juego</button>`));
     aliasField("alias");
+    const nowB = scr.querySelector(".lv.now"), path = scr.querySelector(".path"); // el camino arranca mostrando tu nivel
+    if (nowB && path) path.scrollLeft = nowB.offsetLeft - path.clientWidth / 2 + nowB.offsetWidth / 2;
     document.getElementById("play").onclick = () => { Sound.unlock(); goFull(); levelScreen(lv); };
     scr.querySelectorAll(".lv[data-n]").forEach((b) => b.onclick = () => { Sound.unlock(); goFull(); levelScreen(+b.dataset.n); });
     document.getElementById("mCup").onclick = () => {

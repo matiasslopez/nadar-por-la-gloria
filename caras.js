@@ -6,15 +6,22 @@ const FACES = {
   pablo: { skin: "#F0BE98", shade: "#D99A72", shade2: "#C4825E", top: "bald", beard: "candado", beardC: "#9C8E80", beardC2: "#7E7064", brow: "#5E4A3C", iris: "#4A6E96", goggles: true, mouth: "half" },
   luis: { skin: "#E6B08A", shade: "#CC9068", shade2: "#B67A55", top: "cap", capC: "#4A5FD0", capC2: "#3546A8", capHi: "#8394F5", beard: "stubble", beardC: "#6E5A4C", beardC2: "#5A4638", brow: "#3A2A20", iris: "#4A2E1C", goggles: false, mouth: "grin" },
   facu: { skin: "#EDBB95", shade: "#D49B74", shade2: "#BC845E", top: "cap", capC: "#1A1A1E", capC2: "#0A0A0C", capHi: "#4A4D58", beard: "light", beardC: "#B89A80", beardC2: "#A08268", brow: "#3A2A1E", iris: "#4F7A4A", goggles: true, mouth: "smirk" },
-  mati: { skin: "#F2C6A0", shade: "#DCA27C", shade2: "#C58A64", top: "hairMid", hairC: "#F0CC62", hairC2: "#C99E38", beard: "none", brow: "#B88A3A", iris: "#4A6E96", goggles: false, mouth: "grin", blush: true }
+  mati: { skin: "#F2C6A0", shade: "#DCA27C", shade2: "#C58A64", top: "hairMid", hairC: "#F0CC62", hairC2: "#C99E38", beard: "none", brow: "#B88A3A", iris: "#4A6E96", goggles: false, mouth: "grin", blush: true },
+  luchito: { slim: true, skin: "#EEC09A", shade: "#D6A07A", shade2: "#BE8862", top: "hair", hairC: "#1A1410", hairC2: "#3A2E26", beard: "none", brow: "#1A1410", iris: "#5A3A22", goggles: true, mouth: "grin" },
+  fer: { skin: "#E6B48C", shade: "#CC9A72", shade2: "#B5825C", top: "bald", beard: "none", brow: "#8A7A6C", iris: "#4A6E96", goggles: true, mouth: "half", wrinkles: true },
+  gaston: { skin: "#E8B48E", shade: "#CF966E", shade2: "#B88058", top: "hair", hairC: "#A9A9A9", hairC2: "#C8C8C8", beard: "short", beardC: "#A8A8A8", beardC2: "#8C8C8C", brow: "#8C8C8C", iris: "#4A6E96", goggles: true, mouth: "grin" },
+  mica: { slim: true, skin: "#F0C4A2", shade: "#D9A27E", shade2: "#C28A66", top: "cap", capC: "#16161C", capC2: "#0A0A0E", capHi: "#4A4A5C", locks: "#3A2618", tail: "#3A2618", tailSide: -1, tie: "#FF6FB0", beard: "none", brow: "#3A2618", iris: "#5A3A22", goggles: true, mouth: "lips", lip: "#C8506A", blush: true, lashes: true, fem: true },
+  andre: { skin: "#E3AE86", shade: "#C98F68", shade2: "#B27852", top: "cap", capC: "#2B2D3A", capC2: "#1A1B24", capHi: "#5A5E78", locks: "#2A1C14", tail: "#2A1C14", tailSide: 1, tie: "#5FCB4A", beard: "none", brow: "#2E2018", iris: "#3E2A1C", goggles: true, mouth: "lips", lip: "#B8475E", blush: true, lashes: true, fem: true }
 };
 const FACE_BASE = { out: "#2A1B14", lip: "#8A4436", water: "#2E9ED8", waterL: "#6FD3F5" };
 const HEAD = [[2, 8, 15], [3, 6, 17], [4, 5, 18], [5, 4, 19], [6, 4, 19], [7, 4, 19], [8, 4, 19], [9, 4, 19], [10, 4, 19], [11, 4, 19], [12, 4, 19], [13, 4, 19], [14, 4, 19], [15, 4, 19], [16, 5, 18], [17, 5, 18], [18, 6, 17], [19, 7, 16], [20, 9, 14]];
 const headRow = (r) => HEAD.find((h) => h[0] === r);
+const HEAD_BASE = HEAD;
 
 // Gestos: normal (parpadea y mira), happy, hurt, gulp, annoyed, dead (ojos en cruz), effort (mariposa).
 function paintFace(c, id, expr, t) {
   const P = FACES[id];
+  const HEAD = P.slim ? HEAD_BASE.map(([r, a, b]) => r >= 14 ? [r, Math.min(a + 1, b), Math.max(b - 1, a)] : [r, a, b]) : HEAD_BASE; // cara más finita
   const F = (x, y, w, h, col) => { c.fillStyle = col; c.fillRect(x, y, w, h); };
   F(0, 0, 24, 24, FACE_BASE.water);
   F(1, 22, 6, 1, FACE_BASE.waterL); F(16, 21, 5, 1, FACE_BASE.waterL); F(3, 3, 2, 1, FACE_BASE.waterL);
@@ -38,6 +45,10 @@ function paintFace(c, id, expr, t) {
     F(11, 2, 2, 5, "#F5D9B8");
     for (const [x, y] of [[8, 3], [7, 4], [6, 5], [5, 6], [15, 3], [16, 4], [17, 5], [18, 6], [9, 5], [14, 5]]) F(x, y, 1, 1, P.hairC2);
     F(7, 2, 3, 1, "#FFF3B8"); F(14, 2, 3, 1, "#FFF3B8"); F(5, 4, 1, 1, "#FFF3B8"); F(18, 4, 1, 1, "#FFF3B8");
+  } else if (P.top === "hair") {
+    for (const [r, a, b] of HEAD) if (r <= 6) F(a, r, b - a + 1, 1, P.hairC);
+    F(4, 7, 3, 1, P.hairC); F(9, 7, 4, 1, P.hairC); F(16, 7, 4, 1, P.hairC); F(4, 8, 1, 3, P.hairC); F(19, 8, 1, 3, P.hairC);
+    F(8, 3, 2, 1, P.hairC2 || "#5A4636");
   }
   // barba
   for (let r = 12; r <= 20; r++) {
@@ -47,10 +58,11 @@ function paintFace(c, id, expr, t) {
       if (P.beard === "candado") { on = r >= 14 && ((r >= 16) || (x >= 8 && x <= 15)) && (r + x) % 2 === 0; col = r > 18 ? P.beardC2 : P.beardC; }
       else if (P.beard === "stubble") { on = (r >= 15 && x >= 5 && x <= 18 && (r + x) % 2 === 0) || (r >= 12 && r <= 14 && (x <= 5 || x >= 18) && (r + x) % 2 === 0); col = r > 18 ? P.beardC2 : P.beardC; }
       else if (P.beard === "light") { on = r >= 16 && (r * 3 + x) % 4 === 0; }
+      else if (P.beard === "short") { on = (r >= 17 && x >= 6 && x <= 17) || (r === 16 && (x <= 7 || x >= 16)); col = (r + x) % 2 ? P.beardC : P.beardC2; }
       if (on) F(x, r, 1, 1, col);
     }
   }
-  if (P.beard === "candado") F(9, 15, 6, 1, P.beardC);
+  if (P.beard === "candado" || P.beard === "short") F(9, 15, 6, 1, P.beardC);
   // antiparras en la frente
   if (P.goggles) { F(4, 7, 16, 1, FACE_BASE.out); F(6, 6, 4, 2, "#5FD0F5"); F(14, 6, 4, 2, "#5FD0F5"); F(6, 6, 1, 1, "#FFFFFF"); F(14, 6, 1, 1, "#FFFFFF"); }
   const blink = expr === "normal" && (t % 3.2) < 0.13;
@@ -59,6 +71,7 @@ function paintFace(c, id, expr, t) {
   if (expr === "hurt" || expr === "dead") { F(6, 9, 4, 1, B); F(14, 9, 4, 1, B); }
   else if (expr === "annoyed" || expr === "effort") { F(6, 10, 2, 1, B); F(8, 9, 2, 1, B); F(14, 9, 2, 1, B); F(16, 10, 2, 1, B); }
   else if (expr === "happy") { F(6, 8, 4, 1, B); F(14, 8, 4, 1, B); }
+  else if (P.fem) { F(6, 9, 1, 1, B); F(7, 8, 3, 1, B); F(14, 8, 3, 1, B); F(17, 9, 1, 1, B); }
   else { F(6, 9, 4, 1, B); F(14, 9, 4, 1, B); if (P.mouth === "half") F(17, 8, 1, 1, B); }
   // ojos
   if (expr === "dead") {
@@ -76,11 +89,22 @@ function paintFace(c, id, expr, t) {
     F(8 + look, 11, 1, 1, P.iris); F(15 + look, 11, 1, 1, P.iris);
     F(7, 12, 3, 1, P.shade); F(14, 12, 3, 1, P.shade);
   }
+  if (P.wrinkles) { F(8, 4, 6, 1, P.shade); F(9, 5, 4, 1, P.shade); F(5, 11, 1, 1, P.shade2); F(18, 11, 1, 1, P.shade2); F(5, 13, 1, 1, P.shade2); F(18, 13, 1, 1, P.shade2); F(8, 15, 1, 1, P.shade2); F(15, 15, 1, 1, P.shade2); }
   if (P.blush || expr === "effort") { F(6, 14, 2, 1, "#F0A08A"); F(16, 14, 2, 1, "#F0A08A"); }
+  if (P.lashes && expr !== "dead") { F(6, 10, 1, 2, O); F(10, 10, 1, 1, O); F(13, 10, 1, 1, O); F(17, 10, 1, 2, O); F(5, 10, 1, 1, O); F(18, 10, 1, 1, O); }
+  if (P.locks) { F(4, 9, 1, 5, P.locks); F(5, 9, 1, 2, P.locks); F(19, 9, 1, 5, P.locks); F(18, 9, 1, 2, P.locks); }
+  if (P.tail) { // la colita atada que sale del gorro hacia un costado
+    const X = (x) => P.tailSide > 0 ? x : 23 - x;
+    const TAIL = [[5, 19, 21], [6, 20, 22], [7, 20, 22], [8, 21, 23], [9, 21, 23], [10, 21, 23], [11, 21, 23], [12, 21, 22], [13, 21, 22], [14, 22, 22]];
+    for (const [r, a, b] of TAIL) for (let x = a - 1; x <= b + 1; x++) if (x >= 0 && x <= 23) F(X(x), r, 1, 1, O);
+    F(X(20), 15, 1, 1, O); F(X(22), 15, 1, 1, O); F(X(21), 15, 1, 1, O);
+    for (const [r, a, b] of TAIL) for (let x = a; x <= b; x++) if (x <= 23) F(X(x), r, 1, 1, (x + r) % 3 ? P.tail : "#5A4030");
+    F(X(20), 6, 2, 1, P.tie); F(X(19), 5, 1, 1, P.tie);
+  }
   // nariz
   F(11, 11, 1, 3, P.shade); F(12, 12, 1, 2, "#F7D2B4"); F(10, 14, 1, 1, P.shade2); F(13, 14, 1, 1, P.shade2);
   // boca
-  const grin = () => { F(9, 17, 6, 1, L); F(8, 16, 1, 1, L); F(15, 16, 1, 1, L); F(10, 17, 4, 1, "#FFFFFF"); F(10, 18, 4, 1, L); };
+  const grin = () => { const L = P.lip || FACE_BASE.lip; F(9, 17, 6, 1, L); F(8, 16, 1, 1, L); F(15, 16, 1, 1, L); F(10, 17, 4, 1, "#FFFFFF"); F(10, 18, 4, 1, L); };
   if (expr === "happy") grin();
   else if (expr === "gulp" || expr === "hurt") { F(11, 16, 2, 3, O); F(10, 17, 1, 1, O); F(13, 17, 1, 1, O); }
   else if (expr === "effort") { F(9, 16, 6, 3, O); F(10, 16, 4, 1, "#FFFFFF"); F(10, 18, 4, 1, "#FFFFFF"); F(19, 5, 1, 2, "#8FE3FF"); }
@@ -89,6 +113,7 @@ function paintFace(c, id, expr, t) {
   else if (expr === "dead") { for (let i = 0; i < 6; i++) F(9 + i, 17 + (i % 2), 1, 1, L); }
   else if (P.mouth === "grin") grin();
   else if (P.mouth === "smirk") { F(9, 17, 5, 1, L); F(8, 16, 1, 1, L); }
+  else if (P.mouth === "lips") { F(10, 16, 1, 1, P.lip); F(13, 16, 1, 1, P.lip); F(9, 17, 6, 1, P.lip); F(10, 18, 4, 1, "#E07C92"); F(11, 17, 2, 1, "#8A2E44"); }
   else { F(9, 17, 5, 1, L); F(14, 16, 1, 1, L); F(15, 15, 1, 1, P.shade); }
   if (expr === "gulp") { F(19, 13, 1, 1, "#FFFFFF"); F(20, 11, 1, 1, "#FFFFFF"); }
 }

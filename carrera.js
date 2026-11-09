@@ -7,19 +7,36 @@
 // rec: qué tan rápido recarga el aire al respirar · fly: cuánto rinde la mariposa.
 const CHARS = [
   { id: "facu", name: "FACU", tag: "Guarda que te como", quirk: "Una vez por carrera le agarra un calambre y frena un toque.",
-    spd: 5, air: 2, rec: 3, fly: 4,
+    spd: 5, air: 2, rec: 3, fly: 4, sal: 3,
     cap: "#1A1A1E", suit: "#1A1A1A", skin: "#EDBB95" },
   { id: "luis", name: "LUIS", tag: "El quejoso", quirk: "Cuando lo pasan, se frena un toque a quejarse (una vez por carrera).",
-    spd: 4, air: 3, rec: 2, fly: 5,
+    spd: 4, air: 3, rec: 2, fly: 5, sal: 3,
     cap: "#4A5FD0", suit: "#D4A017", skin: "#E6B08A" },
   { id: "mati", name: "MATI", tag: "El diésel", quirk: "Una vez por carrera se da vuelta y hace la planchita: frena, pero recupera aire.",
-    spd: 2, air: 5, rec: 5, fly: 2,
+    spd: 3, air: 5, rec: 4, fly: 2, sal: 3,
     cap: "#E8C25A", suit: "#2E8B57", skin: "#F2C6A0" },
   { id: "pablo", name: "PABLO", tag: "La losa", quirk: "Es una losa: lo que frena le hace menos efecto. Una vez por carrera se pone a caminar un toque.",
-    spd: 3, air: 4, rec: 4, fly: 3,
-    cap: "#F0BE98", suit: "#1F3F8F", skin: "#F0BE98", heavy: true }
+    spd: 2, air: 4, rec: 3, fly: 3, sal: 3,
+    cap: "#F0BE98", suit: "#1F3F8F", skin: "#F0BE98", heavy: true },
+  { id: "luchito", name: "LUCHITO", tag: "Rápido, pero los calambres lo tienen a maltraer", quirk: "Es de los más rápidos. Una vez por carrera le agarra un calambre y frena un toque.",
+    spd: 5, air: 3, rec: 2, fly: 4, sal: 3,
+    cap: "#1A1410", suit: "#18A558", skin: "#EEC09A" },
+  { id: "fer", name: "FER", tag: "Lee la pileta como nadie", quirk: "El de más experiencia: sale y gira en la pared mejor que nadie. Una vez por carrera afloja un toque: «tranqui, que ya la vi».",
+    spd: 3, air: 4, rec: 4, fly: 2, sal: 5,
+    cap: "#E6B48C", suit: "#2B4C7E", skin: "#E6B48C" },
+  { id: "gaston", name: "GASTÓN", tag: "Cuando zarpa, no lo para nadie", quirk: "Una vez por carrera le agarra un ahogo y se queda pidiendo ayuda un ratito.",
+    spd: 3, air: 4, rec: 3, fly: 4, sal: 3,
+    cap: "#A9A9A9", suit: "#1E3A5F", skin: "#E8B48E" },
+  { id: "mica", name: "MICA", tag: "Aparece donde menos la esperás", quirk: "Una vez por carrera desaparece un toque y aparece en otro carril.",
+    spd: 4, air: 3, rec: 4, fly: 3, sal: 3,
+    cap: "#16161C", suit: "#2F6FE0", skin: "#F0C4A2" },
+  { id: "andre", name: "ANDRE", tag: "La maestra repostera", quirk: "Una vez por carrera se frena a convidar una masita.",
+    spd: 3, air: 5, rec: 3, fly: 3, sal: 3,
+    cap: "#2B2D3A", suit: "#111111", skin: "#E3AE86" }
 ];
-const STATS = [["spd", "Velocidad"], ["air", "Aire"], ["rec", "Recarga"], ["fly", "Mariposa"]];
+const STATS = [["spd", "Velocidad"], ["air", "Aire"], ["rec", "Recarga"], ["fly", "Mariposa"], ["sal", "Salida y vuelta"]];
+// la experiencia en la salida y la vuelta: suma a lo bien que tocó la barrita
+const wallSkill = (ch, q) => Math.min(1, q + ((ch.sal || 3) - 3) * 0.05);
 const COMPLAINTS = ["¡ESTÁ HELADA!", "¿QUIÉN ARMÓ ESTA SERIE?", "ME DUELE EL HOMBRO", "¡LA PROFE ME ODIA!", "HAY MUCHA GENTE HOY", "¿SALE MILANGA HOY?"];
 
 // Objetos que flotan en la pileta: los buenos aceleran, los malos frenan, por unos segundos.
@@ -141,12 +158,13 @@ const MOODS = { good: ["happy", 1], bad: ["hurt", 1], breath: ["gulp", 0.45], no
 // Si la toca perfecta, además sale con turbo un rato (kick).
 const kickFor = (q) => q > 0.88 ? 1.8 : q > 0.55 ? 0.7 : 0;
 function startDive(race, r, q) {
+  q = wallSkill(r.ch, q);
   r.onBlock = false; r.x = 1.5 + 3 * q; r.v = BASE_V * (1.0 + 1.4 * q); r.kick = kickFor(q);
   r.push = { kind: "SALIDA", q, t: race.t }; r.qs = [q]; emit(race, r, q > 0.88 ? "perfect" : "dive");
 }
 // Vuelta americana: gira en la pared y empuja; con la barrita arriba sale disparado.
 function turnAround(race, r) {
-  const q = r.turnQ === null ? 0.1 : r.turnQ, wall = r.nextWall; // si no tocó, gira tarde y sin fuerza
+  const q = r.turnQ === null ? 0.1 : wallSkill(r.ch, r.turnQ), wall = r.nextWall; // si no tocó, gira tarde y sin fuerza
   r.x = wall + 1 + 2.2 * q; r.v = BASE_V * (0.65 + 1.25 * q); r.dive = Math.max(r.dive, 0.2 + 0.4 * q); r.kick = kickFor(q);
   r.wallBar = false; r.nextWall = wall + race.pool < race.len - 0.01 ? wall + race.pool : Infinity;
   r.push = { kind: "VUELTA", q, t: race.t }; (r.qs = r.qs || []).push(q); emit(race, r, q > 0.88 ? "perfect" : "turn");
@@ -185,6 +203,14 @@ function startQuirk(race, r) {
     case "luis": r.slow = 1.4; r.slowMult = 0.55; say(r, pick(COMPLAINTS), 1.6); r.mood = "talk"; r.moodT = 1.6; break;
     case "mati": r.plancha = 1.3; say(r, "plancha..."); break;
     case "pablo": r.walk = 1.6; say(r, "CAMINO UN TOQUE", 1.4); break;
+    case "luchito": r.slow = 1.3; r.slowMult = 0.5; say(r, "¡CALAMBRE!", 1.3); r.mood = "hurt"; r.moodT = 1.3; break;
+    case "fer": r.slow = 1.2; r.slowMult = 0.7; say(r, pick(["TRANQUI, QUE YA LA VI", "DESPACITO Y SIN APURO"]), 1.5); break;
+    case "gaston": r.slow = 1.3; r.slowMult = 0.45; say(r, "¡AYUDA!", 1.3); r.mood = "hurt"; r.moodT = 1.3; break;
+    case "andre": r.slow = 1.3; r.slowMult = 0.5; say(r, "¿UNA MASITA?", 1.3); r.mood = "happy"; r.moodT = 1.3; break;
+    case "mica": { // desaparece y aparece en otro carril
+      const to = r.u < 0.5 ? r.u + 0.3 : r.u - 0.3; r.u = clamp(to, 0.08, 0.92); if (r.ai) r.ai.wantU = r.u;
+      r.slow = 0.7; r.slowMult = 0.75; r.immune = Math.max(r.immune, 0.5); say(r, "¡ACÁ ESTOY!", 1.2); break;
+    }
   }
   emit(race, r, "quirk");
 }

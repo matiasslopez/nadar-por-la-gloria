@@ -9,7 +9,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0B3D63; col
 #scr p { margin: 2px 0; }
 .sub { opacity: 0.85; font-size: 14px; }
 .help { font-size: 12px; margin: 0 !important; opacity: 0.85; max-width: 640px; }
-.grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; max-width: 640px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; width: 100%; max-width: 820px; }
 .ch, .card { display: flex; flex-direction: column; align-items: center; gap: 2px; background: #ffffff1f; border: 2px solid #ffffff40; border-radius: 16px; padding: 6px 4px; color: #fff; font: inherit; box-shadow: 0 4px 0 #0003; }
 .ch { cursor: pointer; transition: transform 0.1s; }
 .ch:hover { transform: translateY(-3px) rotate(-1deg); border-color: #FFD84A; }
@@ -111,7 +111,7 @@ input { user-select: text; -webkit-user-select: text; }
 .stage .ic { font-size: 30px; } .stage > div { flex: 1; } .stage b { color: #FFD84A; } .stage small { font-size: 11px; opacity: 0.85; }
 .stage .prog { height: 8px; border-radius: 4px; background: #ffffff25; margin: 4px 0 2px; overflow: hidden; }
 .stage .prog i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #5FD0F5, #FFD84A); }
-.path { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; max-width: 100%; overflow-x: auto; padding: 6px 4px; }
+.path { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; max-width: 100%; overflow-x: auto; padding: 6px 4px; scrollbar-width: thin; touch-action: pan-x; }
 .path .flag { font-size: 18px; }
 #scr button.lv { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 50px; height: 50px; border-radius: 50%; border: 3px solid #ffffff70; background: #1B6FA8; color: #fff; font: bold 17px system-ui, sans-serif; cursor: pointer; padding: 0; box-shadow: 0 3px 0 #0004; }
 #scr button.lv small { font-size: 9px; line-height: 1; letter-spacing: -1px; color: #FFD84A; } #scr button.lv small i { color: #ffffff40; font-style: normal; }
@@ -161,6 +161,8 @@ input { user-select: text; -webkit-user-select: text; }
   .tipbox, .goals, .checks { margin: 2px 0; }
   .levelup { padding: 5px 14px; margin: 2px 0; } .levelup b { font-size: 17px; }
   .card .stats, .card > small:last-child { display: none; }
+  .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; } .ch { padding: 3px 2px; } .ch .qk, .ch > small:nth-of-type(1) { display: none; } .ch .face { width: 34px; height: 34px; } .ch .stats { font-size: 8px; } .ch .stats .bar { font-size: 9px; } .ch b { font-size: 12px; }
+  .path { justify-content: flex-start; }
 }
 
 /* controles de la carrera */

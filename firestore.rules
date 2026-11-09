@@ -7,7 +7,7 @@ service cloud.firestore {
       return request.auth != null && request.auth.token.email == 'matiasslopez@gmail.com' && request.auth.token.email_verified == true;
     }
     function okAlias(a) { return a is string && a.size() <= 16; }
-    function okChar(c) { return c in ['facu', 'luis', 'mati', 'pablo']; }
+    function okChar(c) { return c in ['facu', 'luis', 'mati', 'pablo', 'luchito', 'fer', 'gaston', 'mica', 'andre']; }
     function okMode(m) { return m in ['sprint', 'idavuelta', 'abiertas']; }
 
     // Carreras terminadas: todos leen (para las métricas), nadie edita; máx. una cada 8 s por dispositivo
