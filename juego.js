@@ -172,7 +172,7 @@ const store = {
   function homeScreen() {
     race = null; cup = null; level = null;
     const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL;
-    show(split(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Las carreras del grupo de natación</p>
+    show(split(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Locos por la natación</p>
       ${stageBox()}${pathHtml()}
       <button class="go big" id="play">▶ NIVEL ${lv}<small>${L.learn}</small></button>
       <div class="modes">
@@ -472,6 +472,7 @@ const store = {
     requestAnimationFrame(frame);
   }
   homeScreen();
+  if (typeof Intro !== "undefined") Intro.play(); // la intro, una vez por sesión, encima del inicio
   requestAnimationFrame(frame);
 })();
 

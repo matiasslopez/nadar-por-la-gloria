@@ -1,0 +1,4 @@
+Personajes: "Universal Base Characters" de Quaternius (quaternius.com), licencia CC0 1.0.
+Movimientos: "Universal Animation Library" de Quaternius, licencia CC0 1.0.
+https://creativecommons.org/publicdomain/zero/1.0/
+Se usan los cuerpos "Superhero" de la versión gratis, con texturas achicadas; los movimientos se recortaron a los que usa la intro.

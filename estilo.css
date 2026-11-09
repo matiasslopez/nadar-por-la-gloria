@@ -197,3 +197,21 @@ input { user-select: text; -webkit-user-select: text; }
 .pc #steer .arr { font-size: 0; } .pc #steer .arr::after { font-size: 22px; }
 
 #scr button#share, #scr button#fb, #scr button#fbBack { margin-top: 4px; padding: 7px 16px; font: bold 13px system-ui, sans-serif; color: #fff; background: #ffffff22; border: 2px solid #ffffff55; border-radius: 22px; cursor: pointer; }
+
+/* la intro: una sola vez por sesión, antes del inicio */
+#intro { position: fixed; inset: 0; z-index: 20; background: #0B3D63; touch-action: none; transition: opacity 0.3s; }
+#intro.out { opacity: 0; pointer-events: none; }
+#intro canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#intro .ititle { margin: 0; font-size: clamp(30px, 8vw, 76px); font-weight: bold; letter-spacing: 1px; color: #FFD84A; text-shadow: 0 4px 0 #C0561E, 0 7px 10px #0006; transform: rotate(-2deg); white-space: nowrap; text-align: center; }
+#intro > .ititle { position: absolute; left: 0; right: 0; top: 70%; margin-top: -0.6em; opacity: 0; pointer-events: none; }
+#intro.titled > .ititle { animation: npgTitle 0.32s cubic-bezier(.2,1.6,.4,1) forwards; }
+@keyframes npgTitle { from { opacity: 0; transform: rotate(-2deg) scale(2.6); } 60% { opacity: 1; } to { opacity: 1; transform: rotate(-2deg) scale(1); } }
+#intro .ico { height: 0.74em; fill: #FFD84A; filter: drop-shadow(0 4px 0 #C0561E) drop-shadow(0 7px 10px #0006); vertical-align: baseline; margin: 0 0.03em; }
+#intro .ico.pata { width: 0.48em; } #intro .ico.mano { width: 0.57em; }
+#intro .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+#intro .istart { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; background: #0B3D63cc; }
+#intro.running .istart { display: none; }
+#intro button.go { padding: 12px 30px; font: bold 20px system-ui, sans-serif; color: #10324F; background: #FFD84A; border: 0; border-radius: 30px; cursor: pointer; box-shadow: 0 4px 0 #C0861E; animation: latido 0.7s ease-in-out infinite alternate; }
+#intro button.go:disabled { opacity: 0.6; animation: none; cursor: default; }
+#iSkip { position: absolute; right: 14px; top: 12px; padding: 7px 16px; font: bold 13px system-ui, sans-serif; color: #fff; background: #ffffff22; border: 2px solid #ffffff55; border-radius: 22px; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) { #intro.titled > .ititle, #intro button.go { animation-duration: 0.01s; animation-iteration-count: 1; } }
