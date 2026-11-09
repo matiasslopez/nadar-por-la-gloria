@@ -82,6 +82,12 @@ const AIR_FLY = 0.3;      // aire que gasta la mariposa por segundo (aire 3, mar
 const BREATH_SLOW = 0.7;  // mientras respirás perdés un 30% de la velocidad
 const PECHO_V = 0.85;     // el pecho va más lento que el crol...
 const AIR_PECHO = 0.015;  // ...pero casi no gasta aire
+// El cansancio: con los metros, la brazada rinde un poco menos. No se muestra en ningún lado: se descubre jugando.
+// Los rápidos se cansan más (al final de una larga el de velocidad 5 rinde ~8% menos, el de 2 ~1,5%); en 100 m casi no se nota.
+// La mariposa cansa casi el doble y el pecho deja recuperar un poco. En el río cuentan los metros que se muestran.
+const TIRED_M = 320;      // metros (de esfuerzo de crol) hasta el cansancio entero
+const tiredMax = (ch) => 0.015 + 0.022 * (ch.spd - 2);
+const tiredLoss = (r) => Math.min(1, (r.effort || 0) / TIRED_M) * tiredMax(r.ch);
 const PECHO_STEER = 2;    // en pecho se dobla el doble de rápido: con eso se pasan limpias las boyas
 // Ejercicios: solo patada (con tabla) o solo brazada (con pullbuoy). v: qué parte de la velocidad queda.
 // Con tabla, el botón de mariposa es patada de mariposa y el de pecho, patada de pecho.
@@ -168,7 +174,7 @@ function newRace(playerCh, circ = CIRCUITS.sprint, rivals, len = circ.len, opts 
     breathing: false, stun: 0, plancha: 0, noAir: 0, immune: 0, boost: 0, boostMult: 1, kick: 0,
     objMult: 1, objT: 0, objKind: null, chaseSay: 0,
     dive: 0, walk: 0, slow: 0, drop: null, bubble: null, finished: false, finishT: 0, mood: "normal", moodT: 0, gotDulce: false, ranOut: false,
-    goods: 0, bads: 0, hits: 0, gate: 0, drill: null, quirked: false, quirkX: len * rnd(0.3, 0.75), aheadN: 0,
+    goods: 0, bads: 0, hits: 0, effort: 0, gate: 0, drill: null, quirked: false, quirkX: len * rnd(0.3, 0.75), aheadN: 0,
     ai: { wantU: lanes[i], diveAt: aiTap(skill), turnAt: 0 }
   }));
   const objs = [], buoys = makeBuoys(len, pool, laps, opts.buoys);
@@ -349,7 +355,7 @@ function stepRace(race, dt, input) {
     else if (!r.plancha) r.air -= dt * (flying ? AIR_FLY * flyCost(ch) : pecho ? AIR_PECHO : AIR_CROL) * (drill === "kick" ? KICK_AIR : 1) * drain / airCap(ch);
     if (r.air <= 0) { if (!r.noAir) { say(r, "¡SIN AIRE!", 1.2); emit(race, r, "noAir"); r.ranOut = true; } r.air = 0; r.noAir = 1; } else r.noAir = 0;
 
-    mult *= (flying ? (drill === "kick" ? KICK_FLY : flyMult(ch)) : pecho ? PECHO_V : 1) * speedMult(ch) * DRILLS[drill].v;
+    mult *= (flying ? (drill === "kick" ? KICK_FLY : flyMult(ch)) : pecho ? PECHO_V : 1) * speedMult(ch) * DRILLS[drill].v * (1 - tiredLoss(r));
     if (r.noAir) mult *= 0.45;
     if (r.walk > 0) mult *= 0.7;
     else if (breathing) mult *= BREATH_SLOW;
@@ -365,6 +371,7 @@ function stepRace(race, dt, input) {
     const target = BASE_V * mult;
     r.v += (target - r.v) * Math.min(1, dt * (flying ? 4 : 2.5)); // la mariposa arranca con un tirón
     r.x += r.v * dt;
+    if (!r.dive) r.effort = clamp(r.effort + r.v * dt * (race.circ.show ? race.circ.show / race.circ.len : 1) * (flying ? 1.8 : pecho ? -0.6 : breathing ? 0.3 : 1), 0, TIRED_M * 1.2);
     if (!blocked) r.u = clamp(r.u + r.steer * dt * 0.65 * (ch.heavy ? 0.6 : 1) * (pecho ? PECHO_STEER : 1), 0.08, 0.92);
     if (race.against) mult *= 1 - race.against * (ch.heavy ? 0.6 : 1); // corriente de frente: Pablo, el torito, la sufre menos (no se cuenta: se descubre jugando)
     if (race.cur) r.u = clamp(r.u + race.cur * dt * (ch.heavy ? 0.6 : 1), 0.08, 0.92); // la corriente del río
