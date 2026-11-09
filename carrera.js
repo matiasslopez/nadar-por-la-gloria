@@ -29,10 +29,10 @@ const CHARS = [
     cap: "#A9A9A9", suit: "#1E3A5F", skin: "#E8B48E" },
   { id: "mica", name: "MICA", tag: "Aparece donde menos la esperás", quirk: "Una vez por carrera desaparece y aparece en otro carril.",
     spd: 4, air: 3, rec: 4, fly: 3, sal: 3,
-    cap: "#16161C", suit: "#2F6FE0", skin: "#F0C4A2" },
+    cap: "#16161C", suit: "#2F6FE0", skin: "#F0C4A2", fem: true },
   { id: "andre", name: "ANDRE", tag: "La yiya de San Justo", quirk: "Una vez por carrera se frena a convidar una masita.",
     spd: 3, air: 5, rec: 3, fly: 3, sal: 3,
-    cap: "#2B2D3A", suit: "#111111", skin: "#E3AE86" }
+    cap: "#2B2D3A", suit: "#111111", skin: "#E3AE86", fem: true }
 ];
 const STATS = [["spd", "Velocidad"], ["air", "Aire"], ["rec", "Recarga"], ["fly", "Mariposa"], ["sal", "Salida y vuelta"]];
 // la experiencia en la salida y la vuelta: suma a lo bien que tocó la barrita

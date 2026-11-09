@@ -652,16 +652,19 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   // torso: hombros anchos que se afinan hasta la cintura
   const breathe = flying ? 1 + Math.max(0, Math.sin(base * Math.PI * 2)) * 0.06 : 1;
   ctx.save(); ctx.scale(breathe, breathe);
-  ctx.beginPath();
-  ctx.moveTo(...P(0.66, 0));
-  ctx.bezierCurveTo(...P(0.66, -0.12), ...P(0.6, -0.24), ...P(0.48, -0.24));
-  ctx.bezierCurveTo(...P(0.3, -0.24), ...P(0.12, -0.16), ...P(0.02, -0.14));
-  ctx.bezierCurveTo(...P(-0.1, -0.15), ...P(-0.2, -0.15), ...P(-0.24, -0.1));
-  ctx.lineTo(...P(-0.24, 0.1));
-  ctx.bezierCurveTo(...P(-0.2, 0.15), ...P(-0.1, 0.15), ...P(0.02, 0.14));
-  ctx.bezierCurveTo(...P(0.12, 0.16), ...P(0.3, 0.24), ...P(0.48, 0.24));
-  ctx.bezierCurveTo(...P(0.6, 0.24), ...P(0.66, 0.12), ...P(0.66, 0));
-  ctx.closePath();
+  const torso = () => {
+    ctx.beginPath();
+    ctx.moveTo(...P(0.66, 0));
+    ctx.bezierCurveTo(...P(0.66, -0.12), ...P(0.6, -0.24), ...P(0.48, -0.24));
+    ctx.bezierCurveTo(...P(0.3, -0.24), ...P(0.12, -0.16), ...P(0.02, -0.14));
+    ctx.bezierCurveTo(...P(-0.1, -0.15), ...P(-0.2, -0.15), ...P(-0.24, -0.1));
+    ctx.lineTo(...P(-0.24, 0.1));
+    ctx.bezierCurveTo(...P(-0.2, 0.15), ...P(-0.1, 0.15), ...P(0.02, 0.14));
+    ctx.bezierCurveTo(...P(0.12, 0.16), ...P(0.3, 0.24), ...P(0.48, 0.24));
+    ctx.bezierCurveTo(...P(0.6, 0.24), ...P(0.66, 0.12), ...P(0.66, 0));
+    ctx.closePath();
+  };
+  torso();
   const g = ctx.createLinearGradient(0, -k * 0.24, 0, k * 0.24);
   g.addColorStop(0, shade(skin, 0.18)); g.addColorStop(0.45, skin); g.addColorStop(1, shade(skin, -0.22));
   ctx.fillStyle = g; ctx.fill();
@@ -670,14 +673,27 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   ctx.strokeStyle = shade(skin, -0.2); ctx.lineWidth = Math.max(1, k * 0.015);
   ctx.beginPath(); ctx.moveTo(...P(0.42, 0)); ctx.lineTo(...P(0.02, 0)); ctx.stroke();
   for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(...P(0.46, s * 0.06)); ctx.quadraticCurveTo(...P(0.36, s * 0.16), ...P(0.24, s * 0.1)); ctx.stroke(); }
-  // malla
-  ctx.beginPath();
-  ctx.moveTo(...P(0.0, -0.14)); ctx.bezierCurveTo(...P(-0.1, -0.15), ...P(-0.2, -0.15), ...P(-0.24, -0.1));
-  ctx.lineTo(...P(-0.24, 0.1)); ctx.bezierCurveTo(...P(-0.2, 0.15), ...P(-0.1, 0.15), ...P(0.0, 0.14));
-  ctx.closePath();
-  const gs = ctx.createLinearGradient(0, -k * 0.15, 0, k * 0.15);
+  // malla: ellos, slip; ellas, enteriza con la espalda abierta en U y tiras cruzadas atrás
+  const gs = ctx.createLinearGradient(0, -k * 0.24, 0, k * 0.24);
   gs.addColorStop(0, shade(ch.suit, 0.3)); gs.addColorStop(0.5, ch.suit); gs.addColorStop(1, shade(ch.suit, -0.3));
-  ctx.fillStyle = gs; ctx.fill(); ctx.stroke();
+  if (ch.fem) {
+    ctx.save(); torso(); ctx.clip();
+    ctx.beginPath();
+    ctx.moveTo(...P(-0.3, -0.3)); ctx.lineTo(...P(0.42, -0.3)); ctx.lineTo(...P(0.42, -0.19));
+    ctx.bezierCurveTo(...P(0.3, -0.17), ...P(0.15, -0.1), ...P(0.15, 0)); // la U de la espalda
+    ctx.bezierCurveTo(...P(0.15, 0.1), ...P(0.3, 0.17), ...P(0.42, 0.19));
+    ctx.lineTo(...P(0.42, 0.3)); ctx.lineTo(...P(-0.3, 0.3)); ctx.closePath();
+    ctx.fillStyle = gs; ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = shade(ch.suit, -0.1); ctx.lineWidth = k * 0.045; ctx.lineCap = "round";
+    for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(...P(0.3, s * 0.2)); ctx.lineTo(...P(0.52, -s * 0.1)); ctx.stroke(); }
+    ctx.restore();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(...P(0.0, -0.14)); ctx.bezierCurveTo(...P(-0.1, -0.15), ...P(-0.2, -0.15), ...P(-0.24, -0.1));
+    ctx.lineTo(...P(-0.24, 0.1)); ctx.bezierCurveTo(...P(-0.2, 0.15), ...P(-0.1, 0.15), ...P(0.0, 0.14));
+    ctx.closePath();
+    ctx.fillStyle = gs; ctx.fill(); ctx.stroke();
+  }
 
   // cabeza con gorra, antiparras y la ola que hace al avanzar
   const turn = r.breathing && !still ? 0.09 : !flying && !still ? Math.sin(base * Math.PI * 2) * 0.03 : 0; // gira la cabeza para respirar

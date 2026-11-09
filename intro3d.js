@@ -154,16 +154,16 @@ export async function create(canvas) {
       if (o.isBone) { bone[o.name] = o; const s = SLIM.find(([k]) => o.name.startsWith(k)); if (s) o.userData.slim = [s[1], s[2]]; }
     });
     const head = bone.Head || bone.head;
-    // la gorra: ceñida, más baja atrás que adelante (tapa la nuca y deja la frente); a ellas les marca el rodete
-    const capMat = new THREE.MeshStandardMaterial({ color: cap, roughness: 0.28, metalness: 0.05 });
+    // la gorra: ceñida al cráneo, baja hasta las antiparras adelante y hasta la nuca atrás; mate, como la silicona. A ellas les marca el rodete
+    const capMat = new THREE.MeshStandardMaterial({ color: cap, roughness: 0.5, metalness: 0.05 });
     const capMesh = new THREE.Mesh(new THREE.SphereGeometry(0.112, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), capMat);
-    capMesh.scale.set(1, 0.98, 1.1); capMesh.rotation.x = 0.38; capMesh.position.set(0, 0.118, -0.016); head.add(capMesh);
-    if (fem) { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), capMat); bun.scale.set(1.1, 0.9, 0.85); bun.position.set(0, 0.17, -0.09); head.add(bun); }
-    // las antiparras: la tira alrededor de la cabeza y los dos vidrios
-    const gogMat = new THREE.MeshStandardMaterial({ color: 0x10324f, roughness: 0.25 });
-    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.007, 6, 28), gogMat); strap.rotation.x = Math.PI / 2 + 0.12; strap.scale.set(1, 1.08, 1); strap.position.set(0, 0.095, -0.006); head.add(strap);
-    const lensMat = new THREE.MeshStandardMaterial({ color: 0x3fb4e8, roughness: 0.05, metalness: 0.4 });
-    for (const sx of [-1, 1]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 6), lensMat); l.scale.set(1.25, 0.8, 0.55); l.position.set(sx * 0.034, 0.098, 0.096); head.add(l); }
+    capMesh.scale.set(0.98, 0.93, 1.1); capMesh.rotation.x = 0.15; capMesh.position.set(0, 0.104, -0.004); head.add(capMesh);
+    if (fem) { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), capMat); bun.scale.set(1.1, 0.9, 0.85); bun.position.set(0, 0.16, -0.085); head.add(bun); }
+    // las antiparras: la tira oscura pegada a la gorra y los dos vidrios espejados
+    const gogMat = new THREE.MeshStandardMaterial({ color: 0x15171c, roughness: 0.4 });
+    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.007, 6, 28), gogMat); strap.rotation.x = Math.PI / 2 + 0.1; strap.scale.set(0.9, 0.97, 0.9); strap.position.set(0, 0.085, 0.004); head.add(strap);
+    const lensMat = new THREE.MeshStandardMaterial({ color: 0x1d3550, roughness: 0.05, metalness: 0.4 });
+    for (const sx of [-1, 1]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 6), lensMat); l.scale.set(1.35, 0.85, 0.6); l.position.set(sx * 0.034, 0.09, 0.096); head.add(l); }
     const mixer = new THREE.AnimationMixer(m);
     const p = { root, m, bone, mixer, cur: null };
     // pone el cuerpo en el movimiento `name`, en el segundo `time` (loop: da la vuelta; si no, queda en el último cuadro)
