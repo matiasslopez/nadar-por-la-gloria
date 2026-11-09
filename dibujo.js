@@ -33,12 +33,13 @@ function render(ctx, race, W, H) {
   const m0 = Math.floor(camX), m1 = camX + W / ppm + 1;
 
   if (open) drawRiver(ctx, race, W, H, top, ph, sx, sy, m0, m1, t, ppm);
-  else drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, race && race.laps > 1);
+  else drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, race && race.laps > 1, race);
   // la hinchada se entusiasma en la largada y cuando alguien está por llegar
   const near = race ? Math.max(...race.racers.map((r) => r.x)) / race.len : 0;
   const hype = !race ? 0.4 : race.t < 1 ? 1 : 0.35 + Math.max(0, near - 0.75) * 2.6;
-  drawStands(ctx, sx(-14), sx(-2.2), top, ph, ppm, t, hype, 1);
-  drawStands(ctx, sx(len) + (open ? 45 : 100), sx(len + 16), top, ph, ppm, t, hype, 2);
+  // en la pileta la tribuna queda un poco más atrás: entre la tribuna y la pared van los carteles de los sponsors
+  drawStands(ctx, sx(open ? -14 : -16), sx(open ? -2.2 : -4.2), top, ph, ppm, t, hype, 1);
+  drawStands(ctx, sx(len) + (open ? 45 : 100 + ppm * 2), sx(len + 16), top, ph, ppm, t, hype, 2);
 
   if (!race) return;
   const myLap = poolAt(race, p.x).lap; // solo se ven los objetos del largo que estás nadando
@@ -131,7 +132,7 @@ function render(ctx, race, W, H) {
 }
 
 // Pileta: baldosas, corcheras, partidores en la salida y placas para tocar en la llegada.
-function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, turns) {
+function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, turns, race) {
   ctx.fillStyle = "#F6E7C8"; ctx.fillRect(0, 0, W, H);
   ctx.strokeStyle = "rgba(190,160,110,0.35)"; ctx.lineWidth = 1;
   ctx.beginPath();
@@ -215,6 +216,7 @@ function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, turns) {
       ctx.fillStyle = "#10324F"; ctx.font = `bold ${Math.round(bh * 0.4)}px system-ui, sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(String(i + 1), ws - 8 - bw / 2, y - bh * 0.08);
     });
+    sponsorBoards(ctx, race, 0, ws - ppm * 3.2, top, ph, ppm);
     ctx.save(); ctx.translate(ws - ppm * 1.6, top + ph / 2); ctx.rotate(-Math.PI / 2);
     ctx.font = "bold 20px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#2F6FE0"; ctx.fillText(turns ? "SALIDA Y LLEGADA" : "SALIDA", 0, 0);
     ctx.restore();
@@ -228,10 +230,36 @@ function drawPool(ctx, len, W, H, top, ph, sx, sy, m0, m1, t, ppm, turns) {
     if (!turns) for (let i = 0; i < ph / 12; i++) for (let j = 0; j < 2; j++) {
       ctx.fillStyle = (i + j) % 2 ? "#111" : "#fff"; ctx.fillRect(wf + 18 + j * 12, top + i * 12, 12, Math.min(12, ph - i * 12));
     }
+    sponsorBoards(ctx, race, 1, wf + 100 + ppm, top, ph, ppm);
     ctx.save(); ctx.translate(wf + 70, top + ph / 2); ctx.rotate(-Math.PI / 2);
     ctx.font = "bold 22px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = turns ? "#2F6FE0" : "#E8413C"; ctx.fillText(turns ? "VUELTA ↺" : "LLEGADA", 0, 0);
     ctx.restore();
   }
+}
+
+// Los carteles de los sponsors en cada cabecera, parados a lo largo de la pared como el SALIDA y el LLEGADA.
+// Cada carrera sortea dos para la salida y dos para la llegada (end: 0 salida, 1 llegada).
+function sponsorBoards(ctx, race, end, cx, top, ph, ppm) {
+  if (!race) return;
+  if (!race.sponsors) {
+    const two = () => SPONSORS.slice().sort(() => Math.random() - 0.5).slice(0, 2);
+    race.sponsors = [two(), two()];
+  }
+  const T = ppm * 1.6, L = ph * 0.42;
+  race.sponsors[end].forEach((sp, i) => {
+    if (!sp.img.complete || !sp.img.naturalWidth) return;
+    const pad = T * 0.1;
+    let iw = L - pad * 2, ih = iw * sp.h;
+    if (ih > T - pad * 2) { ih = T - pad * 2; iw = ih / sp.h; }
+    const bl = iw + pad * 2, bt = ih + pad * 2, cy = top + ph * (i ? 0.75 : 0.25);
+    // acostados a lo largo de la pared; en la llegada, dados vuelta (180°) respecto de la salida
+    const board = (x, y) => { ctx.translate(x, y); ctx.rotate(end ? Math.PI / 2 : -Math.PI / 2); ctx.beginPath(); ctx.roundRect(-bl / 2, -bt / 2, bl, bt, 6); };
+    ctx.save(); board(cx + 4, cy + 4); ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.fill(); ctx.restore();
+    ctx.save(); board(cx, cy);
+    ctx.fillStyle = sp.plate; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 1.5; ctx.fill(); ctx.stroke();
+    ctx.drawImage(sp.img, -iw / 2, -ih / 2, iw, ih);
+    ctx.restore();
+  });
 }
 
 // Aguas abiertas: río verdoso, boyas naranjas, muelle de salida y arco inflable de llegada.
