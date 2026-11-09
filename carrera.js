@@ -15,7 +15,7 @@ const CHARS = [
   { id: "mati", name: "MATI", tag: "El polifuncional", quirk: "Una vez por carrera hace la planchita: frena, pero recupera aire.",
     spd: 3, air: 5, rec: 4, fly: 2, sal: 3,
     cap: "#E8C25A", suit: "#2E8B57", skin: "#F2C6A0" },
-  { id: "pablo", name: "PABLO", tag: "La losa", quirk: "Lo que frena le hace menos efecto. Una vez por carrera camina un toque.",
+  { id: "pablo", name: "PABLO", tag: "El torito de agua", quirk: "Una vez por carrera camina un toque.",
     spd: 2, air: 4, rec: 3, fly: 3, sal: 3,
     cap: "#F0BE98", suit: "#1F3F8F", skin: "#F0BE98", heavy: true },
   { id: "luchito", name: "LUCHITO", tag: "El delfín rioplatense", quirk: "Una vez por carrera le agarra un calambre.",
@@ -366,7 +366,7 @@ function stepRace(race, dt, input) {
     r.v += (target - r.v) * Math.min(1, dt * (flying ? 4 : 2.5)); // la mariposa arranca con un tirón
     r.x += r.v * dt;
     if (!blocked) r.u = clamp(r.u + r.steer * dt * 0.65 * (ch.heavy ? 0.6 : 1) * (pecho ? PECHO_STEER : 1), 0.08, 0.92);
-    if (race.against) mult *= 1 - race.against * (ch.heavy ? 0.6 : 1); // corriente de frente: Pablo, que es una losa, la sufre menos
+    if (race.against) mult *= 1 - race.against * (ch.heavy ? 0.6 : 1); // corriente de frente: Pablo, el torito, la sufre menos (no se cuenta: se descubre jugando)
     if (race.cur) r.u = clamp(r.u + race.cur * dt * (ch.heavy ? 0.6 : 1), 0.08, 0.92); // la corriente del río
     // llegando a la pared aparece la barrita de la vuelta americana
     if (!r.wallBar && r.x > r.nextWall - TURN_ZONE) { r.wallBar = true; r.barT0 = race.t; r.turnQ = null; r.ai.turnAt = race.t + aiTap(race.skill); }
@@ -384,7 +384,7 @@ function stepRace(race, dt, input) {
       if (o.gone || Math.abs(o.x - r.x) > 0.9 || Math.abs(o.u - r.u) > 0.1) continue;
       const it = ITEMS[o.kind];
       if (!it.good && r.immune > 0) continue;
-      // a Pablo, que es una losa, lo que frena le hace menos
+      // a Pablo, el torito, lo que frena le hace menos (no se cuenta: se descubre jugando)
       const mult = !it.good && ch.heavy ? 1 - (1 - it.mult) * 0.75 : it.mult;
       o.gone = true; r.objKind = o.kind; r.objMult = mult; r.objT = it.secs; r.drop = null;
       r.v *= it.good ? 1 + (mult - 1) * 0.6 : 1 - (1 - mult) * 0.6; // el tirón (o el frenazo) se siente enseguida

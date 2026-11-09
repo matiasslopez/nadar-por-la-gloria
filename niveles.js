@@ -50,7 +50,7 @@ const TIPS = {
   sinpecho: "Hoy no hay pecho: si te quedás sin aire, vas a tener que parar a respirar.",
   favor: "Corriente a favor: el río te empuja a vos y a todos. Aprovechala y no te relajes.",
   side: "Corriente de costado: te va corriendo de lado. Corregí moviéndote para no perder las cosas verdes.",
-  against: "Corriente en contra: por ratos el río te frena de frente. Pablo, que es una losa, la sufre menos.",
+  against: "Corriente en contra: por ratos el río te frena de frente.",
   mix: "El río cambia: a favor, en contra, de costado o calmo. Leé cada aviso y acomodate.",
   boyas: "Boyas fijas: cada fila tiene un solo hueco y va cambiando de lado. En PECHO doblás el doble de rápido: pasalas prolijo.",
   patada: "Solo patada, con tabla: vas más lento y gastás menos aire. MARIPOSA es patada de mariposa (rinde más) y PECHO, patada de pecho. Las patas valen oro; las manoplas no sirven.",
