@@ -273,7 +273,7 @@ const store = {
       if (mode === "cup") cup = { rivals: drawRivals(chosen), i: 0, pts: {}, done: false };
       drawScreen();
     });
-    document.getElementById("back").onclick = mode === "level" ? () => levelScreen(after) : homeScreen;
+    document.getElementById("back").onclick = mode === "level" && chosen ? () => levelScreen(after) : homeScreen; // si todavía no eligió, vuelve al inicio
   }
 
   const legendHtml = (goodOnly, air = true) => `<div class="legend">${Object.keys(ITEMS).filter((k) => !goodOnly || ITEMS[k].good).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air && air ? " +AIRE" : ""}</span>`).join("")}</div>`;

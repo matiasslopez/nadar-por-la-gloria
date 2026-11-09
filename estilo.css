@@ -9,7 +9,9 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0B3D63; col
 #scr p { margin: 2px 0; }
 .sub { opacity: 0.85; font-size: 14px; }
 .help { font-size: 12px; margin: 0 !important; opacity: 0.85; max-width: 640px; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 8px; width: 100%; max-width: 820px; }
+.grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: 100%; max-width: 820px; } /* de a 5 por fila: 5 y 4 */
+.grid > .ch { flex: 0 0 calc((100% - 32px) / 5); min-width: 0; }
+@media (max-width: 560px) { .grid > .ch { flex-basis: calc((100% - 16px) / 3); } }
 .ch, .card { display: flex; flex-direction: column; align-items: center; gap: 2px; background: #ffffff1f; border: 2px solid #ffffff40; border-radius: 16px; padding: 6px 4px; color: #fff; font: inherit; box-shadow: 0 4px 0 #0003; }
 .ch { cursor: pointer; transition: transform 0.1s; }
 .ch:hover { transform: translateY(-3px) rotate(-1deg); border-color: #FFD84A; }
@@ -161,7 +163,7 @@ input { user-select: text; -webkit-user-select: text; }
   .tipbox, .goals, .checks { margin: 2px 0; }
   .levelup { padding: 5px 14px; margin: 2px 0; } .levelup b { font-size: 17px; }
   .card .stats, .card > small:last-child { display: none; }
-  .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; } .ch { padding: 3px 2px; } .ch .qk, .ch > small:nth-of-type(1) { display: none; } .ch .face { width: 34px; height: 34px; } .ch .stats { font-size: 8px; } .ch .stats .bar { font-size: 9px; } .ch b { font-size: 12px; }
+  .grid { gap: 5px; } .grid > .ch { flex-basis: calc((100% - 20px) / 5); } .ch { padding: 3px 2px; } .ch .qk, .ch > small:nth-of-type(1) { display: none; } .ch .face { width: 34px; height: 34px; } .ch .stats { font-size: 8px; } .ch .stats .bar { font-size: 9px; } .ch b { font-size: 12px; }
   .path { justify-content: flex-start; }
 }
 
