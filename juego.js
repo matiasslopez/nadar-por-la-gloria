@@ -131,7 +131,7 @@ const store = {
   }
 
   // ---------- pantallas ----------
-  // Inicio → camino (nivel → carrera → estrellas) · copa (desde Asiduo) · práctica libre (no suma).
+  // Inicio → camino (nivel → carrera → estrellas) · copa (desde Pre nadador) · práctica libre (no suma).
   // La copa son 3 carreras con los mismos rivales.
   let race = null, player = null, chosen = null, lastCount = 99, endShown = false, level = null, after = null;
   let mode = "level", cup = null, quickCirc = store.get("npg-circ") || "sprint";
@@ -176,7 +176,7 @@ const store = {
       ${stageBox()}${pathHtml()}
       <button class="go big" id="play">▶ NIVEL ${lv}<small>${L.learn}</small></button>
       <div class="modes">
-        <button class="mode ${cupOpen ? "cupon" : "alt locked"}" id="mCup">${cupOpen ? "🏆 COPA<small>3 carreras seguidas contra los mismos rivales</small>" : `🔒 COPA<small>Se abre en el nivel ${CUP_LEVEL}, cuando seas Asiduo</small>`}</button>
+        <button class="mode ${cupOpen ? "cupon" : "alt locked"}" id="mCup">${cupOpen ? "🏆 COPA<small>3 carreras seguidas contra los mismos rivales</small>" : `🔒 COPA<small>Se abre en el nivel ${CUP_LEVEL}, cuando seas Pre nadador</small>`}</button>
         ${cupOpen ? `<button class="mode alt" id="mQuick">PRÁCTICA LIBRE<small>Elegís el modo · no suma nivel</small></button>` : ""}
       </div>
       <p class="err" id="aliasErr" hidden></p>`, `

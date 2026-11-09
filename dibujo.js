@@ -50,6 +50,33 @@ function render(ctx, race, W, H) {
     ctx.fillStyle = "rgba(0,40,90,0.22)"; ctx.beginPath(); ctx.ellipse(x + 4, y + 6, ppm * 0.5, ppm * 0.3, 0, 0, 7); ctx.fill();
     drawItem(ctx, o.kind, x, y + bob, ppm * 0.5);
   }
+  // las boyas fijas: una fila de pared a pared, con el hueco marcado por dos boyas a rayas
+  for (const g of race.buoys) {
+    const ga = poolAt(race, g.x); if (ga.lap !== myLap) continue;
+    const x = sx(ga.p); if (x < -40 || x > W + 40) continue;
+    const r0 = ppm * 0.22;
+    ctx.strokeStyle = "rgba(255,122,26,0.7)"; ctx.lineWidth = Math.max(2, ppm * 0.08); // la soga que une las boyas
+    for (const [a, b] of [[0.03, g.u - BUOY_GAP], [g.u + BUOY_GAP, 0.97]]) if (b > a) { ctx.beginPath(); ctx.moveTo(x, sy(a)); ctx.lineTo(x, sy(b)); ctx.stroke(); }
+    if (g === race.buoys[p.gate]) { // el hueco de la próxima fila del jugador brilla
+      ctx.fillStyle = `rgba(124,252,106,${(0.25 + Math.sin(t * 8) * 0.1).toFixed(2)})`;
+      ctx.fillRect(x - r0, sy(g.u - BUOY_GAP), r0 * 2, sy(g.u + BUOY_GAP) - sy(g.u - BUOY_GAP));
+    }
+    for (let u = 0.05; u < 0.96; u += 0.06) {
+      if (Math.abs(u - g.u) < BUOY_GAP + 0.02) continue;
+      const y = sy(u) + Math.sin(t * 3 + u * 9 + g.x) * 1.5;
+      ctx.fillStyle = "rgba(0,40,90,0.25)"; ctx.beginPath(); ctx.ellipse(x + 3, y + 4, r0, r0 * 0.6, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = "#FF7A1A"; ctx.strokeStyle = "rgba(0,0,0,0.4)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r0, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = "rgba(255,255,255,0.55)"; ctx.beginPath(); ctx.arc(x - r0 * 0.3, y - r0 * 0.3, r0 * 0.3, 0, 7); ctx.fill();
+    }
+    for (const s2 of [-1, 1]) { // las dos del hueco, a rayas blancas y rojas
+      const y = sy(g.u + s2 * (BUOY_GAP + 0.02)), r1 = r0 * 1.35;
+      ctx.fillStyle = "#fff"; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, r1, 0, 7); ctx.fill();
+      ctx.save(); ctx.clip(); ctx.fillStyle = "#E23B3B"; ctx.fillRect(x - r1, y - r1 * 0.33, r1 * 2, r1 * 0.66); ctx.restore();
+      ctx.beginPath(); ctx.arc(x, y, r1, 0, 7); ctx.stroke();
+    }
+  }
   // la largada: parados en el partidor (o en el muelle) y después el salto al agua; en cada vuelta, un salpicón en la pared
   const block = -0.7, diveT = 0.35;
   for (const r of race.racers) if (r.push && r.push !== r.fxPush) {
@@ -540,6 +567,7 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   ctx.beginPath(); ctx.ellipse(k * 0.12, k * 0.16, k * 0.95, k * 0.24, 0, 0, 7); ctx.fill();
 
   const wear = r.objT > 0 ? r.objKind : null;
+  const board = wear === "tablita" || r.drill === "kick", buoy = r.drill === "pull"; // solo patada: con tabla · solo brazada: con pullbuoy
   if (wear === "paracaidas") { // va arrastrando el paracaídas atrás de los pies
     const [px, py] = P(-1.55, 0), bil = 1 + Math.sin(t * 9) * 0.07;
     ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1.5;
@@ -552,7 +580,7 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   const base = still ? 0.15 : (t * rate + r.x * 0.07) % 1;
   const arms = [-1, 1].map((s) => pecho ? pechoPose(base, s) : armPose(still ? (back ? 0.15 : 0.05) : flying ? base : (base + (s > 0 ? 0.5 : 0)) % 1, s, flying));
   if (back) for (const a of arms) { a.E = { x: a.S.x - 0.05, y: a.S.y + Math.sign(a.S.y) * ARM }; a.H = { x: a.S.x - 0.12, y: a.S.y + Math.sign(a.S.y) * ARM * 1.95 }; a.above = true; }
-  if (wear === "tablita") for (const a of arms) { // con la tablita: brazos estirados adelante, agarrándola
+  if (board) for (const a of arms) { // con la tablita: brazos estirados adelante, agarrándola
     const sd = Math.sign(a.S.y); a.H = { x: 1.08, y: sd * 0.12 }; a.E = { x: 0.8, y: sd * 0.17 }; a.above = true;
   }
 
@@ -592,9 +620,9 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   // piernas: crol patea alternado; mariposa, las dos juntas
   const kickT = pecho ? 0 : t * (flying ? rate * 2 : 7) + r.x;
   for (const s of [-1, 1]) {
-    const kk = still ? 0 : Math.sin(kickT + (flying || s < 0 ? 0 : Math.PI));
+    const kk = still || buoy ? 0 : Math.sin(kickT + (flying || s < 0 ? 0 : Math.PI)); // con pullbuoy las piernas van quietas
     // pecho: patada de rana, las rodillas abren y las piernas se juntan con fuerza
-    const frog = pecho ? Math.max(0, Math.sin((base - 0.35) * Math.PI * 2)) : 0;
+    const frog = pecho && !buoy ? Math.max(0, Math.sin((base - 0.35) * Math.PI * 2)) : 0;
     const hip = P(-0.14, s * 0.085), knee = P(-0.45 + frog * 0.1, s * (0.085 + frog * 0.2)), ankle = P(-0.8 + kk * 0.03 + frog * 0.2, s * (0.07 + kk * 0.012 + frog * 0.14));
     ctx.lineCap = "round";
     ctx.strokeStyle = "rgba(20,30,50,0.25)"; ctx.lineWidth = k * 0.17;
@@ -610,6 +638,11 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
       ctx.fillStyle = "#FFD23A"; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(fx + k * 0.04, fy - k * 0.04); ctx.lineTo(fx - fl, fy - fw + s * k * 0.03); ctx.lineTo(fx - fl * 0.9, fy + s * 0.01 * k); ctx.lineTo(fx - fl, fy + fw + s * k * 0.03); ctx.lineTo(fx + k * 0.04, fy + k * 0.04); ctx.closePath(); ctx.fill(); ctx.stroke();
     }
+  }
+  if (buoy) { // el pullbuoy entre los muslos
+    const [bx, by] = P(-0.36, 0);
+    ctx.fillStyle = "#FFD23A"; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1.5;
+    for (const dx of [-0.06, 0.06]) { ctx.beginPath(); ctx.ellipse(bx + dx * k, by, k * 0.08, k * 0.13, 0, 0, 7); ctx.fill(); ctx.stroke(); }
   }
   // las piernas van más hundidas: un velo de agua encima
   const gv = ctx.createLinearGradient(-k * 0.95, 0, -k * 0.2, 0);
@@ -670,7 +703,7 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   }
   ctx.restore();
 
-  if (wear === "tablita") { // la tablita adelante
+  if (board) { // la tablita adelante
     const [bx, by] = P(1.28, 0);
     ctx.fillStyle = "#3A6FE0"; ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.roundRect(bx - k * 0.2, by - k * 0.26, k * 0.4, k * 0.52, [k * 0.04, k * 0.2, k * 0.2, k * 0.04]); ctx.fill(); ctx.stroke();
@@ -811,6 +844,12 @@ function drawHud(ctx, race, W, H) {
     ctx.save(); ctx.globalAlpha = Math.min(1, (2.5 - a2) * 2); ctx.font = "bold 20px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
     ctx.lineWidth = 5; ctx.strokeStyle = "#0E4C7E"; ctx.fillStyle = race.curPlan.kind === "against" ? "#FF9A6A" : race.curPlan.kind === "calm" ? "#9CF0B0" : "#8FE3FF";
     ctx.strokeText("🌊 " + race.curPlan.say, W / 2, H * 0.3); ctx.fillText("🌊 " + race.curPlan.say, W / 2, H * 0.3); ctx.restore();
+  }
+  if (race.sign && race.t - race.sign.at < 2.5 && !p.finished) { // cambió el ejercicio (patada, brazada o completo)
+    const a2 = race.t - race.sign.at;
+    ctx.save(); ctx.globalAlpha = Math.min(1, (2.5 - a2) * 2); ctx.font = "bold 20px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.lineWidth = 5; ctx.strokeStyle = "#0E4C7E"; ctx.fillStyle = "#FFD84A";
+    ctx.strokeText(race.sign.say, W / 2, H * 0.38); ctx.fillText(race.sign.say, W / 2, H * 0.38); ctx.restore();
   }
   // largada: cada número aparece grande y se achica
   if (race.t < 0.6) {

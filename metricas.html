@@ -117,7 +117,7 @@ button.link { background: none; color: #8FE3FF; text-decoration: underline; padd
     const top = {};
     for (const r of runs) if (r.lvl > 0) top[r.device] = Math.max(top[r.device] || 0, r.lvl);
     const tops = Object.values(top), reached = (n) => tops.filter((x) => x >= n).length;
-    const STG = [[101, "Pro"], [51, "Master"], [36, "Premaster"], [21, "Nadador"], [11, "Asiduo"], [6, "Rookie"], [1, "Primeros pasos"]];
+    const STG = [[101, "Pro"], [51, "Master"], [36, "Premaster"], [21, "Nadador"], [11, "Pre nadador"], [6, "Rookie"], [1, "Primeros pasos"]];
 
     // últimos 14 días: personas nuevas y carreras
     const days = [];
@@ -140,7 +140,7 @@ button.link { background: none; color: #8FE3FF; text-decoration: underline; padd
         ${tile(tops.length, "personas que jugaron el camino")}
         ${tile(pct(reached(3), tops.length), "llegaron al nivel 3 (primer rival)")}
         ${tile(pct(reached(6), tops.length), "llegaron al nivel 6 (Rookie)")}
-        ${tile(pct(reached(11), tops.length), "llegaron al nivel 11 (Asiduo, se abre la copa)")}
+        ${tile(pct(reached(11), tops.length), "llegaron al nivel 11 (Pre nadador, se abre la copa)")}
         ${tile(tops.length ? Math.max(...tops) : "—", "el nivel más alto que se jugó")}
       </div>
       <div class="cols" style="margin-top:10px">

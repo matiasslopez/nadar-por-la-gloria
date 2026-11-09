@@ -82,6 +82,25 @@ const AIR_FLY = 0.3;      // aire que gasta la mariposa por segundo (aire 3, mar
 const BREATH_SLOW = 0.7;  // mientras respirás perdés un 30% de la velocidad
 const PECHO_V = 0.85;     // el pecho va más lento que el crol...
 const AIR_PECHO = 0.015;  // ...pero casi no gasta aire
+const PECHO_STEER = 2;    // en pecho se dobla el doble de rápido: con eso se pasan limpias las boyas
+// Ejercicios: solo patada (con tabla) o solo brazada (con pullbuoy). v: qué parte de la velocidad queda.
+// Con tabla, el botón de mariposa es patada de mariposa y el de pecho, patada de pecho.
+const DRILLS = {
+  full: { v: 1, say: "¡COMPLETO, CON TODO!" },
+  kick: { v: 0.6, say: "¡SOLO PATADA, CON TABLA!" },
+  pull: { v: 0.82, say: "¡SOLO BRAZADA, CON PULLBUOY!" }
+};
+const KICK_FLY = 1.35;    // la patada de mariposa rinde menos que la mariposa entera...
+const KICK_AIR = 0.5;     // ...y con la tabla la cabeza va afuera: se gasta la mitad de aire
+// Con tabla las patas rinden más y las manoplas no sirven; con pullbuoy, al revés.
+function itemMult(kind, m, drill) {
+  if (drill === "kick") return kind === "manoplas" ? 1 : kind === "patas" ? 1 + (m - 1) * 1.4 : m;
+  if (drill === "pull") return kind === "patas" ? 1 : kind === "manoplas" ? 1 + (m - 1) * 1.5 : m;
+  return m;
+}
+// Boyas fijas: filas de boyas de pared a pared con un solo hueco, que va cambiando de lado (como los conos de manejo).
+const BUOY_GAP = 0.13;    // medio ancho del hueco
+const BUOY_STUN = 0.5;    // si la chocás, te quedás frenado
 
 // Lo que significa cada número en la pileta.
 const TUNE = { a: 0.03, cap: 0.24, gain: 0.2, fm: 0.04, fc: 0.04 };
@@ -116,6 +135,26 @@ function poolAt(race, x) {
 //   pool: largo de la pileta · skill: qué tan bien nadan los rivales (0 a 3) · pace: cuánto más rápido o lento van (1 = parejo)
 //   fly / pecho / air: si se puede nadar mariposa, pecho y si se gasta aire · items: "all", "good" o "none"
 //   gap: cada cuántos metros hay cosas flotando · quirks: si les pasan las molestias
+//   drill: "kick" (solo patada), "pull" (solo brazada) o una lista de tramos, p. ej. ["kick", "pull", "full"]
+//   buoys: [desde, hasta] (en partes de la carrera) donde hay boyas fijas, y cada cuántos metros (sep)
+function makeDrills(len, pool, laps, drill) {
+  if (!drill) return [{ x: 0, d: "full" }];
+  if (typeof drill === "string") return [{ x: 0, d: drill }];
+  // en pileta, un tramo por largo; en un largo solo (o en el río), partes iguales
+  const parts = laps > 1 ? laps : drill.length, step = len / parts;
+  return Array.from({ length: parts }, (_, i) => ({ x: i * step, d: drill[i % drill.length] }));
+}
+function makeBuoys(len, pool, laps, b) {
+  if (!b) return [];
+  const out = [], sep = b.sep || 3.6, sides = [0.22, 0.78];
+  let k = Math.random() < 0.5 ? 0 : 1;
+  for (let x = len * b.from; x < len * b.to; x += sep * rnd(0.9, 1.1)) {
+    if (laps > 1 && (x % pool < 6 || x % pool > pool - 6)) continue; // lejos de las paredes
+    out.push({ x, u: clamp(sides[k] + rnd(-0.08, 0.08), 0.15, 0.85) }); k = 1 - k;
+  }
+  return out;
+}
+const drillAt = (race, x) => { let d = race.drills[0].d; for (const s of race.drills) if (x >= s.x) d = s.d; return d; };
 function newRace(playerCh, circ = CIRCUITS.sprint, rivals, len = circ.len, opts = {}) {
   // x es la punta de la mano (metros nadados en total): al tirarse del partidor ya entran con el cuerpo en el agua
   rivals = rivals || drawRivals(playerCh, opts.rivals === undefined ? 2 : opts.rivals);
@@ -129,19 +168,20 @@ function newRace(playerCh, circ = CIRCUITS.sprint, rivals, len = circ.len, opts 
     breathing: false, stun: 0, plancha: 0, noAir: 0, immune: 0, boost: 0, boostMult: 1, kick: 0,
     objMult: 1, objT: 0, objKind: null, chaseSay: 0,
     dive: 0, walk: 0, slow: 0, drop: null, bubble: null, finished: false, finishT: 0, mood: "normal", moodT: 0, gotDulce: false, ranOut: false,
-    goods: 0, bads: 0, quirked: false, quirkX: len * rnd(0.3, 0.75), aheadN: 0,
+    goods: 0, bads: 0, hits: 0, gate: 0, drill: null, quirked: false, quirkX: len * rnd(0.3, 0.75), aheadN: 0,
     ai: { wantU: lanes[i], diveAt: aiTap(skill), turnAt: 0 }
   }));
-  const objs = [];
+  const objs = [], buoys = makeBuoys(len, pool, laps, opts.buoys);
   if (items !== "none") for (let x = 8; x < len - 4; x += rnd(gap[0], gap[1])) {
     if (laps > 1 && (x % pool < 5 || x % pool > pool - 4)) continue; // nada pegado a las paredes
+    if (buoys.some((g) => Math.abs(g.x - x) < 1.6)) continue; // ni encima de las boyas
     const n = Math.random() < 0.4 ? 2 : 1, used = [];
     for (let k = 0; k < n; k++) {
       let u; do u = rnd(0.12, 0.88); while (used.some((v) => Math.abs(v - u) < 0.25));
       used.push(u); objs.push({ kind: pickItem(items === "good"), x: x + rnd(-0.8, 0.8), u });
     }
   }
-  return { t: -3, len, pool, laps, circ, racers, objs, over: false, overT: 0, events: [], cur: 0, against: 0, curPlan: null,
+  return { t: -3, len, pool, laps, circ, racers, objs, buoys, drills: makeDrills(len, pool, laps, opts.drill), sign: null, over: false, overT: 0, events: [], cur: 0, against: 0, curPlan: null,
     skill, pace: opts.pace || 1, river: opts.river || "mix", fly: opts.fly !== false, pecho: opts.pecho !== false, air: opts.air !== false, quirks: opts.quirks !== false };
 }
 
@@ -238,6 +278,13 @@ function aiThink(race, r) {
     if (!it.good && Math.abs(o.u - r.u) < 0.13 && dx < best) { want = o.u > r.u ? o.u - 0.25 : o.u + 0.25; best = dx; }
     else if (it.good && best === 99 && Math.abs(o.u - r.u) < 0.35) want = o.u;
   }
+  // boyas: apuntar al hueco de la próxima fila y, si queda lejos, pasar a pecho para doblar rápido
+  const g = race.buoys[r.gate];
+  if (g && g.x - r.x < 9) {
+    if (ai.gateFor !== r.gate) { ai.gateFor = r.gate; ai.err = rnd(-1, 1) * 0.12 * (1 - race.skill / 3.4); }
+    want = g.u + ai.err;
+    if (race.pecho && Math.abs(want - r.u) > 0.12) { r.pecho = true; r.fly = false; }
+  }
   want = clamp(want, 0.1, 0.9);
   r.steer = Math.abs(want - r.u) > 0.03 ? Math.sign(want - r.u) : 0;
 }
@@ -261,6 +308,8 @@ function stepRace(race, dt, input) {
       else if (race.t > 1.6) startDive(race, r, 0.1);
       continue;
     }
+    const drill = drillAt(race, r.x);
+    if (r.drill !== drill) { r.drill = drill; if (r.isPlayer && (race.drills.length > 1 || drill !== "full")) race.sign = { say: DRILLS[drill].say, at: race.t }; }
     const hadObj = r.objT > 0;
     for (const k of ["stun", "plancha", "immune", "boost", "kick", "dive", "walk", "slow", "objT", "moodT"]) r[k] = Math.max(0, r[k] - dt);
     if (hadObj && r.objT <= 0) { // se terminó el objeto: se le cae y se nota el cambio de velocidad
@@ -297,10 +346,10 @@ function stepRace(race, dt, input) {
     const flying = r.fly && r.air > 0 && !blocked && !r.plancha && !breathing;
     const pecho = r.pecho && !flying && !blocked && !r.plancha && !breathing && !r.walk && !r.dive;
     if (breathing) { r.air = Math.min(1, r.air + dt * breathGain(ch)); r.noAir = 0; }
-    else if (!r.plancha) r.air -= dt * (flying ? AIR_FLY * flyCost(ch) : pecho ? AIR_PECHO : AIR_CROL) * drain / airCap(ch);
+    else if (!r.plancha) r.air -= dt * (flying ? AIR_FLY * flyCost(ch) : pecho ? AIR_PECHO : AIR_CROL) * (drill === "kick" ? KICK_AIR : 1) * drain / airCap(ch);
     if (r.air <= 0) { if (!r.noAir) { say(r, "¡SIN AIRE!", 1.2); emit(race, r, "noAir"); r.ranOut = true; } r.air = 0; r.noAir = 1; } else r.noAir = 0;
 
-    mult *= (flying ? flyMult(ch) : pecho ? PECHO_V : 1) * speedMult(ch);
+    mult *= (flying ? (drill === "kick" ? KICK_FLY : flyMult(ch)) : pecho ? PECHO_V : 1) * speedMult(ch) * DRILLS[drill].v;
     if (r.noAir) mult *= 0.45;
     if (r.walk > 0) mult *= 0.7;
     else if (breathing) mult *= BREATH_SLOW;
@@ -308,7 +357,7 @@ function stepRace(race, dt, input) {
     if (r.boost > 0) mult *= r.boostMult;
     if (r.dive > 0) mult *= 1.3;
     if (r.kick > 0) mult *= 1.18; // turbo por la salida o la vuelta perfecta
-    if (r.objT > 0) mult *= r.objMult;
+    if (r.objT > 0) mult *= itemMult(r.objKind, r.objMult, drill);
     if (r.plancha > 0) mult *= 0.65;
     if (blocked) mult = 0.12;
     if (!r.isPlayer) mult *= race.pace; // en el camino, los rivales van más lentos o más rápidos según el nivel
@@ -316,13 +365,20 @@ function stepRace(race, dt, input) {
     const target = BASE_V * mult;
     r.v += (target - r.v) * Math.min(1, dt * (flying ? 4 : 2.5)); // la mariposa arranca con un tirón
     r.x += r.v * dt;
-    if (!blocked) r.u = clamp(r.u + r.steer * dt * 0.65 * (ch.heavy ? 0.6 : 1), 0.08, 0.92);
+    if (!blocked) r.u = clamp(r.u + r.steer * dt * 0.65 * (ch.heavy ? 0.6 : 1) * (pecho ? PECHO_STEER : 1), 0.08, 0.92);
     if (race.against) mult *= 1 - race.against * (ch.heavy ? 0.6 : 1); // corriente de frente: Pablo, que es una losa, la sufre menos
     if (race.cur) r.u = clamp(r.u + race.cur * dt * (ch.heavy ? 0.6 : 1), 0.08, 0.92); // la corriente del río
     // llegando a la pared aparece la barrita de la vuelta americana
     if (!r.wallBar && r.x > r.nextWall - TURN_ZONE) { r.wallBar = true; r.barT0 = race.t; r.turnQ = null; r.ai.turnAt = race.t + aiTap(race.skill); }
     if (r.x >= r.nextWall) turnAround(race, r);
 
+    // boyas: al pasar cada fila, o vas por el hueco o la chocás
+    while (r.gate < race.buoys.length && r.x >= race.buoys[r.gate].x) {
+      const g = race.buoys[r.gate++];
+      if (Math.abs(r.u - g.u) > BUOY_GAP && r.immune <= 0 && !r.dive) {
+        r.stun = Math.max(r.stun, BUOY_STUN); r.v *= 0.6; r.hits++; say(r, "¡BOYA!", 0.9); emit(race, r, "bad");
+      }
+    }
     // objetos: el que lo toca se lo lleva
     for (const o of race.objs) {
       if (o.gone || Math.abs(o.x - r.x) > 0.9 || Math.abs(o.u - r.u) > 0.1) continue;
