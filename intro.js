@@ -10,7 +10,7 @@ const Intro = (() => {
   const BEAT = 60 / 138, DROP = 13 * BEAT; // el título cae con el golpe fuerte de la música
   // dónde empieza cada plano (el último termina en DUR)
   const CUTS = [0, 3 * BEAT, 6 * BEAT, 7.5 * BEAT, 9 * BEAT, 11 * BEAT];
-  const CAPTIONS = ["LA SALIDA", "BAJO EL AGUA", "EL RITMO", "LA LLEGADA", "EL FESTEJO", ""];
+  const CAPTIONS = ["EL SALTO", "SUBACUÁTICO", "POTENCIA", "RESISTENCIA", "LA GLORIA", ""];
   // La pata de rana (A de NADAR) y la manopla (D), dibujadas en un cuadro de 100 de alto.
   const PATA = "M22 2 h16 l2 30 C52 40 58 62 56 84 C48 90 36 88 30 80 C24 88 12 90 4 84 C2 62 8 40 20 32 Z";
   const MANO = "M6 10 C6 4 10 2 16 2 H36 C50 2 56 12 56 40 C56 66 46 78 32 78 H16 C10 78 6 74 6 68 Z";
