@@ -18,6 +18,8 @@ const Nube = (() => {
   // con quién se guarda el avance y los récords: la cuenta de Google si entró, si no el dispositivo
   const who = () => user ? "g_" + user.uid : device();
   const nameKey = (a) => a.trim().toLowerCase();
+  // las pruebas en la compu (localhost o un archivo abierto) no cuentan en las métricas
+  const TEST = location.protocol === "file:" || /^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$/.test(location.hostname);
   function traffic() {
     const ua = navigator.userAgent || "", q = new URLSearchParams(location.search);
     let src = (q.get("s") || "").slice(0, 20);
@@ -37,10 +39,14 @@ const Nube = (() => {
       try { au = await import(FB + "firebase-auth.js"); auth = au.getAuth(fa); await auth.authStateReady(); user = auth.currentUser; } catch (e) { auth = null; }
     } catch (e) { db = null; return false; }
     // una visita: una sola escritura por entrada, sin leer antes
-    try {
+    if (!TEST) try {
       const isNew = !st("npg-visto"), now = new Date().toISOString(), t = traffic();
       const v = { count: fs.increment(1), last: now, plat: t.plat, os: t.os, shares: +(st("npg-shares") || 0) };
       if (isNew) { v.first = now; v.src = t.src; if (t.ref) v.ref = t.ref; }
+      // con el apodo y la cuenta, las métricas juntan los celus y compus de una misma persona
+      const al = (st("npg-apodo") || "").trim().slice(0, 16);
+      if (al) v.alias = al;
+      if (user) v.acct = user.uid;
       await fs.setDoc(fs.doc(db, "visits", device()), v, { merge: true });
       st("npg-visto", "1");
     } catch (e) {}
@@ -50,7 +56,7 @@ const Nube = (() => {
   // Una carrera terminada. run: { alias, char, mode, dist, place, time, cup, lvl, dive, turns } (lvl: el nivel del camino, 0 si es práctica o copa)
   async function saveRun(run) {
     if (!(await ready)) return;
-    try {
+    if (!TEST) try {
       const b = fs.writeBatch(db), dev = device(), at = new Date().toISOString();
       b.set(fs.doc(db, "lim", dev), { t: fs.serverTimestamp() });
       b.set(fs.doc(fs.collection(db, "runs")), { ...run, plat: traffic().plat, device: dev, at });
