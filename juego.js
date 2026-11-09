@@ -80,7 +80,10 @@ const store = {
     for (const k in input) input[k] = false; fingers.clear(); steerUpdate();
   }
   document.getElementById("pauseBtn").addEventListener("pointerdown", (e) => { e.preventDefault(); setPaused(true); });
-  pauseEl.addEventListener("pointerdown", (e) => { e.preventDefault(); setPaused(false); });
+  pauseEl.addEventListener("pointerdown", (e) => {
+    e.preventDefault(); setPaused(false);
+    if (e.target.closest("#quit")) { race = null; homeScreen(); } // abandona la carrera (no cuenta)
+  });
   document.addEventListener("visibilitychange", () => { if (document.hidden && race && !race.over) setPaused(true); });
   const paintMute = () => { muteBtn.textContent = Sound.muted ? "🔇" : "🔊"; };
   muteBtn.addEventListener("pointerdown", (e) => { e.preventDefault(); Sound.unlock(); Sound.toggle(); paintMute(); });
@@ -350,11 +353,11 @@ const store = {
     const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
     show(split(`<p class="sub">${head}</p><h1 class="small">${circ.name} · ${shownLen(draft)} m</h1><p class="help">${circ.info}${draft.laps > 1 ? ` Son ${draft.laps} largos: ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}.` : ""}</p>
       ${cup ? "" : !can.pecho ? `<p class="help">El pecho se aprende en el nivel 7 y la mariposa en el 8.</p>` : !can.fly ? `<p class="help">La mariposa se aprende en el nivel 8.</p>` : ""}
-      <button class="go">¡AL AGUA!</button>${cup ? "" : `<button class="link" id="back">← Volver</button>`}`, `
+      <button class="go">¡AL AGUA!</button><button class="link" id="back">${cup ? "← Dejar la copa (volver al inicio)" : "← Volver"}</button>`, `
       <div class="vs">${draft.racers.map((r, i) => cardHtml(r, i, pts(r))).join("")}</div>
       ${controlsHelp(draft)}${legendHtml(false)}`));
     scr.querySelector(".go").onclick = () => startRace(draft);
-    const bk = document.getElementById("back"); if (bk) bk.onclick = selectScreen;
+    document.getElementById("back").onclick = cup ? homeScreen : selectScreen;
   }
   function startRace(draft) {
     race = draft; player = race.racers[0]; lastCount = 99; endShown = false;
@@ -411,9 +414,10 @@ const store = {
     const extras = (x) => [x.r.gotDulce ? "dulce +" + BONUS.dulce : "", !x.r.ranOut ? "aire +" + BONUS.air : ""].filter(Boolean).join(" · ");
     show(split(`<p class="sub">🏆 COPA · CARRERA ${cup.i} DE ${CUP.length} · ${race.circ.name}</p>${placeTitle(pos)}
       ${record}${cupTable()}
-      <button class="go" id="next">${last ? "VER QUIÉN GANÓ LA COPA" : "SIGUIENTE: " + CIRCUITS[CUP[cup.i]].name}</button>`,
+      <div class="row"><button class="go" id="next">${last ? "VER QUIÉN GANÓ LA COPA" : "SIGUIENTE: " + CIRCUITS[CUP[cup.i]].name}</button>${homeBtn}</div>`,
       podium(pts.map((x) => ({ ch: x.r.ch, isPlayer: x.r.isPlayer, sub: timeOf(x.r), extra: `<span class="plus">+${x.total}</span>${extras(x) ? `<small class="ex">${extras(x)}</small>` : ""}` })))));
     document.getElementById("next").onclick = last ? cupEndScreen : drawScreen;
+    document.getElementById("home").onclick = homeScreen;
   }
 
   // Fin de un nivel: las estrellas, qué se cumplió, y si pasaste, lo que viene (otra etapa, la copa).

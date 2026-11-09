@@ -191,6 +191,7 @@ input { user-select: text; -webkit-user-select: text; }
 #pauseBtn { left: calc(50% - 46px); } #mute { left: calc(50% + 6px); }
 #pause { display: none; position: fixed; inset: 0; z-index: 5; flex-direction: column; align-items: center; justify-content: center; gap: 8px; background: rgba(8,40,70,0.8); font: bold 40px system-ui, sans-serif; color: #FFD84A; }
 #pause small { font-size: 16px; color: #fff; font-weight: normal; }
+#pause #quit { margin-top: 18px; font: bold 16px system-ui, sans-serif; padding: 10px 20px; border-radius: 24px; border: 2px solid #ffffff80; background: #ffffff20; color: #fff; cursor: pointer; }
 #rot { display: none; position: fixed; inset: 0; z-index: 9; background: #0B3D63; align-items: center; justify-content: center; text-align: center; padding: 20px; font-size: 18px; }
 @media (orientation: portrait) and (max-width: 700px) { #rot { display: flex; } }
 /* en la compu: los botones muestran su tecla y la zona de moverse queda solo como referencia */
