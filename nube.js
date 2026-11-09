@@ -1,18 +1,23 @@
 // Nadar por la gloria — lo que se guarda en la nube (Firebase), como en Nadamos por la milanga:
 // récords del grupo por modo, cada carrera terminada (para las métricas), visitas y comentarios.
 // Sin IP ni ubicación: solo un número al azar por dispositivo. Si no hay conexión, el juego sigue igual.
+// Entrar con Google es opcional: el que entra guarda su avance en la cuenta (sirve en cualquier aparato)
+// y su apodo queda reservado, para que nadie más aparezca con ese nombre en el ranking.
 
 // Los datos del proyecto de Firebase están en config.js.
 
 const Nube = (() => {
   const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
   const st = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } };
-  let fs = null, db = null;
+  let fs = null, db = null, au = null, auth = null, user = null;
   function device() {
     let id = st("npg-uid");
     if (!id) { id = "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10); st("npg-uid", id); }
     return id;
   }
+  // con quién se guarda el avance y los récords: la cuenta de Google si entró, si no el dispositivo
+  const who = () => user ? "g_" + user.uid : device();
+  const nameKey = (a) => a.trim().toLowerCase();
   function traffic() {
     const ua = navigator.userAgent || "", q = new URLSearchParams(location.search);
     let src = (q.get("s") || "").slice(0, 20);
@@ -27,7 +32,9 @@ const Nube = (() => {
     try {
       const app = await import(FB + "firebase-app.js");
       fs = await import(FB + "firebase-firestore.js");
-      db = fs.getFirestore(app.initializeApp(FIREBASE_CONFIG));
+      const fa = app.initializeApp(FIREBASE_CONFIG);
+      db = fs.getFirestore(fa);
+      try { au = await import(FB + "firebase-auth.js"); auth = au.getAuth(fa); await auth.authStateReady(); user = auth.currentUser; } catch (e) { auth = null; }
     } catch (e) { db = null; return false; }
     // una visita: una sola escritura por entrada, sin leer antes
     try {
@@ -54,7 +61,7 @@ const Nube = (() => {
     const key = run.mode + "-" + run.dist, mine = +(st("npg-best-" + key) || 1e9);
     if (run.time >= mine) return;
     try {
-      await fs.setDoc(fs.doc(db, "boards", key, "best", device()), { alias: run.alias, char: run.char, time: run.time, at: new Date().toISOString() });
+      await fs.setDoc(fs.doc(db, "boards", key, "best", who()), { alias: run.alias, char: run.char, time: run.time, at: new Date().toISOString() });
       st("npg-best-" + key, run.time);
     } catch (e) {}
   }
@@ -62,21 +69,62 @@ const Nube = (() => {
   async function board(key) {
     if (!(await ready)) return null;
     try {
-      const snap = await fs.getDocs(fs.query(fs.collection(db, "boards", key, "best"), fs.orderBy("time"), fs.limit(10)));
-      return snap.docs.map((d) => ({ ...d.data(), me: d.id === device() }));
+      const snap = await fs.getDocs(fs.query(fs.collection(db, "boards", key, "best"), fs.orderBy("time"), fs.limit(30)));
+      return once(snap.docs.map((d) => ({ ...d.data(), me: d.id === who() || d.id === device() }))).slice(0, 10);
     } catch (e) { return null; }
   }
-  // Cómo va cada uno en el camino: uno por dispositivo. p: { alias, lvl, stars, cups, char }
+  // Una persona, una fila: si el mismo apodo aparece dos veces (el dispositivo de antes y la cuenta), queda la primera,
+  // que es la mejor porque vienen ordenadas.
+  function once(rows) {
+    const seen = new Set();
+    return rows.filter((x) => { const k = nameKey(x.alias || ""); if (seen.has(k)) return false; seen.add(k); return true; });
+  }
+  // Cómo va cada uno en el camino: uno por dispositivo, o por cuenta si entró con Google.
+  // p: { alias, lvl, stars, cups, char, map } (map: las estrellas de cada nivel, solo se guarda en la cuenta)
+  // Devuelve "taken" si el apodo ya lo reservó otra persona.
   async function saveProgress(p) {
     if (!p.alias || !(await ready)) return;
-    try { await fs.setDoc(fs.doc(db, "players", device()), { ...p, at: new Date().toISOString() }); } catch (e) {}
+    const { map, ...rest } = p, at = new Date().toISOString();
+    try {
+      if (!user) { await fs.setDoc(fs.doc(db, "players", device()), { ...rest, at }); return "ok"; }
+      const key = nameKey(p.alias), b = fs.writeBatch(db), old = st("npg-nombre");
+      if (old !== key) { // reservar el apodo nuevo y soltar el de antes
+        b.set(fs.doc(db, "names", key), { uid: user.uid, alias: p.alias });
+        if (old) b.delete(fs.doc(db, "names", old));
+      }
+      b.set(fs.doc(db, "players", who()), { ...rest, map: JSON.stringify(map || {}).slice(0, 3000), v: true, at });
+      await b.commit(); st("npg-nombre", key); return "ok";
+    } catch (e) { return (await aliasFree(p.alias)) ? "error" : "taken"; }
   }
+  // Si el apodo está libre (o es tuyo).
+  async function aliasFree(alias) {
+    if (!alias || !(await ready)) return true;
+    try { const d = await fs.getDoc(fs.doc(db, "names", nameKey(alias))); return !d.exists() || (user && d.data().uid === user.uid); } catch (e) { return true; }
+  }
+  // Entrar con Google: devuelve lo que la cuenta tenía guardado (o null si es la primera vez).
+  async function signIn() {
+    if (!(await ready) || !auth) return { ok: false };
+    try { user = (await au.signInWithPopup(auth, new au.GoogleAuthProvider())).user; }
+    catch (e) { return { ok: false, why: e.code === "auth/popup-closed-by-user" || e.code === "auth/cancelled-popup-request" ? "cancel" : "error" }; }
+    st("npg-nombre", "");
+    try {
+      const d = await fs.getDoc(fs.doc(db, "players", who()));
+      if (!d.exists()) return { ok: true, saved: null };
+      const x = d.data(); let map = {}; try { map = JSON.parse(x.map || "{}"); } catch (e) {}
+      st("npg-nombre", nameKey(x.alias || ""));
+      return { ok: true, saved: { ...x, map } };
+    } catch (e) { return { ok: true, saved: null }; }
+  }
+  async function signOut() { if (auth) { try { await au.signOut(auth); } catch (e) {} } user = null; st("npg-nombre", ""); }
+  const account = () => user ? { name: (user.displayName || user.email || "").split(" ")[0], email: user.email } : null;
   // Los que van más lejos en el camino.
   async function players() {
     if (!(await ready)) return null;
     try {
-      const snap = await fs.getDocs(fs.query(fs.collection(db, "players"), fs.orderBy("lvl", "desc"), fs.limit(30)));
-      return snap.docs.map((d) => ({ ...d.data(), me: d.id === device() }));
+      const snap = await fs.getDocs(fs.query(fs.collection(db, "players"), fs.orderBy("lvl", "desc"), fs.limit(40)));
+      const rows = snap.docs.map((d) => ({ ...d.data(), me: d.id === who() || (!user && d.id === device()) }));
+      rows.sort((a, b) => b.lvl - a.lvl || b.stars - a.stars || (b.cups || 0) - (a.cups || 0) || (b.v ? 1 : 0) - (a.v ? 1 : 0));
+      return once(rows);
     } catch (e) { return null; }
   }
   async function feedback(rating, comment, extra) {
@@ -96,5 +144,5 @@ const Nube = (() => {
     try { if (navigator.share) { await navigator.share({ title: "Nadar por la gloria", text, url }); return "ok"; } } catch (e) { return "no"; }
     try { await navigator.clipboard.writeText(text + " " + url); return "copiado"; } catch (e) { return "no"; }
   }
-  return { ready, saveRun, board, saveProgress, players, feedback, share, online: () => !!db };
+  return { ready, saveRun, board, saveProgress, players, feedback, share, signIn, signOut, account, aliasFree, online: () => !!db, canSignIn: () => !!auth };
 })();

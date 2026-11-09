@@ -125,9 +125,42 @@ const store = {
   const cupsWon = () => +store.get("npg-copas") || 0;
   const starStr = (n, of = 3) => "★".repeat(n) + `<i>${"★".repeat(of - n)}</i>`;
   // tu nivel en la comunidad: solo si tenés apodo
-  function pushProgress() {
+  async function pushProgress() {
     if (!alias()) return;
-    Nube.saveProgress({ alias: alias().slice(0, 16), lvl: myLevel(), stars: totalStars(), cups: cupsWon(), char: store.get("npg-char") || "facu" });
+    const r = await Nube.saveProgress({ alias: alias().slice(0, 16), lvl: myLevel(), stars: totalStars(), cups: cupsWon(), char: store.get("npg-char") || "facu", map: starsMap() });
+    if (r === "taken") aliasTaken();
+  }
+  function aliasTaken() {
+    const e = document.getElementById("aliasErr");
+    if (e) { e.textContent = `«${alias()}» ya es de alguien que entró con Google. Elegí otro apodo.`; e.hidden = false; }
+  }
+  // Entrar con Google: se junta lo de este celu con lo que la cuenta tenía guardado (queda lo mejor de cada nivel).
+  function mergeSaved(x) {
+    if (!x) return;
+    if (x.lvl > myLevel()) store.set("npg-lvl", x.lvl);
+    const sm = starsMap(); for (const [n, v] of Object.entries(x.map || {})) if (v > (sm[n] || 0)) sm[n] = v;
+    store.set("npg-stars", JSON.stringify(sm));
+    if ((x.cups || 0) > cupsWon()) store.set("npg-copas", x.cups);
+    if (x.alias) store.set("npg-apodo", x.alias);
+    if (!store.get("npg-char") && x.char) { store.set("npg-char", x.char); chosen = CHARS.find((c) => c.id === x.char) || null; }
+  }
+  async function fillAccount() {
+    await Nube.ready;
+    const el = document.getElementById("acct"); if (!el) return;
+    if (!Nube.canSignIn()) { el.innerHTML = ""; return; }
+    const a = Nube.account();
+    el.innerHTML = a ? `<small>✓ Entraste con Google como <b>${esc(a.name)}</b>: tu avance y tu apodo quedan guardados.</small> <button class="link" id="gOut">Salir</button>`
+      : `<button class="link" id="gIn">🔐 Entrar con Google</button><small> Opcional: guardás tu avance en cualquier celu y nadie más puede usar tu apodo.</small>`;
+    const gin = document.getElementById("gIn"), gout = document.getElementById("gOut");
+    if (gin) gin.onclick = async () => {
+      gin.disabled = true; gin.textContent = "Entrando…";
+      const r = await Nube.signIn();
+      if (!r.ok) { if (r.why !== "cancel") { const e = document.getElementById("aliasErr"); if (e) { e.textContent = "No se pudo entrar con Google. Probá de nuevo."; e.hidden = false; } } fillAccount(); return; }
+      mergeSaved(r.saved);
+      if (!alias()) store.set("npg-apodo", (Nube.account().name || "").slice(0, 16));
+      await pushProgress(); homeScreen();
+    };
+    if (gout) gout.onclick = async () => { await Nube.signOut(); homeScreen(); };
   }
 
   // ---------- pantallas ----------
@@ -145,8 +178,8 @@ const store = {
   function show(html) { scr.innerHTML = html; scr.style.display = "flex"; pad.style.display = "none"; keepAwake(false); scr.scrollTop = 0; }
   function aliasField(id) {
     const inp = document.getElementById(id); if (!inp) return;
-    inp.oninput = () => { store.set("npg-apodo", inp.value.trim()); const e = document.getElementById("aliasErr"); if (e) e.hidden = true; };
-    inp.onchange = pushProgress;
+    inp.oninput = () => { inp.value = inp.value.replace(/[\/]/g, ""); store.set("npg-apodo", inp.value.trim()); const e = document.getElementById("aliasErr"); if (e) e.hidden = true; };
+    inp.onchange = async () => { if (await Nube.aliasFree(alias())) pushProgress(); else aliasTaken(); };
   }
 
   // El camino: unas burbujas con los niveles alrededor del tuyo y sus estrellas.
@@ -181,6 +214,7 @@ const store = {
       </div>
       <p class="err" id="aliasErr" hidden></p>`, `
       <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Para el ranking del grupo"></label>
+      <p class="acct" id="acct"></p>
       <div class="cols"><div class="side"><div class="rank"><b>EL GRUPO: QUIÉN VA MÁS LEJOS</b><div id="players"><small>Cargando…</small></div></div></div>
       <div class="side"><div class="rank"><b>RÉCORDS DEL GRUPO</b><div class="circs boards">${BOARDS.map(([k, n]) => `<button class="circ ${k === boardKey ? "on" : ""}" data-b="${k}">${n}</button>`).join("")}</div><div id="board"><small>Cargando…</small></div></div></div></div>
       ${cupOpen ? "" : `<button class="link" id="mQuick">Práctica libre (no suma nivel)</button>`}
@@ -201,7 +235,7 @@ const store = {
     scr.querySelectorAll("[data-b]").forEach((b) => b.onclick = () => {
       boardKey = b.dataset.b; scr.querySelectorAll("[data-b]").forEach((x) => x.classList.toggle("on", x === b)); fillBoard();
     });
-    fillBoard(); fillPlayers();
+    fillBoard(); fillPlayers(); fillAccount();
   }
 
   // Quién va más lejos en el camino (en la nube): nivel, etapa, estrellas y copas ganadas.
@@ -213,7 +247,7 @@ const store = {
     const me = rows.findIndex((x) => x.me);
     if (!rows.length) { el.innerHTML = `<small>Todavía no hay nadie. Poné tu apodo y pasá un nivel para ser el primero.</small>`; return; }
     el.innerHTML = `<table><tr><th></th><th>Apodo</th><th>Etapa</th><th>Nivel</th><th>★</th><th>🏆</th></tr>${rows.slice(0, 10).map((x, i) => { const c = CHARS.find((k) => k.id === x.char), st = stageOf(x.lvl);
-      return `<tr class="${x.me ? "me" : ""}"><td>${i + 1}º</td><td>${c ? faceImg(c, 20) + " " : ""}${esc(x.alias)}</td><td>${st.icon} ${st.name}</td><td>${x.lvl}</td><td>${x.stars}</td><td>${x.cups || ""}</td></tr>`; }).join("")}</table>
+      return `<tr class="${x.me ? "me" : ""}"><td>${i + 1}º</td><td>${c ? faceImg(c, 20) + " " : ""}${esc(x.alias)}${x.v ? ' <span class="ok" title="Entró con Google">✓</span>' : ""}</td><td>${st.icon} ${st.name}</td><td>${x.lvl}</td><td>${x.stars}</td><td>${x.cups || ""}</td></tr>`; }).join("")}</table>
       ${me >= 10 ? `<small>Vos vas ${me + 1}º.</small>` : me < 0 ? `<small>${alias() ? "Pasá un nivel para aparecer." : "Poné tu apodo para aparecer."}</small>` : ""}`;
   }
 

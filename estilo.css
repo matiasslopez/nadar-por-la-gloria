@@ -39,6 +39,9 @@ input { user-select: text; -webkit-user-select: text; }
 .alias { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: bold; margin-top: 4px; }
 .alias input { font: bold 16px system-ui, sans-serif; padding: 6px 12px; border-radius: 20px; border: 2px solid #ffffff60; background: #ffffff20; color: #fff; width: 180px; outline: none; }
 .alias input:focus { border-color: #FFD84A; }
+.acct { margin: 4px 0 0; font-size: 12px; opacity: 0.9; text-align: center; max-width: 420px; }
+.acct .link { margin: 0 4px; font-size: 13px; }
+.ok { color: #7CFC6A; font-weight: bold; }
 .err { color: #FFB4A8; font-size: 12px; margin: 0 !important; }
 .modes { display: flex; gap: 10px; margin: 6px 0; flex-wrap: wrap; justify-content: center; }
 #scr button.mode { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 22px; border-radius: 18px; font: bold 18px system-ui, sans-serif; cursor: pointer; border: 0; margin: 0; }
