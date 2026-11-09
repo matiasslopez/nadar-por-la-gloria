@@ -281,20 +281,15 @@ export async function create(canvas) {
       hero.headAt(tmp);
       look(25.25 + Math.sin(lt) * 0.12, 0.72 + lt * 0.12, -0.95 - lt * 0.2, 25, 1.05, -12, 52);
     },
-    function podium(lt, d, at) { // 6 · el podio atrás de la pileta: camina, salta al 1º, levanta los brazos y cae el título
+    function podium(lt, d, at) { // 6 · el podio atrás de la pileta: los tres arriba; cuando cae el título levantan los brazos, despacio
       crowd(lt, lt > at ? 1 : 0.4); cameraFlashes(lt, lt > at ? 1 : 0.3); sweep(lt * (lt > at ? 0.4 : 1), lt > at ? 0.08 : 0.4);
       const deck = 0.3, X = PODIUM.x, Z = PODIUM.z;
-      [[rivalA, X - 1.1, PODIUM.tops[1]], [rivalB, X + 1.1, PODIUM.tops[2]]].forEach(([p, x, h], i) => {
-        p.root.visible = true; p.pose("Idle_Loop", lt + i * 0.6); p.root.position.set(x, 0, Z); p.root.rotation.y = -Math.PI / 2; // de frente a la cámara
-        p.root.position.y = deck + h; // los pies arriba del escalón
-        const k = rise(lt - at - 0.05 - i * 0.08), sw = Math.sin(lt * 2.6 + i) * 4; // cuando cae el título, levantan los brazos
-        p.turn("upperarm_l", 0, 0, (120 + sw) * k); p.turn("upperarm_r", 0, 0, (-120 - sw) * k); p.turn("lowerarm_l", 0, 0, 15 * k); p.turn("lowerarm_r", 0, 0, -15 * k);
+      [[hero, X, PODIUM.tops[0], 140], [rivalA, X - 1.1, PODIUM.tops[1], 120], [rivalB, X + 1.1, PODIUM.tops[2], 120]].forEach(([p, x, h, up], i) => {
+        p.root.visible = true; p.pose("Idle_Loop", lt + i * 0.6); p.root.rotation.y = -Math.PI / 2; // de frente a la cámara
+        p.root.position.set(x, deck + h, Z); // los pies arriba del escalón
+        const k = rise(lt - at - i * 0.1, 0.8), sw = Math.sin(lt * 2 + i) * 3;
+        p.turn("upperarm_l", 0, 0, (up + sw) * k); p.turn("upperarm_r", 0, 0, (-up - sw) * k); p.turn("lowerarm_l", 0, 0, 12 * k); p.turn("lowerarm_r", 0, 0, -12 * k);
       });
-      hero.root.visible = true; hero.root.rotation.y = -Math.PI / 2;
-      const walkEnd = at - 0.5;
-      if (lt < walkEnd) { hero.pose("Walk_Loop", lt); hero.root.rotation.y = 0; hero.root.position.set(lerp(X - 4.2, X - 0.55, lt / walkEnd), deck, Z + 0.9); }
-      else if (lt < at) { const j = (lt - walkEnd) / 0.5; hero.pose("Jump_Loop", j * 0.4); hero.root.position.set(lerp(X - 0.55, X, j), deck + PODIUM.tops[0] * j + Math.sin(j * Math.PI) * 0.5, lerp(Z + 0.9, Z, j)); }
-      else { hero.pose("Idle_Loop", lt); hero.root.position.set(X, deck + PODIUM.tops[0], Z); const k = rise(lt - at), w = Math.sin(lt * 3) * 4; hero.turn("upperarm_l", 0, 0, (140 + w) * k); hero.turn("upperarm_r", 0, 0, (-140 - w) * k); hero.turn("lowerarm_l", 0, 0, 10 * k); hero.turn("lowerarm_r", 0, 0, -10 * k); } // los dos brazos arriba
       confetti(lt - at, X, Z);
       const hitK = lt > at ? Math.exp(-(lt - at) * 8) : 0;
       look(X + Math.sin(lt * 80) * 0.05 * hitK, 1.5 + lt * 0.08, -1.2 - lt * 0.12, X, 1.55, Z - 2, 46);
