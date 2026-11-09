@@ -281,18 +281,32 @@ export async function create(canvas) {
       hero.headAt(tmp);
       look(25.25 + Math.sin(lt) * 0.12, 0.72 + lt * 0.12, -0.95 - lt * 0.2, 25, 1.05, -12, 52);
     },
-    function podium(lt, d, at) { // 6 · el podio atrás de la pileta: los tres arriba; cuando cae el título levantan los brazos, despacio
+    function podium(lt, d, at) { // 6 · el podio atrás de la pileta: camina, salta al 1º, y cuando cae el título los tres levantan los brazos
       crowd(lt, lt > at ? 1 : 0.4); cameraFlashes(lt, lt > at ? 1 : 0.3); sweep(lt * (lt > at ? 0.4 : 1), lt > at ? 0.08 : 0.4);
       const deck = 0.3, X = PODIUM.x, Z = PODIUM.z;
-      [[hero, X, PODIUM.tops[0], 140], [rivalA, X - 1.1, PODIUM.tops[1], 120], [rivalB, X + 1.1, PODIUM.tops[2], 120]].forEach(([p, x, h, up], i) => {
+      const arms = (p, up, k) => { // brazos arriba en V, de a poco, con un vaivén lento
+        const sw = Math.sin(lt * 2 + up) * 3;
+        p.turn("upperarm_l", 0, 0, (up + sw) * k); p.turn("upperarm_r", 0, 0, (-up - sw) * k); p.turn("lowerarm_l", 0, 0, 12 * k); p.turn("lowerarm_r", 0, 0, -12 * k);
+      };
+      [[rivalA, X - 1.1, PODIUM.tops[1]], [rivalB, X + 1.1, PODIUM.tops[2]]].forEach(([p, x, h], i) => {
         p.root.visible = true; p.pose("Idle_Loop", lt + i * 0.6); p.root.rotation.y = -Math.PI / 2; // de frente a la cámara
         p.root.position.set(x, deck + h, Z); // los pies arriba del escalón
-        const k = rise(lt - at - i * 0.1, 0.8), sw = Math.sin(lt * 2 + i) * 3;
-        p.turn("upperarm_l", 0, 0, (up + sw) * k); p.turn("upperarm_r", 0, 0, (-up - sw) * k); p.turn("lowerarm_l", 0, 0, 12 * k); p.turn("lowerarm_r", 0, 0, -12 * k);
+        arms(p, 120, rise(lt - at - 0.1 - i * 0.1, 0.8));
       });
+      // el ganador camina, da un saltito al 1º y cae justo con el título; los brazos van sueltos al costado, sin agitarse
+      hero.root.visible = true; hero.root.rotation.y = -Math.PI / 2;
+      const walkEnd = at - 0.5, calm = (k) => { for (const sd of ["l", "r"]) { tmp.set(0, -1, 0); hero.aim("upperarm_" + sd, "lowerarm_" + sd, tmp, k); hero.aim("lowerarm_" + sd, "hand_" + sd, tmp, k); } };
+      if (lt < walkEnd) {
+        hero.pose("Walk_Loop", lt); hero.root.rotation.y = 0; hero.root.position.set(lerp(X - 4.2, X - 0.55, lt / walkEnd), deck, Z + 0.9);
+        calm(0.55 + 0.45 * rise(lt - walkEnd + 0.3, 0.3)); // el braceo de la caminata, suave, y quieto antes de saltar
+      } else if (lt < at) {
+        const j = (lt - walkEnd) / 0.5; hero.root.rotation.y = -Math.PI / 2 * out3(j); hero.pose("Jump_Loop", j * 0.4); calm(1); // gira en el aire hasta quedar de frente
+        hero.root.position.set(lerp(X - 0.55, X, j), deck + PODIUM.tops[0] * j + Math.sin(j * Math.PI) * 0.5, lerp(Z + 0.9, Z, j));
+      } else { hero.pose("Idle_Loop", lt); hero.root.position.set(X, deck + PODIUM.tops[0], Z); arms(hero, 140, rise(lt - at, 0.8)); }
       confetti(lt - at, X, Z);
       const hitK = lt > at ? Math.exp(-(lt - at) * 8) : 0;
-      look(X + Math.sin(lt * 80) * 0.05 * hitK, 1.5 + lt * 0.08, -1.2 - lt * 0.12, X, 1.55, Z - 2, 46);
+      const near = lt > at ? out3(c01((lt - at - 0.2) / 1.1)) : 0; // al final la cámara se acerca un toque a los tres
+      look(X + Math.sin(lt * 80) * 0.05 * hitK, 1.5 + lt * 0.08, -1.2 - lt * 0.12 - near * 0.8, X, 1.55 + near * 0.25, Z - 2, 46 - near * 8);
     }
   ];
 
