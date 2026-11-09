@@ -146,6 +146,27 @@ export async function create(canvas) {
   for (const [k, c] of Object.entries(anims)) CLIPS[k] = new THREE.AnimationClip(k, c.duration, c.tracks.map((t) => t.n.endsWith(".quaternion") ? new THREE.QuaternionKeyframeTrack(t.n, t.t, t.v) : new THREE.VectorKeyframeTrack(t.n, t.t, t.v)));
   // El cuerpo gratis es de "superhéroe": se afina de brazos, piernas y pecho (de ancho, no de largo).
   const SLIM = [["upperarm", 0.82, 0.82], ["lowerarm", 0.93, 0.93], ["thigh", 0.9, 0.9], ["calf", 0.95, 0.95], ["spine_03", 0.9, 0.95], ["spine_02", 0.92, 0.95]];
+  // Arma la gorra: los triángulos de la cabeza que quedan por arriba de un plano inclinado (alto adelante, bajo en la nuca),
+  // empujados unos milímetros hacia afuera. Medido en los ejes del hueso de la cabeza (y arriba, z adelante).
+  const CAP = { front: 0.105, back: 0.005, off: 0.005 };
+  function capShell(body, head) {
+    const g = body.geometry, bi = body.skeleton.bones.indexOf(head);
+    const M = new THREE.Matrix4().multiplyMatrices(body.skeleton.boneInverses[bi], body.bindMatrix), Mi = M.clone().invert(), N = new THREE.Matrix3().getNormalMatrix(M);
+    const pos = g.attributes.position, nor = g.attributes.normal, si = g.attributes.skinIndex, sw = g.attributes.skinWeight;
+    const P = new Float32Array(pos.count * 3), ok = new Uint8Array(pos.count), v = new THREE.Vector3(), n = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i).applyMatrix4(M); n.fromBufferAttribute(nor, i).applyMatrix3(N).normalize();
+      let w = 0; for (let k = 0; k < 4; k++) if (si.getComponent(i, k) === bi) w += sw.getComponent(i, k);
+      const cut = CAP.back + (CAP.front - CAP.back) * (v.z + 0.1) / 0.2; // la línea del borde, según qué tan adelante está
+      ok[i] = w > 0.5 && v.y > cut ? 1 : 0;
+      v.addScaledVector(n, CAP.off).applyMatrix4(Mi); P.set([v.x, v.y, v.z], i * 3);
+    }
+    const idx = g.index ? g.index.array : Array.from({ length: pos.count }, (_, i) => i), tri = [];
+    for (let t = 0; t < idx.length; t += 3) if (ok[idx[t]] && ok[idx[t + 1]] && ok[idx[t + 2]]) tri.push(idx[t], idx[t + 1], idx[t + 2]);
+    const out = new THREE.BufferGeometry();
+    out.setAttribute("position", new THREE.BufferAttribute(P, 3)); out.setAttribute("normal", nor); out.setAttribute("skinIndex", si); out.setAttribute("skinWeight", sw);
+    out.setIndex(tri); return out;
+  }
   function swimmer(src, cap, fem) {
     const root = new THREE.Group(), m = cloneRig(src.scene); m.rotation.y = Math.PI / 2; root.add(m); sc.add(root); // mirando hacia +x
     const bone = {};
@@ -154,14 +175,13 @@ export async function create(canvas) {
       if (o.isBone) { bone[o.name] = o; const s = SLIM.find(([k]) => o.name.startsWith(k)); if (s) o.userData.slim = [s[1], s[2]]; }
     });
     const head = bone.Head || bone.head;
-    // la gorra: ceñida al cráneo, baja hasta las antiparras adelante y hasta la nuca atrás; mate, como la silicona. A ellas les marca el rodete
-    const capMat = new THREE.MeshStandardMaterial({ color: cap, roughness: 0.5, metalness: 0.05 });
-    const capMesh = new THREE.Mesh(new THREE.SphereGeometry(0.112, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.58), capMat);
-    capMesh.scale.set(0.98, 0.93, 1.1); capMesh.rotation.x = 0.15; capMesh.position.set(0, 0.104, -0.004); head.add(capMesh);
-    if (fem) { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 8), capMat); bun.scale.set(1.1, 0.9, 0.85); bun.position.set(0, 0.16, -0.085); head.add(bun); }
-    // las antiparras: la tira oscura pegada a la gorra y los dos vidrios espejados
-    const gogMat = new THREE.MeshStandardMaterial({ color: 0x15171c, roughness: 0.4 });
-    const strap = new THREE.Mesh(new THREE.TorusGeometry(0.108, 0.007, 6, 28), gogMat); strap.rotation.x = Math.PI / 2 + 0.1; strap.scale.set(0.9, 0.97, 0.9); strap.position.set(0, 0.085, 0.004); head.add(strap);
+    // la gorra: la misma piel de la cabeza del modelo, apenas inflada y pintada, de la frente (arriba de las antiparras)
+    // a la nuca. Así queda pegada como una de silicona y se mueve con la cabeza. A ellas les marca el rodete.
+    const capMat = new THREE.MeshStandardMaterial({ color: cap, roughness: 0.45, metalness: 0.05 });
+    let body = null; m.traverse((o) => { if (o.isSkinnedMesh && /Superhero/.test(o.material.name)) body = o; });
+    if (body) { const c = new THREE.SkinnedMesh(capShell(body, head), capMat); c.bind(body.skeleton, body.bindMatrix); c.frustumCulled = false; body.parent.add(c); }
+    if (fem) { const bun = new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 8), capMat); bun.scale.set(1.1, 0.9, 0.85); bun.position.set(0, 0.13, -0.1); head.add(bun); }
+    // las antiparras: los dos vidrios espejados (la tira queda debajo de la gorra)
     const lensMat = new THREE.MeshStandardMaterial({ color: 0x1d3550, roughness: 0.05, metalness: 0.4 });
     for (const sx of [-1, 1]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 6), lensMat); l.scale.set(1.35, 0.85, 0.6); l.position.set(sx * 0.034, 0.09, 0.096); head.add(l); }
     const mixer = new THREE.AnimationMixer(m);

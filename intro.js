@@ -69,7 +69,7 @@ const Intro = (() => {
     const go = box.querySelector("#iGo");
     const ready = (ok) => { if (state !== "loading") return; state = ok ? "start" : "broken"; go.disabled = false; go.textContent = "▶ TOCÁ PARA EMPEZAR"; };
     // la escena 3D se carga mientras se ve "tocá para empezar"; si no se puede (sin WebGL, sin internet), el toque pasa directo al juego
-    import("./intro3d.js?v=31").then((m) => m.create(box.querySelector(".g3"))).then((s) => { scene = s; ready(true); }).catch(() => ready(false));
+    import("./intro3d.js?v=32").then((m) => m.create(box.querySelector(".g3"))).then((s) => { scene = s; ready(true); }).catch(() => ready(false));
     setTimeout(() => ready(false), 20000);
     const finish = (skipped) => {
       if (state === "done") return; state = "done";
