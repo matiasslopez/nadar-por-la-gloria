@@ -146,7 +146,7 @@ const Nube = (() => {
       await b.commit(); return true;
     } catch (e) { return false; }
   }
-  // Retos: una carrera grabada que otro nada contra tu fantasma. Una escritura al crearlo, una lectura al abrirlo
+  // Retos: una carrera grabada que otro nada contra tu reflejo. Una escritura al crearlo, una lectura al abrirlo
   // y una escritura cada vez que alguien lo juega (suma a las veces jugadas y deja quién fue el último).
   // Se borran solos a los 60 días (exp), si en Firebase está prendida la regla de borrado (TTL).
   // r: { alias, char, lvl, mode, dist, seed, time, track } · devuelve el código del reto o null

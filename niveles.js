@@ -14,6 +14,7 @@ const STAGES = [
   { from: 101, name: "PRO", icon: "👑" }
 ];
 const CUP_LEVEL = 11; // la copa se abre cuando llegás a Pre nadador
+const RETO_LEVEL = 21; // los retos se abren cuando llegás a Nadador: un premio para los que ya tienen experiencia
 const stageOf = (n) => STAGES.filter((s) => n >= s.from).pop();
 const nextStage = (n) => STAGES.find((s) => s.from > n);
 
