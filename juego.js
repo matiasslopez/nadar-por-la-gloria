@@ -157,15 +157,17 @@ const store = {
     return r;
   }
   // Al pasar de nivel: si no entró con Google, un recordatorio para no perder el avance.
-  const googleNudge = () => Nube.canSignIn() && !Nube.account()
-    ? `<div class="nudge" id="nudge"><span>🔐 Tu avance está guardado solo en este aparato. Entrá con Google para no perderlo y seguir desde cualquier celu o compu.</span><button id="gNudge">ENTRAR CON GOOGLE</button></div>` : "";
+  // Sale la primera vez que pasa de nivel (al llegar al 2) y después cada 3 niveles, para no cansar.
+  const googleNudge = (now) => Nube.canSignIn() && !Nube.account() && (now - 2) % 3 === 0
+    ? `<div id="nudge"><div class="row"><button id="gNudge">🔐 ENTRAR CON GOOGLE</button></div>
+      <p class="sub">Tu avance está guardado solo en este aparato. Entrá con Google para no perderlo y seguir desde cualquier celu o compu.</p></div>` : "";
   function nudgeBtn() {
     const b = document.getElementById("gNudge"); if (!b) return;
     b.onclick = async () => {
       b.disabled = true; b.textContent = "Entrando…";
       const r = await googleIn(), box = document.getElementById("nudge");
-      if (r.ok) box.innerHTML = `<span>✓ ¡Listo, ${esc(alias())}! Tu avance queda guardado en tu cuenta: entrá con Google en cualquier aparato y seguís desde acá.</span>`;
-      else { b.disabled = false; b.textContent = r.why === "cancel" ? "ENTRAR CON GOOGLE" : "NO SE PUDO · PROBÁ DE NUEVO"; }
+      if (r.ok) box.innerHTML = `<p class="sub">✓ ¡Listo, ${esc(alias())}! Tu avance queda guardado en tu cuenta: entrá con Google en cualquier aparato y seguís desde acá.</p>`;
+      else { b.disabled = false; b.textContent = r.why === "cancel" ? "🔐 ENTRAR CON GOOGLE" : "NO SE PUDO · PROBÁ DE NUEVO"; }
     };
   }
   const CHEERS = ["¡Bien ahí", "¡Qué nivel", "¡Vamos", "¡Sos una máquina", "¡Tremendo", "¡Así se nada"];
@@ -473,7 +475,7 @@ const store = {
       ${now < CUP_LEVEL ? `<p class="sub teaser">🏆 Te ${CUP_LEVEL - now === 1 ? "falta 1 nivel" : "faltan " + (CUP_LEVEL - now) + " niveles"} para que se abra la copa</p>` : ""}
       ${L.r ? podium(st.slice(0, 3).map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) }))) : `<p class="sub">Tu tiempo: ${timeOf(player)}</p>`}
       ${passed && !alias() ? `<label class="alias">TU APODO <input id="alias2" maxlength="16" autocomplete="off" placeholder="Para aparecer en el ranking"></label>` : ""}
-      ${up ? googleNudge() : ""}
+      ${up ? googleNudge(now) : ""}
       <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
     aliasField("alias2"); nudgeBtn();
     const st2 = stageOf(now);
