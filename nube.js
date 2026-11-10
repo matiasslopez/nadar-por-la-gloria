@@ -19,7 +19,8 @@ const Nube = (() => {
   const who = () => user ? "g_" + user.uid : device();
   const nameKey = (a) => a.trim().toLowerCase();
   // las pruebas en la compu (localhost o un archivo abierto) no cuentan en las métricas
-  const TEST = location.protocol === "file:" || /^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$/.test(location.hostname);
+  // (y la copia de prueba en /prueba/, que se publica aparte para validar antes)
+  const TEST = location.pathname.includes("/prueba/") || location.protocol === "file:" || /^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$/.test(location.hostname);
   function traffic() {
     const ua = navigator.userAgent || "", q = new URLSearchParams(location.search);
     let src = (q.get("s") || "").slice(0, 20);
