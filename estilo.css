@@ -221,3 +221,8 @@ input { user-select: text; -webkit-user-select: text; }
 #intro button.go:disabled { opacity: 0.6; animation: none; cursor: default; }
 #iSkip { position: absolute; right: 14px; top: 12px; padding: 7px 16px; font: bold 13px system-ui, sans-serif; color: #fff; background: #ffffff22; border: 2px solid #ffffff55; border-radius: 22px; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) { #intro.titled > .ititle, #intro button.go { animation-duration: 0.01s; animation-iteration-count: 1; } }
+
+/* al pasar de nivel: la felicitación y el recordatorio de entrar con Google */
+.cheer { margin: 2px 0 6px; font-size: 16px; font-weight: bold; color: #8FE3FF; }
+.nudge { display: flex; align-items: center; gap: 10px; margin: 8px 0; padding: 8px 12px; border-radius: 12px; background: #ffffff18; border: 1px solid #FFD84A80; text-align: left; font-size: 13px; }
+.nudge button { flex: none; font: bold 13px system-ui, sans-serif; padding: 8px 14px; border: 0; border-radius: 20px; background: #FFD84A; color: #10324F; cursor: pointer; }
