@@ -98,6 +98,7 @@ service cloud.firestore {
     }
     // Retos: una carrera grabada (el fantasma) para que otro la nade. Se leen de a uno, por su código (nadie los lista).
     // Al jugarlo solo se suma uno a las veces jugadas (y a las que le ganaron) y queda quién fue el último.
+    // Para crearlo hay que entrar con Google (from = g_ + uid); jugarlo no.
     // Como mucho un reto creado o jugado cada 15 s por dispositivo. exp: se borra solo a los 60 días (TTL de Firestore).
     // retosPrueba: los de la copia de prueba, aparte.
     function okRetoCol(c) { return c in ['retos', 'retosPrueba']; }
@@ -113,7 +114,7 @@ service cloud.firestore {
         && request.resource.data.seed is int
         && request.resource.data.time is number && request.resource.data.time >= request.resource.data.dist / 8 && request.resource.data.time <= 200
         && request.resource.data.track is string && request.resource.data.track.size() <= 6000
-        && request.resource.data.from is string && request.resource.data.from.size() <= 40
+        && isAccount(request.resource.data.from)
         && request.resource.data.at is string && request.resource.data.at.size() <= 30
         && request.resource.data.plays == 0 && request.resource.data.wins == 0
         && request.resource.data.exp is timestamp && request.resource.data.exp <= request.time + duration.value(61, 'd')

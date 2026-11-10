@@ -150,9 +150,10 @@ const Nube = (() => {
   // y una escritura cada vez que alguien lo juega (suma a las veces jugadas y deja quién fue el último).
   // Se borran solos a los 60 días (exp), si en Firebase está prendida la regla de borrado (TTL).
   // r: { alias, char, lvl, mode, dist, seed, time, track } · devuelve el código del reto o null
+  // Solo con la cuenta de Google: el reto queda a nombre de la cuenta (from = g_ + uid).
   async function saveReto(r) {
-    if (!(await ready)) return null;
-    const id = Array.from({ length: 8 }, () => "abcdefghijkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 32)]).join(""), dev = device();
+    if (!(await ready) || !user) return null;
+    const id = Array.from({ length: 8 }, () => "abcdefghijkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 32)]).join(""), dev = who();
     try {
       const b = fs.writeBatch(db);
       b.set(fs.doc(db, "limr", dev), { t: fs.serverTimestamp() });

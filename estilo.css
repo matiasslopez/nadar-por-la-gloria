@@ -118,7 +118,7 @@ input { user-select: text; -webkit-user-select: text; }
 .stage .ic { font-size: 30px; } .stage > div { flex: 1; } .stage b { color: #FFD84A; } .stage small { font-size: 11px; opacity: 0.85; }
 .stage .prog { height: 8px; border-radius: 4px; background: #ffffff25; margin: 4px 0 2px; overflow: hidden; }
 .stage .prog i { display: block; height: 100%; border-radius: 4px; background: linear-gradient(90deg, #5FD0F5, #FFD84A); }
-.path { display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; max-width: 100%; overflow-x: auto; padding: 6px 4px; scrollbar-width: thin; touch-action: pan-x; }
+.path { flex-shrink: 0; display: flex; align-items: center; gap: 6px; margin: 6px 0 2px; max-width: 100%; overflow-x: auto; padding: 6px 4px; scrollbar-width: thin; touch-action: pan-x; }
 .path .flag { font-size: 18px; }
 #scr button.lv { flex: none; display: flex; flex-direction: column; align-items: center; justify-content: center; width: 50px; height: 50px; border-radius: 50%; border: 3px solid #ffffff70; background: #1B6FA8; color: #fff; font: bold 17px system-ui, sans-serif; cursor: pointer; padding: 0; box-shadow: 0 3px 0 #0004; }
 #scr button.lv small { font-size: 9px; line-height: 1; letter-spacing: -1px; color: #FFD84A; } #scr button.lv small i { color: #ffffff40; font-style: normal; }

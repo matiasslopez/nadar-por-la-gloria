@@ -272,7 +272,7 @@ const store = {
     };
     document.getElementById("mReto").onclick = () => {
       const err = document.getElementById("aliasErr");
-      if (!retoOpen) { err.textContent = `Los desafíos se abren en el nivel ${RETO_LEVEL}, cuando seas Nadador. Te ${RETO_LEVEL - lv === 1 ? "falta 1 nivel" : "faltan " + (RETO_LEVEL - lv) + " niveles"}.`; err.hidden = false; return; }
+      if (!retoOpen) { err.textContent = `Con los desafíos le mandás a un amigo una carrera que hiciste y la nada contra tu reflejo: tiene que superar tu tiempo. Se abren en el nivel ${RETO_LEVEL}, cuando seas Nadador: te ${RETO_LEVEL - lv === 1 ? "falta 1 nivel" : "faltan " + (RETO_LEVEL - lv) + " niveles"}.`; err.hidden = false; return; }
       if (noAlias("desafiar")) return;
       // se reta desde el final de cualquier carrera: la práctica libre es lo más rápido para marcar un tiempo
       Sound.unlock(); goFull(); mode = "quick"; selectScreen();
@@ -511,16 +511,23 @@ const store = {
   }
   // ---------- el reto ----------
   // Retar a un amigo: se guarda tu carrera (el reflejo) y se comparte el link; el que lo abre nada la misma pileta contra vos.
-  const canReto = () => myLevel() >= RETO_LEVEL && race && race.rec && player.finished && player.finishT < GHOST_MAX * GHOST_DT && Nube.online();
-  const retoHtml = (label = "⚔️ DESAFIÁ A UN AMIGO") => canReto() ? `<button id="reto">${label}</button>`
+  // Para mandar un desafío hay que entrar con Google (el que lo recibe lo juega sin cuenta).
+  const canReto = () => myLevel() >= RETO_LEVEL && Nube.canSignIn() && race && race.rec && player.finished && player.finishT < GHOST_MAX * GHOST_DT && Nube.online();
+  const retoHtml = (label = "⚔️ DESAFIÁ A UN AMIGO") => canReto() ? `<button id="reto" data-label="${label}">${Nube.account() ? label : "🔐 ENTRÁ CON GOOGLE Y DESAFIÁ"}</button>`
     : mode === "reto" && myLevel() < RETO_LEVEL ? `<small class="sub">⚔️ Cuando seas Nadador (nivel ${RETO_LEVEL}) vas a poder desafiar vos también.</small>` : "";
   function retoBtn() {
     const b = document.getElementById("reto"); if (!b) return;
-    const r = race, p = player, label = b.textContent, lvl = mode === "level" ? level.n : mode === "reto" ? challenge.lvl : 0;
+    const r = race, p = player, label = b.dataset.label, lvl = mode === "level" ? level.n : mode === "reto" ? challenge.lvl : 0;
     const t = Math.round(p.finishT * 100) / 100, what = lvl ? `el nivel ${lvl}` : `${r.circ.name} ${shownLen(r)} m`;
     const text = `⚔️ Te desafío en Nadar por la gloria: hice ${what} en ${t.toFixed(2).replace(".", ",")} s con ${p.ch.name}. Nadá contra mi reflejo y fijate si podés superarme...`;
     let id = null;
     b.onclick = async () => {
+      if (!Nube.account()) { // primero entra con Google y sigue de una con el desafío
+        b.disabled = true; b.textContent = "Entrando…";
+        const g = await googleIn();
+        b.disabled = false;
+        if (!g.ok) { b.textContent = g.why === "cancel" ? "🔐 ENTRÁ CON GOOGLE Y DESAFIÁ" : "NO SE PUDO ENTRAR · PROBÁ DE NUEVO"; return; }
+      }
       if (!id) {
         if (!alias()) { b.textContent = "PONÉ TU APODO PARA DESAFIAR"; return; }
         b.disabled = true; b.textContent = "Armando el desafío…";
