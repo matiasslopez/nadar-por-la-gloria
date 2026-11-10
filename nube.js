@@ -190,7 +190,7 @@ const Nube = (() => {
   }
   // Compartir: el menú del celu si hay, si no se copia el texto con el link. extra: más cosas para el link (el reto).
   async function share(text, extra = "") {
-    const url = location.origin + location.pathname + "?s=" + (extra ? "reto" : "compartido") + "&r=" + device().slice(-5) + extra;
+    const url = location.origin + location.pathname + "?s=" + (extra ? "desafio" : "compartido") + "&r=" + device().slice(-5) + extra;
     st("npg-shares", +(st("npg-shares") || 0) + 1);
     if (db && !TEST) fs.setDoc(fs.doc(db, "visits", device()), { shares: fs.increment(1) }, { merge: true }).catch(() => {});
     try { if (navigator.share) { await navigator.share({ title: "Nadar por la gloria", text, url }); return "ok"; } } catch (e) { return "no"; }
