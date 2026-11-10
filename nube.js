@@ -146,7 +146,7 @@ const Nube = (() => {
   async function share(text) {
     const url = location.origin + location.pathname + "?s=compartido&r=" + device().slice(-5);
     st("npg-shares", +(st("npg-shares") || 0) + 1);
-    if (db) fs.setDoc(fs.doc(db, "visits", device()), { shares: fs.increment(1) }, { merge: true }).catch(() => {});
+    if (db && !TEST) fs.setDoc(fs.doc(db, "visits", device()), { shares: fs.increment(1) }, { merge: true }).catch(() => {});
     try { if (navigator.share) { await navigator.share({ title: "Nadar por la gloria", text, url }); return "ok"; } } catch (e) { return "no"; }
     try { await navigator.clipboard.writeText(text + " " + url); return "copiado"; } catch (e) { return "no"; }
   }

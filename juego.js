@@ -221,6 +221,7 @@ const store = {
       <div class="cols"><div class="side"><div class="rank"><b>EL GRUPO: QUIÉN VA MÁS LEJOS</b><div id="players"><small>Cargando…</small></div></div></div>
       <div class="side"><div class="rank"><b>RÉCORDS DEL GRUPO</b><div class="circs boards">${BOARDS.map(([k, n]) => `<button class="circ ${k === boardKey ? "on" : ""}" data-b="${k}">${n}</button>`).join("")}</div><div id="board"><small>Cargando…</small></div></div></div></div>
       ${cupOpen ? "" : `<button class="link" id="mQuick">Práctica libre (no suma nivel)</button>`}
+      <button class="link" id="shareHome">📣 Compartí el juego con el grupo</button>
       <button class="link" id="opinar">💬 Contanos qué te parece el juego</button>`));
     aliasField("alias");
     const nowB = scr.querySelector(".lv.now"), path = scr.querySelector(".path"); // el camino arranca mostrando tu nivel
@@ -235,6 +236,8 @@ const store = {
     };
     document.getElementById("mQuick").onclick = () => { Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
     document.getElementById("opinar").onclick = () => feedbackScreen(homeScreen);
+    const lvNow = myLevel();
+    shareBtn(`Estoy jugando Nadar por la gloria, el juego de los locos por la natación${lvNow > 1 ? ` (voy por el nivel ${lvNow}, ${stageOf(lvNow).name} ${stageOf(lvNow).icon})` : ""}. ¿Te sumás?`, "shareHome");
     scr.querySelectorAll("[data-b]").forEach((b) => b.onclick = () => {
       boardKey = b.dataset.b; scr.querySelectorAll("[data-b]").forEach((x) => x.classList.toggle("on", x === b)); fillBoard();
     });
@@ -290,8 +293,8 @@ const store = {
     };
   }
   // Compartir el resultado con el link al juego.
-  function shareBtn(text) {
-    const b = document.getElementById("share"); if (!b) return;
+  function shareBtn(text, id = "share") {
+    const b = document.getElementById(id); if (!b) return;
     b.onclick = async () => { const r = await Nube.share(text); if (r === "copiado") b.textContent = "✔ LINK COPIADO"; };
   }
 
