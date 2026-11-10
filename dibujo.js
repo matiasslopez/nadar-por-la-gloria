@@ -114,7 +114,18 @@ function render(ctx, race, W, H) {
       drawItem(ctx, r.drop.kind, 0, 0, ppm * 0.4); ctx.restore();
     }
   }
+  // el fantasma del reto: tu amigo como nadó él, medio transparente (no choca ni agarra nada)
+  const gh = race.ghost && ghostNow(race);
+  if (gh && !gh.onBlock) {
+    ctx.save(); ctx.globalAlpha = 0.45;
+    ctx.translate(sx(gh.finished ? gh.pp : pos(gh)), sy(gh.u)); if (gh.dir < 0) ctx.scale(-1, 1);
+    if (gh.finished) drawAtWall(ctx, gh, ppm, t, race.t - gh.finishT, false);
+    else if (gh.walk) drawWalker(ctx, gh, 0, 0, ppm, t); else drawSwimmer(ctx, gh, 0, 0, ppm, t);
+    ctx.restore();
+  }
   drawParts(ctx, sx, sy, true);
+  // su cara va abajo, para no taparse con la tuya
+  if (gh) { ctx.save(); ctx.globalAlpha = 0.7; drawTags(ctx, gh, sx(gh.onBlock ? 1.2 : pos(gh)), sy(gh.u), ppm, t, Infinity); ctx.restore(); }
   for (const r of race.racers) drawTags(ctx, r, sx(r.onBlock ? 1.2 : pos(r)), sy(r.u), ppm, t, top); // antes de largar, las caras al lado del partidor
   drawPushBar(ctx, race, p, sx(p.onBlock ? 1.2 : pos(p)), sy(p.u), ppm, t, W, H);
   drawStreaks(ctx, race, W, H, dt);
@@ -774,7 +785,7 @@ function drawTags(ctx, r, x, y, ppm, t, top) {
   const fxp = x - L * 0.05;
   drawFaceBadge(ctx, r, fxp, fy, size, t);
   ctx.save(); ctx.font = "bold 10px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  const label = r.isPlayer ? "VOS" : r.ch.name, ly = above ? fy - size / 2 - 8 : fy + size / 2 + 8;
+  const label = r.isPlayer ? "VOS" : r.ghost ? "👻 " + r.alias.toUpperCase() : r.ch.name, ly = above ? fy - size / 2 - 8 : fy + size / 2 + 8;
   ctx.fillStyle = r.isPlayer ? "#FFD84A" : "#fff"; ctx.strokeStyle = "#0009"; ctx.lineWidth = 3;
   ctx.strokeText(label, fxp, ly); ctx.fillText(label, fxp, ly);
   if (r.stun) { ctx.fillStyle = "#FFD84A"; for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; ctx.beginPath(); ctx.arc(x + dr * L * 0.36 + Math.cos(a) * 12, y + Math.sin(a) * 8, 3, 0, 7); ctx.fill(); } }
@@ -822,7 +833,7 @@ function drawTags(ctx, r, x, y, ppm, t, top) {
 }
 
 function drawHud(ctx, race, W, H) {
-  const p = race.racers[0], st = standings(race), pos = st.indexOf(p) + 1;
+  const p = race.racers[0], st = standings(race), pos = race.ghost ? (ghostAhead(race) ? 2 : 1) : st.indexOf(p) + 1;
   ctx.save();
   // franja de arriba
   const g = ctx.createLinearGradient(0, 0, 0, POOL_TOP);
@@ -848,6 +859,8 @@ function drawHud(ctx, race, W, H) {
     ctx.font = "bold 12px system-ui, sans-serif"; ctx.textAlign = "right"; ctx.fillStyle = "#CFE9FF"; ctx.lineWidth = 3; ctx.strokeStyle = "#0008";
     ctx.strokeText("LARGO " + lap + " DE " + race.laps, bx + bw, by + 20); ctx.fillText("LARGO " + lap + " DE " + race.laps, bx + bw, by + 20);
   }
+  const gh = race.ghost && ghostNow(race);
+  if (gh) { ctx.save(); ctx.globalAlpha = 0.6; drawFaceBadge(ctx, gh, bx + bw * clamp(gh.x / race.len, 0, 1), by, 18, race.t); ctx.restore(); }
   for (const r of race.racers.slice().reverse()) drawFaceBadge(ctx, r, bx + bw * clamp(r.x / race.len, 0, 1), by, r.isPlayer ? 22 : 18, race.t);
   // la pila de aire: grande, por segmentos, y abajo cuánto gasta o si recarga (en los primeros niveles no se gasta: no se muestra)
   if (race.air) {

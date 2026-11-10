@@ -21,6 +21,8 @@ const Nube = (() => {
   // las pruebas en la compu (localhost o un archivo abierto) no cuentan en las métricas
   // (y la copia de prueba en /prueba/, que se publica aparte para validar antes)
   const TEST = location.pathname.includes("/prueba/") || location.protocol === "file:" || /^(localhost|127\.0\.0\.1|\[::1\])$|\.localhost$/.test(location.hostname);
+  // los retos de la copia de prueba van aparte, para no mezclarlos con los de verdad
+  const RETOS = TEST ? "retosPrueba" : "retos";
   function traffic() {
     const ua = navigator.userAgent || "", q = new URLSearchParams(location.search);
     let src = (q.get("s") || "").slice(0, 20);
@@ -55,7 +57,8 @@ const Nube = (() => {
   })();
 
   // Una carrera terminada. run: { alias, char, mode, dist, place, time, cup, lvl, dive, turns } (lvl: el nivel del camino, 0 si es práctica o copa)
-  async function saveRun(run) {
+  // Las carreras de un reto no van a los récords del grupo (board: false): se nadan sin rivales.
+  async function saveRun(run, { board: toBoard = true } = {}) {
     if (!(await ready)) return;
     if (!TEST) try {
       const b = fs.writeBatch(db), dev = device(), at = new Date().toISOString();
@@ -64,7 +67,7 @@ const Nube = (() => {
       await b.commit();
     } catch (e) {}
     // récord del grupo: solo en la práctica libre y la copa, si tiene apodo y mejoró su marca en ese modo
-    if (run.lvl || !run.alias || run.time == null) return;
+    if (!toBoard || run.lvl || !run.alias || run.time == null) return;
     const key = run.mode + "-" + run.dist, mine = +(st("npg-best-" + key) || 1e9);
     if (run.time >= mine) return;
     try {
@@ -143,13 +146,55 @@ const Nube = (() => {
       await b.commit(); return true;
     } catch (e) { return false; }
   }
-  // Compartir: el menú del celu si hay, si no se copia el texto con el link.
-  async function share(text) {
-    const url = location.origin + location.pathname + "?s=compartido&r=" + device().slice(-5);
+  // Retos: una carrera grabada que otro nada contra tu fantasma. Una escritura al crearlo, una lectura al abrirlo
+  // y una escritura cada vez que alguien lo juega (suma a las veces jugadas y deja quién fue el último).
+  // Se borran solos a los 60 días (exp), si en Firebase está prendida la regla de borrado (TTL).
+  // r: { alias, char, lvl, mode, dist, seed, time, track } · devuelve el código del reto o null
+  async function saveReto(r) {
+    if (!(await ready)) return null;
+    const id = Array.from({ length: 8 }, () => "abcdefghijkmnpqrstuvwxyz23456789"[Math.floor(Math.random() * 32)]).join(""), dev = device();
+    try {
+      const b = fs.writeBatch(db);
+      b.set(fs.doc(db, "limr", dev), { t: fs.serverTimestamp() });
+      b.set(fs.doc(db, RETOS, id), { ...r, from: dev, at: new Date().toISOString(), plays: 0, wins: 0, exp: fs.Timestamp.fromMillis(Date.now() + 60 * 864e5) });
+      await b.commit();
+      const mine = myRetos(); mine.unshift(id); st("npg-retos", JSON.stringify(mine.slice(0, 5)));
+      return id;
+    } catch (e) { return null; }
+  }
+  const myRetos = () => { try { return JSON.parse(st("npg-retos") || "[]"); } catch (e) { return []; } };
+  const retoCache = {};
+  // Un reto por su código (null si no existe o no hay conexión). fresh: sin usar lo que ya se leyó.
+  async function reto(id, fresh) {
+    if (!/^[a-z0-9]{8}$/.test(id || "") || !(await ready)) return null;
+    const c = retoCache[id];
+    if (c && !fresh && Date.now() - c.at < 60e3) return c.d; // el inicio se abre seguido: no volver a leer en el mismo minuto
+    try { const d = await fs.getDoc(fs.doc(db, RETOS, id)); const x = d.exists() ? { id, ...d.data() } : null; retoCache[id] = { d: x, at: Date.now() }; return x; } catch (e) { return null; }
+  }
+  // Alguien jugó el reto: res { alias, char, time, won }
+  async function retoPlayed(id, res) {
+    if (!(await ready)) return false;
+    const dev = device();
+    try {
+      const b = fs.writeBatch(db);
+      b.set(fs.doc(db, "limr", dev), { t: fs.serverTimestamp() });
+      b.update(fs.doc(db, RETOS, id), { plays: fs.increment(1), wins: fs.increment(res.won ? 1 : 0), last: { ...res, dev, at: new Date().toISOString() } });
+      await b.commit(); delete retoCache[id]; return true;
+    } catch (e) { return false; }
+  }
+  // Los últimos retos que mandaste, para ver quién los jugó.
+  async function myRetosNow() {
+    const out = [];
+    for (const id of myRetos().slice(0, 3)) { const x = await reto(id); if (x) out.push(x); }
+    return out;
+  }
+  // Compartir: el menú del celu si hay, si no se copia el texto con el link. extra: más cosas para el link (el reto).
+  async function share(text, extra = "") {
+    const url = location.origin + location.pathname + "?s=" + (extra ? "reto" : "compartido") + "&r=" + device().slice(-5) + extra;
     st("npg-shares", +(st("npg-shares") || 0) + 1);
     if (db && !TEST) fs.setDoc(fs.doc(db, "visits", device()), { shares: fs.increment(1) }, { merge: true }).catch(() => {});
     try { if (navigator.share) { await navigator.share({ title: "Nadar por la gloria", text, url }); return "ok"; } } catch (e) { return "no"; }
     try { await navigator.clipboard.writeText(text + " " + url); return "copiado"; } catch (e) { return "no"; }
   }
-  return { ready, saveRun, board, saveProgress, players, feedback, share, signIn, signOut, account, aliasFree, online: () => !!db, canSignIn: () => !!auth };
+  return { ready, saveRun, board, saveProgress, players, feedback, share, saveReto, reto, retoPlayed, myRetosNow, signIn, signOut, account, aliasFree, online: () => !!db, canSignIn: () => !!auth };
 })();

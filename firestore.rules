@@ -96,11 +96,51 @@ service cloud.firestore {
       allow read, delete: if isAdmin();
       allow update: if false;
     }
+    // Retos: una carrera grabada (el fantasma) para que otro la nade. Se leen de a uno, por su código (nadie los lista).
+    // Al jugarlo solo se suma uno a las veces jugadas (y a las que le ganaron) y queda quién fue el último.
+    // Como mucho un reto creado o jugado cada 15 s por dispositivo. exp: se borra solo a los 60 días (TTL de Firestore).
+    // retosPrueba: los de la copia de prueba, aparte.
+    function okRetoCol(c) { return c in ['retos', 'retosPrueba']; }
+    function limrNow(dev) { return getAfter(/databases/$(database)/documents/limr/$(dev)).data.t == request.time; }
+    match /{col}/{id} {
+      allow get: if okRetoCol(col);
+      allow create: if okRetoCol(col) && id.matches('[a-z0-9]{8}')
+        && request.resource.data.keys().hasOnly(['alias', 'char', 'lvl', 'mode', 'dist', 'seed', 'time', 'track', 'from', 'at', 'plays', 'wins', 'exp'])
+        && okAlias(request.resource.data.alias) && request.resource.data.alias.size() > 0 && okChar(request.resource.data.char)
+        && okMode(request.resource.data.mode)
+        && request.resource.data.lvl is int && request.resource.data.lvl >= 0 && request.resource.data.lvl <= 100000
+        && request.resource.data.dist is int && request.resource.data.dist >= 20 && request.resource.data.dist <= 400
+        && request.resource.data.seed is int
+        && request.resource.data.time is number && request.resource.data.time >= request.resource.data.dist / 8 && request.resource.data.time <= 200
+        && request.resource.data.track is string && request.resource.data.track.size() <= 6000
+        && request.resource.data.from is string && request.resource.data.from.size() <= 40
+        && request.resource.data.at is string && request.resource.data.at.size() <= 30
+        && request.resource.data.plays == 0 && request.resource.data.wins == 0
+        && request.resource.data.exp is timestamp && request.resource.data.exp <= request.time + duration.value(61, 'd')
+        && limrNow(request.resource.data.from);
+      allow update: if okRetoCol(col)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['plays', 'wins', 'last'])
+        && request.resource.data.plays == resource.data.plays + 1
+        && (request.resource.data.wins == resource.data.wins || request.resource.data.wins == resource.data.wins + 1)
+        && request.resource.data.last.keys().hasOnly(['alias', 'char', 'time', 'won', 'dev', 'at'])
+        && okAlias(request.resource.data.last.alias) && okChar(request.resource.data.last.char)
+        && request.resource.data.last.time is number && request.resource.data.last.won is bool
+        && request.resource.data.last.dev is string && request.resource.data.last.dev.size() <= 40
+        && request.resource.data.last.at is string && request.resource.data.last.at.size() <= 30
+        && limrNow(request.resource.data.last.dev);
+      allow delete: if okRetoCol(col) && isAdmin();
+    }
     // Límite de frecuencia: una marca de tiempo por dispositivo
     match /lim/{dev} {
       allow create: if request.resource.data.keys().hasOnly(['t']) && request.resource.data.t == request.time;
       allow update: if request.resource.data.keys().hasOnly(['t']) && request.resource.data.t == request.time
         && request.time > resource.data.t + duration.value(8, 's');
+      allow read, delete: if false;
+    }
+    match /limr/{dev} {
+      allow create: if request.resource.data.keys().hasOnly(['t']) && request.resource.data.t == request.time;
+      allow update: if request.resource.data.keys().hasOnly(['t']) && request.resource.data.t == request.time
+        && request.time > resource.data.t + duration.value(15, 's');
       allow read, delete: if false;
     }
     match /limf/{dev} {

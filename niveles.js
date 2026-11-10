@@ -194,14 +194,15 @@ function autoLevel(n) {
 function levelDef(n) { return { ...BASE, ...(HAND_MADE[n - 1] || autoLevel(n)), n }; }
 
 // La carrera de un nivel: con los rivales elegidos (vs) si el nivel los tiene; si vos sos uno de ellos, toca el otro.
-function levelRace(ch, L) {
+// extra: más opciones para newRace (la semilla de un reto).
+function levelRace(ch, L, extra = {}) {
   let rivals;
   if (L.vs) {
     rivals = L.vs.map((id) => CHARS.find((c) => c.id === id)).filter((c) => c !== ch).slice(0, L.r);
     if (rivals.length < L.r) rivals.push(...drawRivals(ch, 3).filter((c) => !rivals.includes(c)).slice(0, L.r - rivals.length));
   }
   return newRace(ch, CIRCUITS[L.c], rivals, L.len, { pool: L.pool, rivals: L.r, skill: L.skill, pace: L.pace, fly: L.fly, pecho: L.pecho,
-    air: L.air, items: L.items, quirks: L.quirks, gap: L.gap, river: L.river, drill: L.drill, buoys: L.buoys });
+    air: L.air, items: L.items, quirks: L.quirks, gap: L.gap, river: L.river, drill: L.drill, buoys: L.buoys, ...extra });
 }
 
 // Lo que aprendiste hasta el nivel n (para la práctica libre): el pecho en el 7 y la mariposa en el 8.
