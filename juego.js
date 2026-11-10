@@ -223,7 +223,7 @@ const store = {
       <div class="cols"><div class="side"><div class="rank"><b>EL GRUPO: QUIÉN VA MÁS LEJOS</b><div id="players"><small>Cargando…</small></div></div></div>
       <div class="side"><div class="rank"><b>RÉCORDS DEL GRUPO</b><div class="circs boards">${BOARDS.map(([k, n]) => `<button class="circ ${k === boardKey ? "on" : ""}" data-b="${k}">${n}</button>`).join("")}</div><div id="board"><small>Cargando…</small></div></div></div></div>
       ${cupOpen ? "" : `<button class="link" id="mQuick">Práctica libre (no suma nivel)</button>`}
-      <button class="link" id="shareHome">📣 Compartí el juego con el grupo</button>
+      <button class="link" id="shareHome">📣 ¿Te gustó el juego? Compartilo con tus amigos</button>
       <button class="link" id="opinar">💬 Contanos qué te parece el juego</button>`));
     aliasField("alias");
     // sin apodo no se nada: así cada uno aparece en el ranking y se sabe quién juega
