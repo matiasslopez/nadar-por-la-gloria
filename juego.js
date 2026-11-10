@@ -192,6 +192,7 @@ const store = {
   // Inicio → camino (nivel → carrera → estrellas) · copa (desde Pre nadador) · práctica libre (no suma).
   // La copa son 3 carreras con los mismos rivales.
   let race = null, player = null, chosen = null, lastCount = 99, endShown = false, level = null, after = null;
+  let challenge = null; // el reto que estás nadando: { id, alias, lvl, mode, dist, seed, time, ghost }
   let mode = "level", cup = null, quickCirc = store.get("npg-circ") || "sprint";
   if (!CIRCUITS[quickCirc]) quickCirc = "sprint";
   chosen = CHARS.find((c) => c.id === store.get("npg-char")) || null;
@@ -229,14 +230,16 @@ const store = {
   }
 
   function homeScreen() {
-    race = null; cup = null; level = null;
-    const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL;
+    race = null; cup = null; level = null; challenge = null;
+    if (/[?&](desafio|reto)=/.test(location.search)) try { history.replaceState(null, "", location.pathname); } catch (e) {} // si recarga, no vuelve al reto
+    const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL, retoOpen = lv >= RETO_LEVEL;
     show(split(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Locos por la natación</p>
       ${stageBox()}${pathHtml()}
       <button class="go big" id="play">▶ NIVEL ${lv}<small>${L.learn}</small></button>
       <div class="modes">
         <button class="mode ${cupOpen ? "cupon" : "alt locked"}" id="mCup">${cupOpen ? "🏆 COPA<small>3 carreras seguidas contra los mismos rivales</small>" : `🔒 COPA<small>Se abre en el nivel ${CUP_LEVEL}, cuando seas Pre nadador</small>`}</button>
         ${cupOpen ? `<button class="mode alt" id="mQuick">PRÁCTICA LIBRE<small>Elegís el modo · no suma nivel</small></button>` : ""}
+        <button class="mode ${retoOpen ? "retoon" : "alt locked"}" id="mReto">${retoOpen ? "⚔️ DESAFÍOS<small>Desafiá a un amigo a superar tu reflejo</small>" : `🔒 DESAFÍOS<small>Se abren en el nivel ${RETO_LEVEL}, cuando seas Nadador</small>`}</button>
       </div>
       <p class="err" id="aliasErr" hidden></p>`, `
       <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Obligatorio: así salís en el ranking"></label>
@@ -244,6 +247,7 @@ const store = {
       <p class="acct" id="acct"></p>
       <div class="cols"><div class="side"><div class="rank"><b>EL GRUPO: QUIÉN VA MÁS LEJOS</b><div id="players"><small>Cargando…</small></div></div></div>
       <div class="side"><div class="rank"><b>RÉCORDS DEL GRUPO</b><div class="circs boards">${BOARDS.map(([k, n]) => `<button class="circ ${k === boardKey ? "on" : ""}" data-b="${k}">${n}</button>`).join("")}</div><div id="board"><small>Cargando…</small></div></div></div></div>
+      <div class="rank retos" id="retos" hidden></div>
       ${cupOpen ? "" : `<button class="link" id="mQuick">Práctica libre (no suma nivel)</button>`}
       <button class="link" id="shareHome">📣 ¿Te gustó el juego? Compartilo con tus amigos</button>
       <button class="link" id="opinar">💬 Contanos qué te parece el juego</button>`));
@@ -266,6 +270,13 @@ const store = {
       if (noAlias("jugar la copa")) return;
       Sound.unlock(); goFull(); mode = "cup"; selectScreen();
     };
+    document.getElementById("mReto").onclick = () => {
+      const err = document.getElementById("aliasErr");
+      if (!retoOpen) { err.textContent = `Con los desafíos le mandás a un amigo una carrera que hiciste y la nada contra tu reflejo: tiene que superar tu tiempo. Se abren en el nivel ${RETO_LEVEL}, cuando seas Nadador: te ${RETO_LEVEL - lv === 1 ? "falta 1 nivel" : "faltan " + (RETO_LEVEL - lv) + " niveles"}.`; err.hidden = false; return; }
+      if (noAlias("desafiar")) return;
+      // se reta desde el final de cualquier carrera: la práctica libre es lo más rápido para marcar un tiempo
+      Sound.unlock(); goFull(); mode = "quick"; selectScreen();
+    };
     document.getElementById("mQuick").onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
     document.getElementById("opinar").onclick = () => feedbackScreen(homeScreen);
     const lvNow = myLevel();
@@ -273,7 +284,17 @@ const store = {
     scr.querySelectorAll("[data-b]").forEach((b) => b.onclick = () => {
       boardKey = b.dataset.b; scr.querySelectorAll("[data-b]").forEach((x) => x.classList.toggle("on", x === b)); fillBoard();
     });
-    fillBoard(); fillPlayers(); fillAccount();
+    fillBoard(); fillPlayers(); fillAccount(); fillRetos();
+  }
+  // Los últimos retos que mandaste: cuántos lo jugaron, cuántos te ganaron y quién fue el último.
+  async function fillRetos() {
+    const list = await Nube.myRetosNow(), el = document.getElementById("retos");
+    if (!el || !list.length) return;
+    el.hidden = false;
+    el.innerHTML = `<b>⚔️ TUS DESAFÍOS</b><table>${list.map((x) => { const l = x.last;
+      return `<tr><td>${x.lvl ? "Nivel " + x.lvl : CIRCUITS[x.mode].name} · ${x.time.toFixed(1)} s</td>
+        <td>${x.plays ? `${x.plays === 1 ? "Lo jugaron 1 vez" : "Lo jugaron " + x.plays + " veces"} · te ${x.wins === 1 ? "ganó 1" : "ganaron " + x.wins}` : "Nadie lo jugó todavía"}</td>
+        <td>${l ? `Último: <b>${esc(l.alias)}</b> ${l.time.toFixed(1)} s ${l.won ? "😱 te ganó" : "💪 no pudo"}` : ""}</td></tr>`; }).join("")}</table>`;
   }
 
   // Quién va más lejos en el camino (en la nube): nivel, etapa, estrellas y copas ganadas.
@@ -334,7 +355,7 @@ const store = {
   function selectScreen() {
     race = null;
     const circs = mode === "quick" ? `<div class="circs">${Object.values(CIRCUITS).map((c) => `<button class="circ ${c.id === quickCirc ? "on" : ""}" data-c="${c.id}">${c.name}<small>${c.open ? c.show + " m en el río" : c.len > c.pool ? c.len + " m, ida y vuelta" : c.len + " m, sin vueltas"}</small></button>`).join("")}</div>` : "";
-    const head = mode === "cup" ? "🏆 COPA · " + esc(alias()) : mode === "quick" ? "PRÁCTICA LIBRE · NO SUMA NIVEL" : "NIVEL " + after;
+    const head = mode === "cup" ? "🏆 COPA · " + esc(alias()) : mode === "quick" ? "PRÁCTICA LIBRE · NO SUMA NIVEL" : mode === "reto" ? "⚔️ DESAFÍO DE " + esc(challenge.alias.toUpperCase()) : "NIVEL " + after;
     show(`<p class="sub">${head}</p><h1 class="small">Elegí tu nadador</h1>${circs}
       <div class="grid">${CHARS.map((c) => `<button class="ch ${chosen === c ? "on" : ""}" data-id="${c.id}">${faceImg(c, 56)}<b>${c.name}</b><small>${c.tag}</small>${statBars(c)}<small class="qk">${c.quirk}</small></button>`).join("")}</div>
       <button class="link" id="back">← Volver</button>`);
@@ -342,10 +363,11 @@ const store = {
     scr.querySelectorAll(".ch").forEach((b) => b.onclick = () => {
       Sound.unlock(); chosen = CHARS.find((c) => c.id === b.dataset.id); store.set("npg-char", chosen.id); pushProgress();
       if (mode === "level") { levelScreen(after); return; }
+      if (mode === "reto") { retoIntro(); return; }
       if (mode === "cup") cup = { rivals: drawRivals(chosen), i: 0, pts: {}, done: false };
       drawScreen();
     });
-    document.getElementById("back").onclick = mode === "level" && chosen ? () => levelScreen(after) : homeScreen; // si todavía no eligió, vuelve al inicio
+    document.getElementById("back").onclick = mode === "reto" ? retoIntro : mode === "level" && chosen ? () => levelScreen(after) : homeScreen; // si todavía no eligió, vuelve al inicio
   }
 
   const legendHtml = (goodOnly, air = true) => `<div class="legend">${Object.keys(ITEMS).filter((k) => !goodOnly || ITEMS[k].good).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air && air ? " +AIRE" : ""}</span>`).join("")}</div>`;
@@ -396,6 +418,7 @@ const store = {
   }
   function startRace(draft) {
     race = draft; player = race.racers[0]; lastCount = 99; endShown = false;
+    if (!cup) ghostRec(race); // se graba por si después quiere retar a alguien
     startGuide(); setPaused(false);
     pad.querySelector(".fly").style.display = race.fly ? "" : "none";
     pad.querySelector(".pe").style.display = race.pecho ? "" : "none";
@@ -424,8 +447,9 @@ const store = {
     if (guide.on && mode !== "level") store.set("npg-guia", "vista");
     const qs = player.qs || [], key = race.circ.id + "-" + race.len, myTime = player.finished ? Math.round(player.finishT * 100) / 100 : null;
     Nube.saveRun({ alias: alias().slice(0, 16), char: player.ch.id, mode: race.circ.id, dist: race.len, place: pos, time: myTime, cup: !!cup, lvl: mode === "level" ? level.n : 0,
-      dive: Math.round((qs[0] || 0) * 100) / 100, turns: qs.length > 1 ? Math.round(qs.slice(1).reduce((a, b) => a + b, 0) / (qs.length - 1) * 100) / 100 : null });
+      dive: Math.round((qs[0] || 0) * 100) / 100, turns: qs.length > 1 ? Math.round(qs.slice(1).reduce((a, b) => a + b, 0) / (qs.length - 1) * 100) / 100 : null }, { board: mode !== "reto" });
     if (mode === "level") { levelEndScreen(pos); return; }
+    if (mode === "reto") { retoEndScreen(); return; }
     const prevBest = +(store.get("npg-pb-" + key) || 0); // tu mejor marca en este celu
     if (myTime && (!prevBest || myTime < prevBest)) store.set("npg-pb-" + key, myTime);
     const record = myTime && (!prevBest || myTime < prevBest) ? `<p class="sub rec">⏱️ ¡Tu mejor marca en ${race.circ.name} ${shownLen(race)} m! ${!Nube.online() ? "" : alias() ? "Va a los récords del grupo." : "Poné tu apodo en el inicio para entrar a los récords del grupo."}</p>` : "";
@@ -434,8 +458,8 @@ const store = {
       show(split(`<p class="sub">PRÁCTICA LIBRE</p>${placeTitle(pos)}<p class="sub">${win ? "La gloria es tuya." : "Sin gloria esta vez. ¿La revancha?"}</p>
         ${record}<div class="row"><button class="go" id="again">OTRA VEZ</button><button id="change">CAMBIAR</button>${homeBtn}</div>`,
         `${podium(st.map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) })))}
-        <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
-      shareBtn(shareText); document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
+        <div class="row">${retoHtml()}<button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
+      shareBtn(shareText); retoBtn(); document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
       document.getElementById("again").onclick = drawScreen;
       document.getElementById("change").onclick = selectScreen;
       document.getElementById("home").onclick = homeScreen;
@@ -461,7 +485,7 @@ const store = {
     if (res.n > (sm[L.n] || 0)) { sm[L.n] = res.n; store.set("npg-stars", JSON.stringify(sm)); }
     const up = passed && L.n === before;
     if (up) store.set("npg-lvl", before + 1);
-    const now = myLevel(), newStage = up && stageOf(now) !== stageOf(before) ? stageOf(now) : null, cupNow = up && now === CUP_LEVEL;
+    const now = myLevel(), newStage = up && stageOf(now) !== stageOf(before) ? stageOf(now) : null, cupNow = up && now === CUP_LEVEL, retoNow = up && now === RETO_LEVEL;
     if (passed) pushProgress();
     const checks = [["Terminaste la carrera", true], [goalText(L.two), res.checks[1]], [goalText(L.three), res.checks[2]]];
     const st = standings(race);
@@ -470,14 +494,14 @@ const store = {
       <h1 class="${passed ? "win" : "lose"}">${passed ? (res.n === 3 ? "¡PERFECTO!" : "¡NIVEL SUPERADO!") : "¡CASI!"}</h1>
       ${up ? `<p class="cheer">${CHEERS[Math.floor(Math.random() * CHEERS.length)]}${alias() ? ", " + esc(alias()) : ""}! Ya estás en el nivel ${now}.</p>` : ""}
       <div class="checks">${checks.map(([t, ok], i) => `<span class="${ok ? "ok" : "no"}">${ok ? "✔" : "✘"} ${t}${i === 1 && !passed ? " <em>(para pasar)</em>" : ""}</span>`).join("")}</div>
-      ${newStage ? `<div class="levelup">${confetti()}<b>${newStage.icon} ¡AHORA SOS ${newStage.name}!</b>${cupNow ? `<span>🏆 Se abrió la COPA: jugala desde el inicio.</span>` : ""}</div>` : ""}
+      ${newStage ? `<div class="levelup">${confetti()}<b>${newStage.icon} ¡AHORA SOS ${newStage.name}!</b>${cupNow ? `<span>🏆 Se abrió la COPA: jugala desde el inicio.</span>` : ""}${retoNow ? `<span>⚔️ Se abrieron los DESAFÍOS: al terminar una carrera, desafiá a un amigo a nadar contra tu reflejo.</span>` : ""}</div>` : ""}
       <div class="row">${passed ? `<button class="go" id="next">SIGUIENTE: NIVEL ${L.n + 1}</button><button id="change">REPETIR</button>` : `<button class="go" id="again">OTRA VEZ</button>`}${homeBtn}</div>`, `
       ${now < CUP_LEVEL ? `<p class="sub teaser">🏆 Te ${CUP_LEVEL - now === 1 ? "falta 1 nivel" : "faltan " + (CUP_LEVEL - now) + " niveles"} para que se abra la copa</p>` : ""}
       ${L.r ? podium(st.slice(0, 3).map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) }))) : `<p class="sub">Tu tiempo: ${timeOf(player)}</p>`}
       ${passed && !alias() ? `<label class="alias">TU APODO <input id="alias2" maxlength="16" autocomplete="off" placeholder="Para aparecer en el ranking"></label>` : ""}
       ${up ? googleNudge(now) : ""}
-      <div class="row"><button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
-    aliasField("alias2"); nudgeBtn();
+      <div class="row">${retoHtml()}<button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
+    aliasField("alias2"); nudgeBtn(); retoBtn();
     const st2 = stageOf(now);
     shareBtn(passed ? `Pasé el nivel ${L.n} de Nadar por la gloria con ${res.n} estrella${res.n > 1 ? "s" : ""}: ya soy ${st2.name} ${st2.icon}. ¿Me alcanzás?` : `Estoy en el nivel ${now} de Nadar por la gloria (${st2.name} ${st2.icon}). ¿Me alcanzás?`);
     document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
@@ -485,6 +509,97 @@ const store = {
     const ag = document.getElementById("again") || document.getElementById("change"); ag.onclick = () => levelScreen(L.n);
     document.getElementById("home").onclick = homeScreen;
   }
+  // ---------- el reto ----------
+  // Retar a un amigo: se guarda tu carrera (el reflejo) y se comparte el link; el que lo abre nada la misma pileta contra vos.
+  // Para mandar un desafío hay que entrar con Google (el que lo recibe lo juega sin cuenta).
+  const canReto = () => myLevel() >= RETO_LEVEL && Nube.canSignIn() && race && race.rec && player.finished && player.finishT < GHOST_MAX * GHOST_DT && Nube.online();
+  const retoHtml = (label = "⚔️ DESAFIÁ A UN AMIGO") => canReto() ? `<button id="reto" data-label="${label}">${Nube.account() ? label : "🔐 ENTRÁ CON GOOGLE Y DESAFIÁ"}</button>`
+    : mode === "reto" && myLevel() < RETO_LEVEL ? `<small class="sub">⚔️ Cuando seas Nadador (nivel ${RETO_LEVEL}) vas a poder desafiar vos también.</small>` : "";
+  function retoBtn() {
+    const b = document.getElementById("reto"); if (!b) return;
+    const r = race, p = player, label = b.dataset.label, lvl = mode === "level" ? level.n : mode === "reto" ? challenge.lvl : 0;
+    const t = Math.round(p.finishT * 100) / 100, what = lvl ? `el nivel ${lvl}` : `${r.circ.name} ${shownLen(r)} m`;
+    const text = `⚔️ Te desafío en Nadar por la gloria: hice ${what} en ${t.toFixed(2).replace(".", ",")} s con ${p.ch.name}. Nadá contra mi reflejo y fijate si podés superarme...`;
+    let id = null;
+    b.onclick = async () => {
+      if (!Nube.account()) { // primero entra con Google y sigue de una con el desafío
+        b.disabled = true; b.textContent = "Entrando…";
+        const g = await googleIn();
+        b.disabled = false;
+        if (!g.ok) { b.textContent = g.why === "cancel" ? "🔐 ENTRÁ CON GOOGLE Y DESAFIÁ" : "NO SE PUDO ENTRAR · PROBÁ DE NUEVO"; return; }
+      }
+      if (!id) {
+        if (!alias()) { b.textContent = "PONÉ TU APODO PARA DESAFIAR"; return; }
+        b.disabled = true; b.textContent = "Armando el desafío…";
+        id = await Nube.saveReto({ alias: alias().slice(0, 16), char: p.ch.id, lvl, mode: r.circ.id, dist: r.len, seed: r.seed, time: t, track: r.rec.s });
+        b.disabled = false;
+        if (!id) { b.textContent = "NO SE PUDO · PROBÁ EN UN RATO"; return; }
+      }
+      const res = await Nube.share(text, "&desafio=" + id);
+      // si el celu no deja abrir el menú después de guardar, queda listo para mandarlo con otro toque
+      b.textContent = res === "copiado" ? "✔ LINK DEL DESAFÍO COPIADO" : res === "ok" ? label : "📣 MANDAR EL DESAFÍO";
+    };
+  }
+  // Un reto que te mandaron: se busca en la nube y se muestra contra quién y qué tiempo hay que ganar.
+  async function retoScreen(id) {
+    show(`<h1 class="small">⚔️ Cargando el desafío…</h1>`);
+    const x = await Nube.reto(id, true);
+    if (!x || !x.track) {
+      show(`<h1 class="small">No encontramos el desafío</h1><p class="sub">Puede que el link esté cortado, que el desafío haya vencido (duran 60 días) o que no haya internet.</p>
+        <div class="row"><button class="go" id="home">🏠 IR AL JUEGO</button></div>`);
+      document.getElementById("home").onclick = homeScreen; return;
+    }
+    challenge = { ...x, ghost: makeGhost(x) };
+    retoIntro();
+  }
+  function retoIntro() {
+    mode = "reto"; cup = null; level = null; race = null;
+    const x = challenge, c = x.ghost.ch, L = x.lvl ? levelDef(x.lvl) : null, circ = CIRCUITS[x.mode] || CIRCUITS.sprint;
+    const what = L ? `NIVEL ${x.lvl} · ${L.learn}` : `${circ.name} · ${x.dist} m`;
+    show(split(`<p class="sub">⚔️ TE MANDARON UN DESAFÍO</p><h1 class="small">${esc(x.alias)} te desafía</h1><p class="help">${what}</p>
+      <div class="vs"><div class="card">${faceImg(c, 52)}<b>⚔️ ${esc(x.alias)}</b><small>con ${c.name}</small><b class="goal">${x.time.toFixed(2)} s</b><small>el tiempo a ganar</small></div></div>
+      <p class="sub">Nadás la misma pileta que nadó, contra su reflejo: va como fue, no choca ni te saca nada. Los desafíos no suman para el nivel.${L && x.lvl > myLevel() ? " Si todavía no llegaste a ese, el desafío se juega igual pero no te suma al camino." : ""}</p>`, `
+      <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Obligatorio: así sabe quién le ganó"></label>
+      <p class="err" id="aliasNeed" hidden></p>
+      ${chosen ? `<p class="sub">Nadás con <b>${chosen.name}</b></p>` : ""}
+      <button class="go" id="goRace">${chosen ? "¡ACEPTO EL DESAFÍO!" : "ELEGÍ TU NADADOR"}</button>
+      <div class="row">${chosen ? `<button class="link" id="chg">Cambiar nadador</button>` : ""}<button class="link" id="home">🏠 Ir al inicio</button></div>`));
+    aliasField("alias");
+    document.getElementById("goRace").onclick = () => {
+      if (!alias()) {
+        const err = document.getElementById("aliasNeed"), inp = document.getElementById("alias");
+        err.textContent = "Antes de aceptar, poné tu apodo: así sabe quién le ganó."; err.hidden = false; inp.classList.add("need"); inp.focus(); return;
+      }
+      Sound.unlock(); goFull();
+      if (!chosen) { selectScreen(); return; }
+      retoGo();
+    };
+    const chg = document.getElementById("chg"); if (chg) chg.onclick = selectScreen;
+    document.getElementById("home").onclick = homeScreen;
+  }
+  // La misma carrera que nadó (misma semilla), sin rivales: solo vos y el reflejo.
+  function retoGo() {
+    const x = challenge, L = x.lvl ? levelDef(x.lvl) : null;
+    const r = L ? levelRace(chosen, { ...L, r: 0, vs: null }, { seed: x.seed }) : newRace(chosen, CIRCUITS[x.mode], [], x.dist, { seed: x.seed });
+    r.ghost = x.ghost; startRace(r);
+  }
+  function retoEndScreen() {
+    const x = challenge, g = x.ghost, mine = player.finished ? Math.round(player.finishT * 100) / 100 : null, won = mine !== null && mine < g.time;
+    const who = esc(x.alias.toUpperCase()), diff = mine !== null ? Math.abs(mine - g.time).toFixed(2).replace(".", ",") : "";
+    if (mine !== null) Nube.retoPlayed(x.id, { alias: alias().slice(0, 16), char: player.ch.id, time: mine, won });
+    const rows = [{ ch: player.ch, isPlayer: true, sub: mine === null ? timeOf(player) : mine.toFixed(2) + " s", t: mine === null ? 1e9 : mine }, { ch: { ...g.ch, name: "⚔️ " + who }, isPlayer: false, sub: g.time.toFixed(2) + " s", t: g.time }].sort((a, b) => a.t - b.t);
+    show(split(`<p class="sub">⚔️ DESAFÍO DE ${who}</p>
+      <h1 class="${won ? "win" : "lose"}">${won ? "¡LE GANASTE A " + who + "!" : "TE GANÓ " + who}</h1>
+      <p class="sub">${mine === null ? "No llegaste a terminar." : won ? `Por ${diff} s. Mandale el desafío de vuelta, a ver si te alcanza.` : `Por ${diff} s. ¿La revancha?`}</p>
+      <div class="row"><button class="go" id="again">OTRA VEZ</button>${homeBtn}</div>`,
+      `${podium(rows)}
+      <div class="row">${retoHtml(won ? "⚔️ DEVOLVÉ EL DESAFÍO" : "⚔️ DESAFIÁ A OTRO")}<button id="fb">💬 OPINAR</button></div>`));
+    retoBtn();
+    document.getElementById("again").onclick = retoGo;
+    document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
+    document.getElementById("home").onclick = homeScreen;
+  }
+
   function cupOrder() { return [chosen, ...cup.rivals].sort((a, b) => (cup.pts[b.id] || 0) - (cup.pts[a.id] || 0)); }
   function cupTable() {
     return `<div class="rank"><b>TABLA DE LA COPA</b><table>${cupOrder().map((c, i) => `<tr class="${c === chosen ? "me" : ""}"><td>${i + 1}º</td><td>${faceImg(c, 24)} ${c.name}</td><td>${cup.pts[c.id] || 0} puntos</td></tr>`).join("")}</table></div>`;
@@ -526,7 +641,7 @@ const store = {
     ctx.clearRect(0, 0, W, H);
     if (race) {
       if (!paused) {
-        stepRace(race, dt, input);
+        stepRace(race, dt, input); ghostStep(race);
         const events = race.events; race.events = [];
         input.tap = false;
         playEvents(events); guideStep(dt, events);
@@ -541,12 +656,14 @@ const store = {
       if (bar) setBtn("bbr", true, player.onBlock ? barAt(0, race.t) : barAt(player.barT0, race.t), "¡TOCÁ!");
       else setBtn("bbr", player.air < 0.3 && !player.breathing, player.air, player.breathing ? "RECARGANDO" : "RESPIRAR");
       if (race.over && !endShown && race.t - race.overT > 1.4) {
-        endShown = true; Sound.play(standings(race)[0] === player ? "win" : "lose"); endScreen();
+        endShown = true; Sound.play((race.ghost ? !ghostAhead(race) : standings(race)[0] === player) ? "win" : "lose"); endScreen();
       }
     } else render(ctx, null, W, H);
     requestAnimationFrame(frame);
   }
-  homeScreen();
+  // si entró por el link de un reto, va directo al reto
+  const q = new URLSearchParams(location.search), retoId = q.get("desafio") || q.get("reto"); // reto: los primeros links de prueba
+  if (retoId) retoScreen(retoId); else homeScreen();
   if (typeof Intro !== "undefined") Intro.play(); // la intro, una vez por sesión, encima del inicio
   requestAnimationFrame(frame);
 })();

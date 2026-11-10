@@ -117,11 +117,18 @@ const flyMult = (ch) => 1.63 + TUNE.fm * (ch.fly - 3);
 const flyCost = (ch) => 1.06 - TUNE.fc * (ch.fly - 3);
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const rnd = (a, b) => a + Math.random() * (b - a);
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+// El azar de la pileta sale de una semilla: con la misma semilla, los mismos objetos, boyas y corrientes
+// (así el que acepta un reto nada exactamente la misma carrera que el reflejo).
+let RNG = Math.random;
+function seededRng(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const rnd = (a, b) => a + RNG() * (b - a);
+const pick = (arr) => arr[Math.floor(RNG() * arr.length)];
 function pickItem(goodOnly) {
   const ks = Object.keys(ITEMS).filter((k) => !goodOnly || ITEMS[k].good), tot = ks.reduce((s, k) => s + ITEMS[k].weight, 0);
-  let n = Math.random() * tot;
+  let n = RNG() * tot;
   for (const k of ks) { n -= ITEMS[k].weight; if (n <= 0) return k; }
   return ks[0];
 }
@@ -143,6 +150,7 @@ function poolAt(race, x) {
 //   gap: cada cuántos metros hay cosas flotando · quirks: si les pasan las molestias
 //   drill: "kick" (solo patada), "pull" (solo brazada) o una lista de tramos, p. ej. ["kick", "pull", "full"]
 //   buoys: [desde, hasta] (en partes de la carrera) donde hay boyas fijas, y cada cuántos metros (sep)
+//   seed: la semilla del azar de la pileta (si no se dice, una nueva)
 function makeDrills(len, pool, laps, drill) {
   if (!drill) return [{ x: 0, d: "full" }];
   if (typeof drill === "string") return [{ x: 0, d: drill }];
@@ -153,7 +161,7 @@ function makeDrills(len, pool, laps, drill) {
 function makeBuoys(len, pool, laps, b) {
   if (!b) return [];
   const out = [], sep = b.sep || 3.6, sides = [0.22, 0.78];
-  let k = Math.random() < 0.5 ? 0 : 1;
+  let k = RNG() < 0.5 ? 0 : 1;
   for (let x = len * b.from; x < len * b.to; x += sep * rnd(0.9, 1.1)) {
     if (laps > 1 && (x % pool < 6 || x % pool > pool - 6)) continue; // lejos de las paredes
     out.push({ x, u: clamp(sides[k] + rnd(-0.08, 0.08), 0.15, 0.85) }); k = 1 - k;
@@ -168,6 +176,20 @@ function newRace(playerCh, circ = CIRCUITS.sprint, rivals, len = circ.len, opts 
   const pool = opts.pool || circ.pool || len, laps = Math.max(1, Math.round(len / pool));
   const lanes = START_U[chars.length];
   const skill = opts.skill === undefined ? circ.level : opts.skill, gap = opts.gap || circ.gap, items = opts.items || "all";
+  // primero la pileta y después los nadadores (el jugador primero): así la pileta y tu molestia salen iguales con la misma semilla,
+  // haya los rivales que haya
+  const seed = opts.seed || 1 + Math.floor(Math.random() * 2147483646);
+  RNG = seededRng(seed);
+  const objs = [], buoys = makeBuoys(len, pool, laps, opts.buoys);
+  if (items !== "none") for (let x = 8; x < len - 4; x += rnd(gap[0], gap[1])) {
+    if (laps > 1 && (x % pool < 5 || x % pool > pool - 4)) continue; // nada pegado a las paredes
+    if (buoys.some((g) => Math.abs(g.x - x) < 1.6)) continue; // ni encima de las boyas
+    const n = RNG() < 0.4 ? 2 : 1, used = [];
+    for (let k = 0; k < n; k++) {
+      let u; do u = rnd(0.12, 0.88); while (used.some((v) => Math.abs(v - u) < 0.25));
+      used.push(u); objs.push({ kind: pickItem(items === "good"), x: x + rnd(-0.8, 0.8), u });
+    }
+  }
   const racers = chars.map((ch, i) => ({
     ch, isPlayer: i === 0, x: 1.5, u: lanes[i], v: 0, air: 1, fly: false, pecho: false,
     onBlock: true, pp: 1.5, dir: 1, nextWall: laps > 1 ? pool : Infinity, wallBar: false, barT0: 0, turnQ: null, prevB: false, push: null, steer: 0,
@@ -177,17 +199,8 @@ function newRace(playerCh, circ = CIRCUITS.sprint, rivals, len = circ.len, opts 
     goods: 0, bads: 0, hits: 0, effort: 0, gate: 0, drill: null, quirked: false, quirkX: len * rnd(0.3, 0.75), aheadN: 0,
     ai: { wantU: lanes[i], diveAt: aiTap(skill), turnAt: 0 }
   }));
-  const objs = [], buoys = makeBuoys(len, pool, laps, opts.buoys);
-  if (items !== "none") for (let x = 8; x < len - 4; x += rnd(gap[0], gap[1])) {
-    if (laps > 1 && (x % pool < 5 || x % pool > pool - 4)) continue; // nada pegado a las paredes
-    if (buoys.some((g) => Math.abs(g.x - x) < 1.6)) continue; // ni encima de las boyas
-    const n = Math.random() < 0.4 ? 2 : 1, used = [];
-    for (let k = 0; k < n; k++) {
-      let u; do u = rnd(0.12, 0.88); while (used.some((v) => Math.abs(v - u) < 0.25));
-      used.push(u); objs.push({ kind: pickItem(items === "good"), x: x + rnd(-0.8, 0.8), u });
-    }
-  }
-  return { t: -3, len, pool, laps, circ, racers, objs, buoys, drills: makeDrills(len, pool, laps, opts.drill), sign: null, over: false, overT: 0, events: [], cur: 0, against: 0, curPlan: null,
+  RNG = Math.random;
+  return { seed, rng: seededRng(seed + 1), t: -3, len, pool, laps, circ, racers, objs, buoys, drills: makeDrills(len, pool, laps, opts.drill), sign: null, over: false, overT: 0, events: [], cur: 0, against: 0, curPlan: null,
     skill, pace: opts.pace || 1, river: opts.river || "mix", fly: opts.fly !== false, pecho: opts.pecho !== false, air: opts.air !== false, quirks: opts.quirks !== false };
 }
 
@@ -230,11 +243,13 @@ const RIVERS = { favor: ["with"], side: ["up", "down"], against: ["against", "ca
 function stepCurrent(race, dt) {
   const c = race.circ, kinds = RIVERS[race.river] || RIVERS.mix;
   if (!race.curPlan || race.t >= race.curPlan.until) {
+    RNG = race.rng; // las corrientes también salen de la semilla
     const prev = race.curPlan ? race.curPlan.kind : null, opts = kinds.filter((k) => k !== prev);
     const kind = !prev ? (race.river && race.river !== "mix" ? kinds[0] : pick(["up", "down"])) : opts.length ? pick(opts) : prev;
     const next = CURRENTS.find((k) => k.kind === kind);
     race.curPlan = { ...next, until: race.t + rnd(6, 10), at: race.t };
     if (kind !== prev) race.events.push({ kind: "current", r: null, say: next.say });
+    RNG = Math.random;
   }
   const k = Math.min(1, dt * 0.8); // cambia de a poco
   race.cur += (race.curPlan.side * c.current - race.cur) * k;
@@ -342,7 +357,7 @@ function stepRace(race, dt, input) {
     let drain = 1, mult = 1;
     const aheadN = race.racers.filter((o) => o !== r && o.x > r.x).length;
     if (race.quirks && !r.quirked && !blocked && !r.dive && !r.kick && !r.wallBar && r.x > 8 && r.x < race.len - 6
-        && (ch.id === "luis" ? aheadN > r.aheadN && race.t > 2 : r.x > r.quirkX)) startQuirk(race, r);
+        && (ch.id === "luis" && race.racers.length > 1 ? aheadN > r.aheadN && race.t > 2 : r.x > r.quirkX)) startQuirk(race, r); // nadando solo (o contra un reflejo), a Luis le pasa como a todos
     r.aheadN = aheadN;
     if (r.plancha > 0) r.air = Math.min(1, r.air + dt * 0.3);
     if (!race.air) r.air = 1; // en los primeros niveles todavía no se gasta aire
