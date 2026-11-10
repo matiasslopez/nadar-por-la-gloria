@@ -181,7 +181,8 @@ const store = {
   function show(html) { scr.innerHTML = html; scr.style.display = "flex"; pad.style.display = "none"; keepAwake(false); scr.scrollTop = 0; }
   function aliasField(id) {
     const inp = document.getElementById(id); if (!inp) return;
-    inp.oninput = () => { inp.value = inp.value.replace(/[\/]/g, ""); store.set("npg-apodo", inp.value.trim()); const e = document.getElementById("aliasErr"); if (e) e.hidden = true; };
+    inp.oninput = () => { inp.value = inp.value.replace(/[\/]/g, ""); store.set("npg-apodo", inp.value.trim()); inp.classList.remove("need");
+      for (const k of ["aliasErr", "aliasNeed"]) { const e = document.getElementById(k); if (e) e.hidden = true; } };
     inp.onchange = async () => { if (await Nube.aliasFree(alias())) pushProgress(); else aliasTaken(); };
   }
 
@@ -216,7 +217,8 @@ const store = {
         ${cupOpen ? `<button class="mode alt" id="mQuick">PRÁCTICA LIBRE<small>Elegís el modo · no suma nivel</small></button>` : ""}
       </div>
       <p class="err" id="aliasErr" hidden></p>`, `
-      <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Para el ranking del grupo"></label>
+      <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Obligatorio: así salís en el ranking"></label>
+      <p class="err" id="aliasNeed" hidden></p>
       <p class="acct" id="acct"></p>
       <div class="cols"><div class="side"><div class="rank"><b>EL GRUPO: QUIÉN VA MÁS LEJOS</b><div id="players"><small>Cargando…</small></div></div></div>
       <div class="side"><div class="rank"><b>RÉCORDS DEL GRUPO</b><div class="circs boards">${BOARDS.map(([k, n]) => `<button class="circ ${k === boardKey ? "on" : ""}" data-b="${k}">${n}</button>`).join("")}</div><div id="board"><small>Cargando…</small></div></div></div></div>
@@ -224,17 +226,25 @@ const store = {
       <button class="link" id="shareHome">📣 Compartí el juego con el grupo</button>
       <button class="link" id="opinar">💬 Contanos qué te parece el juego</button>`));
     aliasField("alias");
+    // sin apodo no se nada: así cada uno aparece en el ranking y se sabe quién juega
+    const noAlias = (what) => {
+      if (alias()) return false;
+      const err = document.getElementById("aliasNeed"), inp = document.getElementById("alias");
+      err.textContent = `Antes de ${what}, poné tu apodo: así salís en el ranking del grupo.`; err.hidden = false;
+      inp.classList.add("need"); inp.focus(); inp.scrollIntoView({ block: "center" });
+      return true;
+    };
     const nowB = scr.querySelector(".lv.now"), path = scr.querySelector(".path"); // el camino arranca mostrando tu nivel
     if (nowB && path) path.scrollLeft = nowB.offsetLeft - path.clientWidth / 2 + nowB.offsetWidth / 2;
-    document.getElementById("play").onclick = () => { Sound.unlock(); goFull(); levelScreen(lv); };
-    scr.querySelectorAll(".lv[data-n]").forEach((b) => b.onclick = () => { Sound.unlock(); goFull(); levelScreen(+b.dataset.n); });
+    document.getElementById("play").onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); levelScreen(lv); };
+    scr.querySelectorAll(".lv[data-n]").forEach((b) => b.onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); levelScreen(+b.dataset.n); });
     document.getElementById("mCup").onclick = () => {
       const err = document.getElementById("aliasErr");
       if (!cupOpen) { err.textContent = `La copa se abre en el nivel ${CUP_LEVEL}. Te ${CUP_LEVEL - lv === 1 ? "falta 1 nivel" : "faltan " + (CUP_LEVEL - lv) + " niveles"}: ¡dale que llegás!`; err.hidden = false; return; }
-      if (!alias()) { err.textContent = "Poné tu apodo para jugar la copa."; err.hidden = false; document.getElementById("alias").focus(); return; }
+      if (noAlias("jugar la copa")) return;
       Sound.unlock(); goFull(); mode = "cup"; selectScreen();
     };
-    document.getElementById("mQuick").onclick = () => { Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
+    document.getElementById("mQuick").onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
     document.getElementById("opinar").onclick = () => feedbackScreen(homeScreen);
     const lvNow = myLevel();
     shareBtn(`Estoy jugando Nadar por la gloria, el juego de los locos por la natación${lvNow > 1 ? ` (voy por el nivel ${lvNow}, ${stageOf(lvNow).name} ${stageOf(lvNow).icon})` : ""}. ¿Te sumás?`, "shareHome");
