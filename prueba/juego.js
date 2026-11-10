@@ -232,13 +232,14 @@ const store = {
   function homeScreen() {
     race = null; cup = null; level = null; challenge = null;
     if (/[?&]reto=/.test(location.search)) try { history.replaceState(null, "", location.pathname); } catch (e) {} // si recarga, no vuelve al reto
-    const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL;
+    const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL, retoOpen = lv >= RETO_LEVEL;
     show(split(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Locos por la natación</p>
       ${stageBox()}${pathHtml()}
       <button class="go big" id="play">▶ NIVEL ${lv}<small>${L.learn}</small></button>
       <div class="modes">
         <button class="mode ${cupOpen ? "cupon" : "alt locked"}" id="mCup">${cupOpen ? "🏆 COPA<small>3 carreras seguidas contra los mismos rivales</small>" : `🔒 COPA<small>Se abre en el nivel ${CUP_LEVEL}, cuando seas Pre nadador</small>`}</button>
         ${cupOpen ? `<button class="mode alt" id="mQuick">PRÁCTICA LIBRE<small>Elegís el modo · no suma nivel</small></button>` : ""}
+        <button class="mode ${retoOpen ? "retoon" : "alt locked"}" id="mReto">${retoOpen ? "⚔️ RETOS<small>Retá a un amigo a superar tu reflejo</small>" : `🔒 RETOS<small>Se abren en el nivel ${RETO_LEVEL}, cuando seas Nadador</small>`}</button>
       </div>
       <p class="err" id="aliasErr" hidden></p>`, `
       <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Obligatorio: así salís en el ranking"></label>
@@ -268,6 +269,13 @@ const store = {
       if (!cupOpen) { err.textContent = `La copa se abre en el nivel ${CUP_LEVEL}. Te ${CUP_LEVEL - lv === 1 ? "falta 1 nivel" : "faltan " + (CUP_LEVEL - lv) + " niveles"}: ¡dale que llegás!`; err.hidden = false; return; }
       if (noAlias("jugar la copa")) return;
       Sound.unlock(); goFull(); mode = "cup"; selectScreen();
+    };
+    document.getElementById("mReto").onclick = () => {
+      const err = document.getElementById("aliasErr");
+      if (!retoOpen) { err.textContent = `Los retos se abren en el nivel ${RETO_LEVEL}, cuando seas Nadador. Te ${RETO_LEVEL - lv === 1 ? "falta 1 nivel" : "faltan " + (RETO_LEVEL - lv) + " niveles"}.`; err.hidden = false; return; }
+      if (noAlias("retar")) return;
+      // se reta desde el final de cualquier carrera: la práctica libre es lo más rápido para marcar un tiempo
+      Sound.unlock(); goFull(); mode = "quick"; selectScreen();
     };
     document.getElementById("mQuick").onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
     document.getElementById("opinar").onclick = () => feedbackScreen(homeScreen);
@@ -477,7 +485,7 @@ const store = {
     if (res.n > (sm[L.n] || 0)) { sm[L.n] = res.n; store.set("npg-stars", JSON.stringify(sm)); }
     const up = passed && L.n === before;
     if (up) store.set("npg-lvl", before + 1);
-    const now = myLevel(), newStage = up && stageOf(now) !== stageOf(before) ? stageOf(now) : null, cupNow = up && now === CUP_LEVEL;
+    const now = myLevel(), newStage = up && stageOf(now) !== stageOf(before) ? stageOf(now) : null, cupNow = up && now === CUP_LEVEL, retoNow = up && now === RETO_LEVEL;
     if (passed) pushProgress();
     const checks = [["Terminaste la carrera", true], [goalText(L.two), res.checks[1]], [goalText(L.three), res.checks[2]]];
     const st = standings(race);
@@ -486,7 +494,7 @@ const store = {
       <h1 class="${passed ? "win" : "lose"}">${passed ? (res.n === 3 ? "¡PERFECTO!" : "¡NIVEL SUPERADO!") : "¡CASI!"}</h1>
       ${up ? `<p class="cheer">${CHEERS[Math.floor(Math.random() * CHEERS.length)]}${alias() ? ", " + esc(alias()) : ""}! Ya estás en el nivel ${now}.</p>` : ""}
       <div class="checks">${checks.map(([t, ok], i) => `<span class="${ok ? "ok" : "no"}">${ok ? "✔" : "✘"} ${t}${i === 1 && !passed ? " <em>(para pasar)</em>" : ""}</span>`).join("")}</div>
-      ${newStage ? `<div class="levelup">${confetti()}<b>${newStage.icon} ¡AHORA SOS ${newStage.name}!</b>${cupNow ? `<span>🏆 Se abrió la COPA: jugala desde el inicio.</span>` : ""}</div>` : ""}
+      ${newStage ? `<div class="levelup">${confetti()}<b>${newStage.icon} ¡AHORA SOS ${newStage.name}!</b>${cupNow ? `<span>🏆 Se abrió la COPA: jugala desde el inicio.</span>` : ""}${retoNow ? `<span>⚔️ Se abrieron los RETOS: al terminar una carrera, retá a un amigo a nadar contra tu reflejo.</span>` : ""}</div>` : ""}
       <div class="row">${passed ? `<button class="go" id="next">SIGUIENTE: NIVEL ${L.n + 1}</button><button id="change">REPETIR</button>` : `<button class="go" id="again">OTRA VEZ</button>`}${homeBtn}</div>`, `
       ${now < CUP_LEVEL ? `<p class="sub teaser">🏆 Te ${CUP_LEVEL - now === 1 ? "falta 1 nivel" : "faltan " + (CUP_LEVEL - now) + " niveles"} para que se abra la copa</p>` : ""}
       ${L.r ? podium(st.slice(0, 3).map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) }))) : `<p class="sub">Tu tiempo: ${timeOf(player)}</p>`}
@@ -502,14 +510,15 @@ const store = {
     document.getElementById("home").onclick = homeScreen;
   }
   // ---------- el reto ----------
-  // Retar a un amigo: se guarda tu carrera (el fantasma) y se comparte el link; el que lo abre nada la misma pileta contra vos.
-  const canReto = () => race && race.rec && player.finished && player.finishT < GHOST_MAX * GHOST_DT && Nube.online();
-  const retoHtml = (label = "⚔️ RETÁ A UN AMIGO") => canReto() ? `<button id="reto">${label}</button>` : "";
+  // Retar a un amigo: se guarda tu carrera (el reflejo) y se comparte el link; el que lo abre nada la misma pileta contra vos.
+  const canReto = () => myLevel() >= RETO_LEVEL && race && race.rec && player.finished && player.finishT < GHOST_MAX * GHOST_DT && Nube.online();
+  const retoHtml = (label = "⚔️ RETÁ A UN AMIGO") => canReto() ? `<button id="reto">${label}</button>`
+    : mode === "reto" && myLevel() < RETO_LEVEL ? `<small class="sub">⚔️ Cuando seas Nadador (nivel ${RETO_LEVEL}) vas a poder retar vos también.</small>` : "";
   function retoBtn() {
     const b = document.getElementById("reto"); if (!b) return;
     const r = race, p = player, label = b.textContent, lvl = mode === "level" ? level.n : mode === "reto" ? challenge.lvl : 0;
     const t = Math.round(p.finishT * 100) / 100, what = lvl ? `el nivel ${lvl}` : `${r.circ.name} ${shownLen(r)} m`;
-    const text = `⚔️ ${alias() || "Alguien"} te reta en Nadar por la gloria: hizo ${what} en ${t.toFixed(2).replace(".", ",")} s con ${p.ch.name}. Nadá contra su fantasma: ¿le ganás?`;
+    const text = `⚔️ Te reto en Nadar por la gloria: hice ${what} en ${t.toFixed(2).replace(".", ",")} s con ${p.ch.name}. Nadá contra mi reflejo y fijate si podés superarme...`;
     let id = null;
     b.onclick = async () => {
       if (!id) {
@@ -541,8 +550,8 @@ const store = {
     const x = challenge, c = x.ghost.ch, L = x.lvl ? levelDef(x.lvl) : null, circ = CIRCUITS[x.mode] || CIRCUITS.sprint;
     const what = L ? `NIVEL ${x.lvl} · ${L.learn}` : `${circ.name} · ${x.dist} m`;
     show(split(`<p class="sub">⚔️ TE MANDARON UN RETO</p><h1 class="small">${esc(x.alias)} te reta</h1><p class="help">${what}</p>
-      <div class="vs"><div class="card">${faceImg(c, 52)}<b>👻 ${esc(x.alias)}</b><small>con ${c.name}</small><b class="goal">${x.time.toFixed(2)} s</b><small>el tiempo a ganar</small></div></div>
-      <p class="sub">Nadás la misma pileta que nadó, contra su fantasma: va como fue, no choca ni te saca nada.${L && x.lvl > myLevel() ? " Todavía no llegaste a este nivel: el reto se juega igual, pero no te suma al camino." : ""}</p>`, `
+      <div class="vs"><div class="card">${faceImg(c, 52)}<b>⚔️ ${esc(x.alias)}</b><small>con ${c.name}</small><b class="goal">${x.time.toFixed(2)} s</b><small>el tiempo a ganar</small></div></div>
+      <p class="sub">Nadás la misma pileta que nadó, contra su reflejo: va como fue, no choca ni te saca nada. Los retos no suman para el nivel.${L && x.lvl > myLevel() ? " Si todavía no llegaste a ese, el reto se juega igual pero no te suma al camino." : ""}</p>`, `
       <label class="alias">TU APODO <input id="alias" maxlength="16" autocomplete="off" value="${esc(alias())}" placeholder="Obligatorio: así sabe quién le ganó"></label>
       <p class="err" id="aliasNeed" hidden></p>
       ${chosen ? `<p class="sub">Nadás con <b>${chosen.name}</b></p>` : ""}
@@ -561,7 +570,7 @@ const store = {
     const chg = document.getElementById("chg"); if (chg) chg.onclick = selectScreen;
     document.getElementById("home").onclick = homeScreen;
   }
-  // La misma carrera que nadó (misma semilla), sin rivales: solo vos y el fantasma.
+  // La misma carrera que nadó (misma semilla), sin rivales: solo vos y el reflejo.
   function retoGo() {
     const x = challenge, L = x.lvl ? levelDef(x.lvl) : null;
     const r = L ? levelRace(chosen, { ...L, r: 0, vs: null }, { seed: x.seed }) : newRace(chosen, CIRCUITS[x.mode], [], x.dist, { seed: x.seed });
@@ -571,7 +580,7 @@ const store = {
     const x = challenge, g = x.ghost, mine = player.finished ? Math.round(player.finishT * 100) / 100 : null, won = mine !== null && mine < g.time;
     const who = esc(x.alias.toUpperCase()), diff = mine !== null ? Math.abs(mine - g.time).toFixed(2).replace(".", ",") : "";
     if (mine !== null) Nube.retoPlayed(x.id, { alias: alias().slice(0, 16), char: player.ch.id, time: mine, won });
-    const rows = [{ ch: player.ch, isPlayer: true, sub: mine === null ? timeOf(player) : mine.toFixed(2) + " s", t: mine === null ? 1e9 : mine }, { ch: { ...g.ch, name: "👻 " + who }, isPlayer: false, sub: g.time.toFixed(2) + " s", t: g.time }].sort((a, b) => a.t - b.t);
+    const rows = [{ ch: player.ch, isPlayer: true, sub: mine === null ? timeOf(player) : mine.toFixed(2) + " s", t: mine === null ? 1e9 : mine }, { ch: { ...g.ch, name: "⚔️ " + who }, isPlayer: false, sub: g.time.toFixed(2) + " s", t: g.time }].sort((a, b) => a.t - b.t);
     show(split(`<p class="sub">⚔️ RETO DE ${who}</p>
       <h1 class="${won ? "win" : "lose"}">${won ? "¡LE GANASTE A " + who + "!" : "TE GANÓ " + who}</h1>
       <p class="sub">${mine === null ? "No llegaste a terminar." : won ? `Por ${diff} s. Mandale el reto de vuelta, a ver si te alcanza.` : `Por ${diff} s. ¿La revancha?`}</p>

@@ -118,7 +118,7 @@ const flyCost = (ch) => 1.06 - TUNE.fc * (ch.fly - 3);
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 // El azar de la pileta sale de una semilla: con la misma semilla, los mismos objetos, boyas y corrientes
-// (así el que acepta un reto nada exactamente la misma carrera que el fantasma).
+// (así el que acepta un reto nada exactamente la misma carrera que el reflejo).
 let RNG = Math.random;
 function seededRng(seed) {
   let a = seed >>> 0;
@@ -357,7 +357,7 @@ function stepRace(race, dt, input) {
     let drain = 1, mult = 1;
     const aheadN = race.racers.filter((o) => o !== r && o.x > r.x).length;
     if (race.quirks && !r.quirked && !blocked && !r.dive && !r.kick && !r.wallBar && r.x > 8 && r.x < race.len - 6
-        && (ch.id === "luis" && race.racers.length > 1 ? aheadN > r.aheadN && race.t > 2 : r.x > r.quirkX)) startQuirk(race, r); // nadando solo (o contra un fantasma), a Luis le pasa como a todos
+        && (ch.id === "luis" && race.racers.length > 1 ? aheadN > r.aheadN && race.t > 2 : r.x > r.quirkX)) startQuirk(race, r); // nadando solo (o contra un reflejo), a Luis le pasa como a todos
     r.aheadN = aheadN;
     if (r.plancha > 0) r.air = Math.min(1, r.air + dt * 0.3);
     if (!race.air) r.air = 1; // en los primeros niveles todavía no se gasta aire

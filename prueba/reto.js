@@ -1,4 +1,4 @@
-// Nadar por la gloria — el reto: tu carrera grabada para que un amigo nade contra tu fantasma.
+// Nadar por la gloria — el reto: tu carrera grabada para que un amigo nade contra tu reflejo.
 // Cada décima de segundo se anota cuánto avanzaste, en qué parte del carril ibas y cómo nadabas,
 // en tres letras. Una carrera de un minuto entra en unas 1.800 letras (menos de 2 KB en la nube).
 
@@ -19,7 +19,7 @@ function ghostStep(race) {
   }
 }
 
-// El fantasma de un reto guardado: { alias, char, time, track }.
+// El reflejo de un reto guardado: { alias, char, time, track }.
 function makeGhost(r) {
   const xs = [], us = [], fs = []; let x = 15;
   for (let i = 0; i + 2 < r.track.length; i += 3) {
@@ -27,7 +27,7 @@ function makeGhost(r) {
   }
   return { alias: r.alias, ch: CHARS.find((c) => c.id === r.char) || CHARS[0], time: r.time, xs, us, fs };
 }
-// Dónde va el fantasma ahora, con lo que necesita el dibujo de un nadador.
+// Dónde va el reflejo ahora, con lo que necesita el dibujo de un nadador.
 function ghostNow(race) {
   const g = race.ghost, t = Math.max(0, race.t), n = g.xs.length;
   if (!n) return null;
@@ -39,7 +39,7 @@ function ghostNow(race) {
     onBlock: race.t < 0 || !!(f & GF.block), walk: f & GF.walk ? 1 : 0, stun: f & GF.still ? 1 : 0, plancha: 0, dive: 0, immune: 0,
     objT: 0, objKind: null, drill: drillAt(race, x), finished: done, finishT: g.time, mood: "normal", moodT: 0 };
 }
-// Si el fantasma va adelante del jugador (o llegó antes).
+// Si el reflejo va adelante del jugador (o llegó antes).
 function ghostAhead(race) {
   const p = race.racers[0], g = race.ghost && ghostNow(race);
   if (!g) return false;

@@ -114,7 +114,7 @@ function render(ctx, race, W, H) {
       drawItem(ctx, r.drop.kind, 0, 0, ppm * 0.4); ctx.restore();
     }
   }
-  // el fantasma del reto: tu amigo como nadó él, medio transparente (no choca ni agarra nada)
+  // el reflejo del reto: tu amigo como nadó él, medio transparente (no choca ni agarra nada)
   const gh = race.ghost && ghostNow(race);
   if (gh && !gh.onBlock) {
     ctx.save(); ctx.globalAlpha = 0.45;
@@ -785,7 +785,7 @@ function drawTags(ctx, r, x, y, ppm, t, top) {
   const fxp = x - L * 0.05;
   drawFaceBadge(ctx, r, fxp, fy, size, t);
   ctx.save(); ctx.font = "bold 10px system-ui, sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  const label = r.isPlayer ? "VOS" : r.ghost ? "👻 " + r.alias.toUpperCase() : r.ch.name, ly = above ? fy - size / 2 - 8 : fy + size / 2 + 8;
+  const label = r.isPlayer ? "VOS" : r.ghost ? "⚔️ " + r.alias.toUpperCase() : r.ch.name, ly = above ? fy - size / 2 - 8 : fy + size / 2 + 8;
   ctx.fillStyle = r.isPlayer ? "#FFD84A" : "#fff"; ctx.strokeStyle = "#0009"; ctx.lineWidth = 3;
   ctx.strokeText(label, fxp, ly); ctx.fillText(label, fxp, ly);
   if (r.stun) { ctx.fillStyle = "#FFD84A"; for (let i = 0; i < 3; i++) { const a = t * 6 + i * 2.1; ctx.beginPath(); ctx.arc(x + dr * L * 0.36 + Math.cos(a) * 12, y + Math.sin(a) * 8, 3, 0, 7); ctx.fill(); } }
