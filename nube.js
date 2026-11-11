@@ -195,7 +195,7 @@ const Nube = (() => {
     st("npg-shares", +(st("npg-shares") || 0) + 1);
     if (db && !TEST) fs.setDoc(fs.doc(db, "visits", device()), { shares: fs.increment(1) }, { merge: true }).catch(() => {});
     try { if (navigator.share) { await navigator.share({ title: "Nadar por la gloria", text, url }); return "ok"; } } catch (e) { return "no"; }
-    try { await navigator.clipboard.writeText(text + " " + url); return "copiado"; } catch (e) { return "no"; }
+    try { await navigator.clipboard.writeText(text + (extra ? "\n" : " ") + url); return "copiado"; } catch (e) { return "no"; } // el desafío: el link abajo del mensaje
   }
   return { ready, saveRun, board, saveProgress, players, feedback, share, saveReto, reto, retoPlayed, myRetosNow, signIn, signOut, account, aliasFree, online: () => !!db, canSignIn: () => !!auth };
 })();

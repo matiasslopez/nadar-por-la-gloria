@@ -519,7 +519,7 @@ const store = {
     const b = document.getElementById("reto"); if (!b) return;
     const r = race, p = player, label = b.dataset.label, lvl = mode === "level" ? level.n : mode === "reto" ? challenge.lvl : 0;
     const t = Math.round(p.finishT * 100) / 100, what = lvl ? `el nivel ${lvl}` : `${r.circ.name} ${shownLen(r)} m`;
-    const text = `⚔️ Te desafío en Nadar por la gloria: hice ${what} en ${t.toFixed(2).replace(".", ",")} s con ${p.ch.name}. Nadá contra mi reflejo y fijate si podés superarme...`;
+    const text = `¡Hola! ⚔️ Te desafío a que superes mi performance en ${lvl ? "este nivel" : "esta carrera"} de Nadar por la gloria: hice ${what} en ${t.toFixed(2).replace(".", ",")} s con ${p.ch.name}. Nadá contra mi reflejo y fijate si podés superarme 👇`;
     let id = null;
     b.onclick = async () => {
       if (!Nube.account()) { // primero entra con Google y sigue de una con el desafío
