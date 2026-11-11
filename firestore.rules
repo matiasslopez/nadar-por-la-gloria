@@ -25,10 +25,10 @@ service cloud.firestore {
       allow create: if request.resource.data.keys().hasOnly(['alias', 'char', 'mode', 'dist', 'place', 'time', 'cup', 'lvl', 'dive', 'turns', 'plat', 'device', 'at'])
         && (!('lvl' in request.resource.data) || (request.resource.data.lvl is int && request.resource.data.lvl >= 0 && request.resource.data.lvl <= 100000))
         && okAlias(request.resource.data.alias) && okChar(request.resource.data.char) && okMode(request.resource.data.mode)
-        && request.resource.data.dist is int && request.resource.data.dist >= 50 && request.resource.data.dist <= 400
+        && request.resource.data.dist is int && request.resource.data.dist >= 20 && request.resource.data.dist <= 400
         && request.resource.data.place is int && request.resource.data.place >= 1 && request.resource.data.place <= 4
         && (request.resource.data.time == null || (request.resource.data.time is number
-            && request.resource.data.time >= request.resource.data.dist / 8 && request.resource.data.time <= 1200))
+            && request.resource.data.time >= 5 && request.resource.data.time <= 1200))
         && request.resource.data.device is string && request.resource.data.device.size() <= 40
         && getAfter(/databases/$(database)/documents/lim/$(request.resource.data.device)).data.t == request.time;
       allow update: if false;
@@ -112,7 +112,7 @@ service cloud.firestore {
         && request.resource.data.lvl is int && request.resource.data.lvl >= 0 && request.resource.data.lvl <= 100000
         && request.resource.data.dist is int && request.resource.data.dist >= 20 && request.resource.data.dist <= 400
         && request.resource.data.seed is int
-        && request.resource.data.time is number && request.resource.data.time >= request.resource.data.dist / 8 && request.resource.data.time <= 200
+        && request.resource.data.time is number && request.resource.data.time >= 5 && request.resource.data.time <= 200
         && request.resource.data.track is string && request.resource.data.track.size() <= 6000
         && isAccount(request.resource.data.from)
         && request.resource.data.at is string && request.resource.data.at.size() <= 30
