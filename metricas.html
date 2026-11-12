@@ -27,6 +27,8 @@ h2 { margin: 26px 0 8px; font-size: 17px; color: #8FE3FF; text-transform: upperc
 .days > div { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; font-size: 10px; }
 .days i { display: block; width: 100%; background: #FFD84A; border-radius: 3px 3px 0 0; min-height: 1px; }
 .days i.v { background: #8FE3FF; }
+.days i.p { background: #7CFC6A; }
+.g { font-size: 11px; color: #7CFC6A; margin-left: 4px; }
 .days .pair { display: flex; align-items: flex-end; gap: 1px; width: 100%; flex: 1; }
 .days .pair i { flex: 1; }
 .legend { font-size: 12px; opacity: 0.85; margin-top: 6px; }
@@ -130,13 +132,17 @@ tr.off td { opacity: 0.4; }
     // la lista de quiénes son, con sus aparatos
     const people = {};
     for (const v of allVisits) {
-      const k = personOf(v.id), x = people[k] || (people[k] = { k, name: nameOf[v.id] || null, devs: [], entries: 0, runs: 0, last: "", kinds: new Set() });
+      const k = personOf(v.id), x = people[k] || (people[k] = { k, name: nameOf[v.id] || null, devs: [], entries: 0, runs: 0, last: "", kinds: new Set(), google: false });
       x.devs.push(v.id); x.entries += v.count || 0; if ((v.last || "") > x.last) x.last = v.last || ""; x.kinds.add((v.plat || "?") + " " + (v.os || ""));
+      if (v.acct) x.google = true; // entró con Google en alguno de sus aparatos
     }
     for (const r of allRuns) { const x = people[personOf(r.device)]; if (x) x.runs++; }
+    // los que guardaron su avance en la cuenta (antes de que las visitas anotaran la cuenta)
+    for (const pl of pls) if (pl.v && pl.alias) { const x = people["a:" + pl.alias.trim().toLowerCase()]; if (x) x.google = true; }
     const plist = Object.values(people).map((x) => ({ ...x, off: x.devs.every((d) => h.has(d)) }))
-      .sort((a, b) => (a.off - b.off) || (!a.name - !b.name) || b.entries - a.entries);
-    const live = plist.filter((x) => !x.off), named = live.filter((x) => x.name).length, anon = live.length - named;
+      .sort((a, b) => (a.off - b.off) || b.last.localeCompare(a.last)); // primero los que entraron hace menos
+    const live = plist.filter((x) => !x.off), named = live.filter((x) => x.name).length, anon = live.length - named, withG = live.filter((x) => x.google).length;
+    const ago = (iso) => { const d = Math.floor((now - new Date(iso)) / 864e5); return d <= 0 ? "hoy" : d === 1 ? "ayer" : "hace " + d + " días"; };
     const entries = visits.reduce((a, v) => a + (v.count || 0), 0);
     const back = visits.filter((v) => (v.count || 0) > 1).length;
     const players = new Set(runs.map((r) => r.device));
@@ -156,14 +162,23 @@ tr.off td { opacity: 0.4; }
     const days = [];
     for (let i = 13; i >= 0; i--) days.push(new Date(now - i * 864e5).toLocaleDateString("sv"));
     const nNew = count(visits, (v) => v.first && day(v.first)), nRuns = count(runs, (r) => day(r.at));
+    // personas por día: las que entraron ese día (desde el 12/11 se anota cada día) o corrieron una carrera
+    const act = {}, mark = (d, k) => { if (d) (act[d] = act[d] || new Set()).add(k); };
+    for (const v of visits) { const k = personOf(v.id); for (const d of v.days || []) mark(d, k); mark(v.last && day(v.last), k); }
+    for (const r of runs) mark(day(r.at), personOf(r.device));
+    const nPeople = Object.entries(act).map(([d, set]) => [d, set.size]);
+    const inLast = (n) => { const set = new Set(); for (const [d, s2] of Object.entries(act)) if (now - new Date(d + "T12:00") < n * 864e5) for (const k of s2) set.add(k); return set.size; };
     const get = (list, d) => (list.find((x) => x[0] === d) || [0, 0])[1];
-    const dmax = Math.max(1, ...days.map((d) => Math.max(get(nNew, d), get(nRuns, d))));
+    const dmax = Math.max(1, ...days.map((d) => Math.max(get(nNew, d), get(nRuns, d), get(nPeople, d))));
 
     out.innerHTML = `
       <h2>Gente</h2>
       <div class="tiles">
         ${tile(live.length, "personas, como mucho (cada apodo es una; cada aparato sin apodo cuenta aparte)")}
         ${tile(named, "con apodo o cuenta de Google")}
+        ${tile(withG, "entraron con Google")}
+        ${tile(get(nPeople, days[13]), "personas hoy")}
+        ${tile(inLast(7), "personas en los últimos 7 días")}
         ${tile(anon, "celus o compus que nunca pusieron apodo")}
         ${tile(visits.length, "celus y compus en total")}
         ${tile(visits.filter((v) => v.first && wk(v.first)).length, "celus o compus nuevos en los últimos 7 días")}
@@ -172,9 +187,9 @@ tr.off td { opacity: 0.4; }
         ${tile(pct(players.size, visits.length), "de los aparatos jugaron al menos una carrera")}
       </div>
       <div class="box" style="margin-top:10px"><h3>Quiénes son · tildá "no contar" en tus pruebas o tus aparatos (queda guardado en este navegador)</h3>
-        <table class="who">${plist.map((x) => `<tr class="${x.off ? "off" : ""}"><td>${x.name ? "<b>" + esc(x.name) + "</b>" : "<small>sin apodo</small>"}</td>
+        <table class="who">${plist.map((x) => `<tr class="${x.off ? "off" : ""}"><td>${x.name ? "<b>" + esc(x.name) + "</b>" : "<small>sin apodo</small>"}${x.google ? '<span class="g">✓ Google</span>' : ""}</td>
           <td><small>${x.devs.length} aparato${x.devs.length > 1 ? "s" : ""} · ${esc([...x.kinds].join(", "))}</small></td>
-          <td><small>${x.entries} entradas · ${x.runs} carreras · última ${x.last ? new Date(x.last).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) : "—"}</small></td>
+          <td><small>${x.entries} entrada${x.entries === 1 ? "" : "s"} · ${x.runs} carrera${x.runs === 1 ? "" : "s"} · último ingreso ${x.last ? new Date(x.last).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" }) + " (" + ago(x.last) + ")" : "—"}</small></td>
           <td><label><small>no contar</small> <input type="checkbox" data-k="${esc(x.k)}" ${x.off ? "checked" : ""}></label></td></tr>`).join("")}</table></div>
       <h2>El camino</h2>
       <div class="tiles">
@@ -189,8 +204,8 @@ tr.off td { opacity: 0.4; }
         ${bars("Nivel más alto de cada uno", count(tops, (x) => "nivel " + x).sort((a, b) => +a[0].slice(6) - +b[0].slice(6)))}
       </div>
       <h2>Últimos 14 días</h2>
-      <div class="box"><div class="days">${days.map((d) => `<div><div class="pair"><i class="v" style="height:${get(nNew, d) / dmax * 100}%" title="${get(nNew, d)} aparatos nuevos"></i><i style="height:${get(nRuns, d) / dmax * 100}%" title="${get(nRuns, d)} carreras"></i></div>${+d.slice(8)}</div>`).join("")}</div>
-        <div class="legend"><i style="background:#8FE3FF"></i>celus o compus nuevos<i style="background:#FFD84A"></i>carreras</div></div>
+      <div class="box"><div class="days">${days.map((d) => `<div><div class="pair"><i class="p" style="height:${get(nPeople, d) / dmax * 100}%" title="${get(nPeople, d)} personas"></i><i class="v" style="height:${get(nNew, d) / dmax * 100}%" title="${get(nNew, d)} aparatos nuevos"></i><i style="height:${get(nRuns, d) / dmax * 100}%" title="${get(nRuns, d)} carreras"></i></div>${+d.slice(8)}</div>`).join("")}</div>
+        <div class="legend"><i style="background:#7CFC6A"></i>personas que entraron<i style="background:#8FE3FF"></i>celus o compus nuevos<i style="background:#FFD84A"></i>carreras</div></div>
       <h2>De dónde llegan</h2>
       <div class="cols">
         ${bars("Origen", count(visits, (v) => v.src || "directo"))}

@@ -50,6 +50,7 @@ const Nube = (() => {
       const al = (st("npg-apodo") || "").trim().slice(0, 16);
       if (al) v.alias = al;
       if (user) v.acct = user.uid;
+      v.days = fs.arrayUnion(new Date().toLocaleDateString("sv")); // los días que entró (para contar personas por día)
       await fs.setDoc(fs.doc(db, "visits", device()), v, { merge: true });
       st("npg-visto", "1");
     } catch (e) {}
