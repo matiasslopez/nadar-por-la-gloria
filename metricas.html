@@ -142,7 +142,8 @@ tr.off td { opacity: 0.4; }
     const plist = Object.values(people).map((x) => ({ ...x, off: x.devs.every((d) => h.has(d)) }))
       .sort((a, b) => (a.off - b.off) || b.last.localeCompare(a.last)); // primero los que entraron hace menos
     const live = plist.filter((x) => !x.off), named = live.filter((x) => x.name).length, anon = live.length - named, withG = live.filter((x) => x.google).length;
-    const ago = (iso) => { const d = Math.floor((now - new Date(iso)) / 864e5); return d <= 0 ? "hoy" : d === 1 ? "ayer" : "hace " + d + " días"; };
+    // por día del calendario (no por horas): lo de anoche es "ayer"
+    const ago = (iso) => { const t = new Date(iso), d = Math.round((new Date(new Date(now).toDateString()) - new Date(t.toDateString())) / 864e5); return d <= 0 ? "hoy" : d === 1 ? "ayer" : "hace " + d + " días"; };
     const entries = visits.reduce((a, v) => a + (v.count || 0), 0);
     const back = visits.filter((v) => (v.count || 0) > 1).length;
     const players = new Set(runs.map((r) => r.device));
