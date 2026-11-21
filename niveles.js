@@ -28,7 +28,10 @@ const GOALS = {
   air: { txt: () => "No te quedes nunca sin aire", ok: (p) => !p.ranOut },
   dive: { txt: (n) => n ? "Buena salida (tocá con la barrita bien arriba)" : "Salida perfecta (tocá en el verde)", ok: (p, pos, n) => (p.qs || [])[0] > (n || 0.88) },
   buoys: { txt: (n) => n ? `No choques más de ${n} boya${n > 1 ? "s" : ""}` : "No choques ninguna boya", ok: (p, pos, n) => p.hits <= n },
-  turns: { txt: (n) => `${n} vuelta${n > 1 ? "s" : ""} perfecta${n > 1 ? "s" : ""}`, ok: (p, pos, n) => (p.qs || []).slice(1).filter((q) => q > 0.88).length >= n }
+  turns: { txt: (n) => `${n} vuelta${n > 1 ? "s" : ""} perfecta${n > 1 ? "s" : ""}`, ok: (p, pos, n) => (p.qs || []).slice(1).filter((q) => q > 0.88).length >= n },
+  breaths: { txt: (n) => `Respirá ${n} veces (mantené RESPIRAR)`, ok: (p, pos, n) => (p.breaths || 0) >= n },
+  pechoT: { txt: (n) => `Nadá ${n} segundos en PECHO`, ok: (p, pos, n) => (p.pechoT || 0) >= n },
+  flyT: { txt: (n) => `Nadá ${n} segundos en MARIPOSA`, ok: (p, pos, n) => (p.flyT || 0) >= n }
 };
 // Un objetivo es [tipo, número]; el de las 3 estrellas se suma al de las 2.
 const goalText = (g) => GOALS[g[0]].txt(g[1]);
@@ -41,6 +44,7 @@ const RIVER_TXT = { favor: "corriente a favor", side: "corriente de costado", ag
 // fly, pecho, air: qué se puede usar · items ("all", "good", "none") · gap: cada cuántos metros hay cosas · quirks: molestias
 // river: qué corriente tiene el río · vs: contra quién (si sos vos, toca otro) · two: objetivo para pasar · three: el extra
 // learn: el nombre del nivel · tip: lo que se explica antes de largar
+// teach: el botón que enseña ("breath", "pecho" o "fly"): en la carrera el juego se frena y te lo señala hasta que lo tocás
 const BASE = { fly: true, pecho: true, air: true, items: "all", quirks: true, skill: 0, pace: 1 };
 const RAIN = [2, 3.2], SPICY = [3, 4.5]; // lluvia de cosas · muchas rojas en el camino
 const TIPS = {
@@ -72,12 +76,13 @@ const HAND_MADE = [
   { learn: "Un rival más rápido", c: "sprint", len: 50, pool: 50, r: 1, pace: 0.86, fly: false, pecho: false, air: false,
     tip: "Este rival va más rápido. Una buena salida y cada cosa verde cuentan.", two: ["win"], three: ["dive"] },
   // 🌊 Rookie
-  { learn: "Respirar", c: "sprint", len: 100, r: 1, pace: 0.88, fly: false, pecho: false,
-    tip: "Ahora la carrera es más larga y el aire se gasta. Mantené RESPIRAR para recargar la pila: mientras respirás vas más lento.", two: ["air"], three: ["win"] },
-  { learn: "Pecho", c: "sprint", len: 100, r: 1, pace: 0.9, fly: false,
-    tip: "Mantené PECHO: vas un poco más lento que en crol, pero casi no gastás aire. Sirve para llegar al final sin parar a respirar.", two: ["air"], three: ["win"] },
-  { learn: "Mariposa", c: "sprint", len: 100, r: 1, pace: 0.92,
-    tip: "Mantené MARIPOSA y vas mucho más rápido, pero la pila se vacía rápido. Usala, y respirá o pasate a pecho a tiempo.", two: ["win"], three: ["air"] },
+  // respirar, pecho y mariposa se aprenden nadando solo y sin perder: para pasar alcanza con usar el botón nuevo
+  { learn: "Respirar", c: "sprint", len: 100, r: 0, fly: false, pecho: false, teach: "breath",
+    tip: "Ahora el aire se gasta. Cuando la pila baje, mantené RESPIRAR para recargarla. Hoy nadás solo: tranqui, te vamos a avisar.", two: ["breaths", 2], three: ["air"] },
+  { learn: "Pecho", c: "sprint", len: 100, r: 0, fly: false, teach: "pecho",
+    tip: "Mantené PECHO: vas un poco más lento que en crol, pero casi no gastás aire. Hoy nadás solo para probarlo.", two: ["pechoT", 4], three: ["air"] },
+  { learn: "Mariposa", c: "sprint", len: 100, r: 0, teach: "fly",
+    tip: "Mantené MARIPOSA y vas mucho más rápido, pero la pila se vacía rápido. Hoy nadás solo para probarla.", two: ["flyT", 4], three: ["air"] },
   { learn: "La vuelta americana", c: "idavuelta", len: 100, r: 2, pace: 0.92,
     tip: "Pileta de 50 m: a mitad de carrera llegás a la pared. Ahí aparece la barrita: tocá en el verde y salís con turbo.", two: ["top", 2], three: ["turns", 1] },
   { learn: "Todo junto", c: "idavuelta", len: 200, r: 2, pace: 0.92,
@@ -192,7 +197,8 @@ function autoLevel(n) {
   return { r: 2, ...def, skill: 3, pace: Math.min(1.07, 1.04 + k * 0.0008) + extraPace,
     two: n % 5 ? ["win"] : ["top", 2] };
 }
-function levelDef(n) { return { ...BASE, ...(HAND_MADE[n - 1] || autoLevel(n)), n }; }
+// en los primeros 10 niveles hay la mitad de cosas rojas: el que aprende no queda atrapado
+function levelDef(n) { return { ...BASE, ...(n <= 10 ? { reds: 0.5 } : {}), ...(HAND_MADE[n - 1] || autoLevel(n)), n }; }
 
 // La carrera de un nivel: con los rivales elegidos (vs) si el nivel los tiene; si vos sos uno de ellos, toca el otro.
 // extra: más opciones para newRace (la semilla de un reto).
@@ -203,7 +209,7 @@ function levelRace(ch, L, extra = {}) {
     if (rivals.length < L.r) rivals.push(...drawRivals(ch, 3).filter((c) => !rivals.includes(c)).slice(0, L.r - rivals.length));
   }
   return newRace(ch, CIRCUITS[L.c], rivals, L.len, { pool: L.pool, rivals: L.r, skill: L.skill, pace: L.pace, fly: L.fly, pecho: L.pecho,
-    air: L.air, items: L.items, quirks: L.quirks, gap: L.gap, river: L.river, drill: L.drill, buoys: L.buoys, ...extra });
+    air: L.air, items: L.items, quirks: L.quirks, gap: L.gap, river: L.river, drill: L.drill, buoys: L.buoys, reds: L.reds, ...extra });
 }
 
 // Lo que aprendiste hasta el nivel n (para la práctica libre): el pecho en el 7 y la mariposa en el 8.

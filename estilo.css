@@ -233,3 +233,16 @@ input { user-select: text; -webkit-user-select: text; }
 .card .goal { font-size: 22px; color: #FFD84A; }
 .retos td { font-size: 12px; }
 #scr button.mode.retoon { background: linear-gradient(160deg, #FFB25A, #E8641A); color: #fff; box-shadow: 0 4px 0 #A8440E; }
+
+/* el entrenador de los niveles que enseñan: el botón late y una mano lo señala */
+.btn.coach { z-index: 6; border-color: #FFD84A; background: rgba(255,216,74,0.85); color: #10324F; box-shadow: 0 0 0 5px #FFD84A, 0 0 30px #FFD84A; animation: coachLate 0.5s ease-in-out infinite alternate; }
+@keyframes coachLate { from { transform: scale(1); } to { transform: scale(1.12); } }
+#coach { position: fixed; z-index: 7; display: none; flex-direction: column; align-items: center; transform: translate(-50%, -100%); pointer-events: none; color: #FFD84A; font: bold 12px system-ui, sans-serif; text-shadow: 0 2px 3px #000a; }
+#coach b { font-size: 40px; animation: coachMano 0.5s ease-in-out infinite alternate; }
+@keyframes coachMano { from { transform: translateY(-6px); } to { transform: translateY(4px); } }
+/* el botón que enseña el nivel */
+.btn.nuevo::before { content: "NUEVO"; position: absolute; top: 9%; font-size: 9px; font-weight: bold; background: #FF4A3A; color: #fff; padding: 1px 6px; border-radius: 8px; letter-spacing: 0.5px; }
+/* el aviso de novedades del inicio */
+.tipbox.nov { text-align: left; max-width: 560px; }
+.tipbox.nov .row { margin-top: 6px; justify-content: flex-start; }
+#scr button#repasar { margin-top: 4px; padding: 7px 16px; font: bold 13px system-ui, sans-serif; color: #10324F; background: #FFD84A; border: 0; border-radius: 22px; cursor: pointer; }

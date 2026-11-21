@@ -126,10 +126,12 @@ function seededRng(seed) {
 }
 const rnd = (a, b) => a + RNG() * (b - a);
 const pick = (arr) => arr[Math.floor(RNG() * arr.length)];
-function pickItem(goodOnly) {
-  const ks = Object.keys(ITEMS).filter((k) => !goodOnly || ITEMS[k].good), tot = ks.reduce((s, k) => s + ITEMS[k].weight, 0);
+// reds: cuánto pesan las rojas en el sorteo (1 = lo normal; en los primeros niveles, menos)
+function pickItem(goodOnly, reds = 1) {
+  const ks = Object.keys(ITEMS).filter((k) => !goodOnly || ITEMS[k].good), wt = (k) => ITEMS[k].weight * (ITEMS[k].good ? 1 : reds);
+  const tot = ks.reduce((s, k) => s + wt(k), 0);
   let n = RNG() * tot;
-  for (const k of ks) { n -= ITEMS[k].weight; if (n <= 0) return k; }
+  for (const k of ks) { n -= wt(k); if (n <= 0) return k; }
   return ks[0];
 }
 
@@ -150,7 +152,7 @@ function poolAt(race, x) {
 //   gap: cada cuántos metros hay cosas flotando · quirks: si les pasan las molestias
 //   drill: "kick" (solo patada), "pull" (solo brazada) o una lista de tramos, p. ej. ["kick", "pull", "full"]
 //   buoys: [desde, hasta] (en partes de la carrera) donde hay boyas fijas, y cada cuántos metros (sep)
-//   seed: la semilla del azar de la pileta (si no se dice, una nueva)
+//   seed: la semilla del azar de la pileta (si no se dice, una nueva) · reds: cuántas rojas (1 = lo normal)
 function makeDrills(len, pool, laps, drill) {
   if (!drill) return [{ x: 0, d: "full" }];
   if (typeof drill === "string") return [{ x: 0, d: drill }];
@@ -187,7 +189,7 @@ function newRace(playerCh, circ = CIRCUITS.sprint, rivals, len = circ.len, opts 
     const n = RNG() < 0.4 ? 2 : 1, used = [];
     for (let k = 0; k < n; k++) {
       let u; do u = rnd(0.12, 0.88); while (used.some((v) => Math.abs(v - u) < 0.25));
-      used.push(u); objs.push({ kind: pickItem(items === "good"), x: x + rnd(-0.8, 0.8), u });
+      used.push(u); objs.push({ kind: pickItem(items === "good", opts.reds), x: x + rnd(-0.8, 0.8), u });
     }
   }
   const racers = chars.map((ch, i) => ({
@@ -338,6 +340,7 @@ function stepRace(race, dt, input) {
       r.drop = { kind: r.objKind, x: r.x, u: r.u, t: race.t };
       r.v *= good ? 0.8 : 1.15;
       r.mood = good ? "annoyed" : "happy"; r.moodT = 0.8;
+      if (!good) r.immune = Math.max(r.immune, 1.5); // se te terminó una roja: un respiro (titilás) antes de que otra te toque
       emit(race, r, "itemEnd");
     }
 
@@ -345,7 +348,7 @@ function stepRace(race, dt, input) {
       r.fly = race.fly && !!input.fly; r.pecho = race.pecho && !!input.pecho && !r.fly; r.steer = (input.down ? 1 : 0) - (input.up ? 1 : 0);
       if (r.wallBar && r.turnQ === null && pressed) r.turnQ = barAt(r.barT0, race.t);
       const wantB = race.air && !!input.breathe && !r.wallBar; // llegando a la pared no se respira
-      if (wantB && !r.breathing) emit(race, r, "breath");
+      if (wantB && !r.breathing) { emit(race, r, "breath"); r.breaths = (r.breaths || 0) + 1; }
       r.breathing = wantB;
     } else {
       aiThink(race, r);
@@ -370,6 +373,8 @@ function stepRace(race, dt, input) {
     else if (!r.plancha) r.air -= dt * (flying ? AIR_FLY * flyCost(ch) : pecho ? AIR_PECHO : AIR_CROL) * (drill === "kick" ? KICK_AIR : 1) * drain / airCap(ch);
     if (r.air <= 0) { if (!r.noAir) { say(r, "¡SIN AIRE!", 1.2); emit(race, r, "noAir"); r.ranOut = true; } r.air = 0; r.noAir = 1; } else r.noAir = 0;
 
+    if (flying) r.flyT = (r.flyT || 0) + dt; // para los niveles que enseñan: cuánto usó cada estilo
+    if (pecho) r.pechoT = (r.pechoT || 0) + dt;
     mult *= (flying ? (drill === "kick" ? KICK_FLY : flyMult(ch)) : pecho ? PECHO_V : 1) * speedMult(ch) * DRILLS[drill].v * (1 - tiredLoss(r));
     if (r.noAir) mult *= 0.45;
     if (r.walk > 0) mult *= 0.7;
@@ -406,6 +411,13 @@ function stepRace(race, dt, input) {
       if (o.gone || Math.abs(o.x - r.x) > 0.9 || Math.abs(o.u - r.u) > 0.1) continue;
       const it = ITEMS[o.kind];
       if (!it.good && r.immune > 0) continue;
+      // si ya venís frenado por una roja, otra no se suma: queda la peor, sin más tiempo ni otro frenazo
+      if (!it.good && r.objT > 0 && !ITEMS[r.objKind].good) {
+        o.gone = true; r.bads++; emit(race, r, "bad");
+        const m2 = ch.heavy ? 1 - (1 - it.mult) * 0.75 : it.mult;
+        if (m2 < r.objMult) { r.objKind = o.kind; r.objMult = m2; }
+        continue;
+      }
       // a Pablo, el torito, lo que frena le hace menos (no se cuenta: se descubre jugando)
       const mult = !it.good && ch.heavy ? 1 - (1 - it.mult) * 0.75 : it.mult;
       o.gone = true; r.objKind = o.kind; r.objMult = mult; r.objT = it.secs; r.drop = null;

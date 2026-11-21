@@ -82,7 +82,7 @@ const store = {
   document.getElementById("pauseBtn").addEventListener("pointerdown", (e) => { e.preventDefault(); setPaused(true); });
   pauseEl.addEventListener("pointerdown", (e) => {
     e.preventDefault(); setPaused(false);
-    if (e.target.closest("#quit")) { race = null; homeScreen(); } // abandona la carrera (no cuenta)
+    if (e.target.closest("#quit")) { race = null; coachOff(); homeScreen(); } // abandona la carrera (no cuenta)
   });
   document.addEventListener("visibilitychange", () => { if (document.hidden && race && !race.over) setPaused(true); });
   const paintMute = () => { muteBtn.textContent = Sound.muted ? "🔇" : "🔊"; };
@@ -104,7 +104,40 @@ const store = {
   // ---------- guía de la carrera ----------
   // En los niveles que enseñan (1 a 10) los avisos salen siempre; en la práctica y la copa, solo la primera vez.
   const guide = { on: false, seen: new Set(), cur: null };
-  function startGuide() { guide.on = mode === "level" ? level.n <= 10 : store.get("npg-guia") !== "vista"; guide.seen.clear(); guide.cur = null; }
+  function startGuide() { guide.on = mode === "level" ? level.n <= 10 : store.get("npg-guia") !== "vista"; guide.seen.clear(); guide.cur = null; coachOff(); coach = null; }
+  // El entrenador de los niveles que enseñan: cuando llega el momento, la carrera va en cámara lenta y el botón nuevo
+  // late con una mano que lo señala, hasta que lo apretás. Una vez por carrera.
+  const COACH = {
+    breath: { el: "bbr", hold: "breathe", when: (p) => race.air && p.air < 0.42, say: () => say2("SE TE VA EL AIRE: MANTENÉ APRETADO RESPIRAR", "SE TE VA EL AIRE: MANTENÉ APRETADA LA BARRA ESPACIADORA"),
+      ok: "¡ESO! MANTENELO HASTA QUE SE LLENE LA PILA" },
+    pecho: { el: "pe", hold: "pecho", when: () => race.t > 3, say: () => say2("PROBÁ EL PECHO: MANTENÉ APRETADO PECHO", "PROBÁ EL PECHO: MANTENÉ APRETADA LA Z"),
+      ok: "¡ESO! EN PECHO CASI NO GASTÁS AIRE" },
+    fly: { el: "pfly", hold: "fly", when: () => race.t > 3, say: () => say2("PROBÁ LA MARIPOSA: MANTENÉ APRETADO MARIPOSA", "PROBÁ LA MARIPOSA: MANTENÉ APRETADA LA FLECHA →"),
+      ok: "¡ESO! VAS MÁS RÁPIDO, PERO MIRÁ LA PILA" }
+  };
+  let coach = null; // { k, on, done }
+  const coachEl = document.getElementById("coach");
+  function coachOff() {
+    coachEl.style.display = "none";
+    for (const b of pad.querySelectorAll(".btn.coach")) b.classList.remove("coach");
+  }
+  function coachStep() {
+    const k = mode === "level" && level && level.teach; if (!k || !race || race.t < 0 || player.onBlock || player.finished) { if (coach && coach.on) { coach.on = false; coachOff(); } return; }
+    const c = COACH[k];
+    if (!coach) coach = { k, on: false, done: false };
+    if (coach.done) return;
+    if (!coach.on && !player.wallBar && c.when(player)) { // llegó el momento: se frena y señala
+      coach.on = true; guide.cur = { id: "coach", text: c.say(), t: 99 };
+      const b = c.el === "pfly" ? pad.querySelector(".fly") : c.el === "pe" ? pad.querySelector(".pe") : document.getElementById(c.el);
+      b.classList.add("coach");
+      const r = b.getBoundingClientRect();
+      coachEl.style.display = "flex"; coachEl.style.left = (r.left + r.width / 2) + "px"; coachEl.style.top = r.top + "px";
+    }
+    if (coach.on && input[c.hold]) { // lo tocó: sigue la carrera
+      coach.on = false; coach.done = true; coachOff();
+      guide.cur = { id: "coachOk", text: c.ok, t: 2.5 };
+    }
+  }
   function tip(id, text, secs, force) {
     if (!guide.on || guide.seen.has(id) || (guide.cur && !force)) return;
     guide.seen.add(id); guide.cur = { id, text, t: secs };
@@ -113,6 +146,7 @@ const store = {
     if (!guide.on || race.t < 0) return;
     const p = player;
     if (guide.cur) { guide.cur.t -= dt; if (guide.cur.t <= 0 || (guide.cur.id === "breath" && p.breathing)) guide.cur = null; }
+    if (coach && coach.on) return;
     if (p.onBlock || p.wallBar) return;
     if (race.air && p.air < 0.45) tip("breath", say2("SE TE VA EL AIRE: MANTENÉ RESPIRAR PARA RECARGAR LA PILA", "SE TE VA EL AIRE: MANTENÉ ESPACIO PARA RECARGAR LA PILA"), 4, true);
     tip("move", say2("TOCÁ ARRIBA O ABAJO DE LA IZQUIERDA PARA MOVERTE", "USÁ LAS FLECHAS ↑ Y ↓ PARA MOVERTE"), 3.5);
@@ -201,7 +235,7 @@ const store = {
 
   const split = (a, b) => `<div class="split"><div class="pane">${a}</div><div class="pane">${b}</div></div>`;
   const homeBtn = `<button id="home">🏠 MENÚ</button>`;
-  function show(html) { scr.innerHTML = html; scr.style.display = "flex"; pad.style.display = "none"; keepAwake(false); scr.scrollTop = 0; }
+  function show(html) { if (typeof coachOff === "function" && coachEl) coachOff(); scr.innerHTML = html; scr.style.display = "flex"; pad.style.display = "none"; keepAwake(false); scr.scrollTop = 0; }
   function aliasField(id) {
     const inp = document.getElementById(id); if (!inp) return;
     inp.oninput = () => { inp.value = inp.value.replace(/[\/]/g, ""); store.set("npg-apodo", inp.value.trim()); inp.classList.remove("need");
@@ -233,7 +267,11 @@ const store = {
     race = null; cup = null; level = null; challenge = null;
     if (/[?&](desafio|reto)=/.test(location.search)) try { history.replaceState(null, "", location.pathname); } catch (e) {} // si recarga, no vuelve al reto
     const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL, retoOpen = lv >= RETO_LEVEL;
+    // novedades: a los que ya venían jugando, una vez, con un botón para repasar los controles
+    const NOV = "npg-novedades-49", nov = lv > 1 && store.get(NOV) !== "visto";
     show(split(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Locos por la natación</p>
+      ${nov ? `<div class="tipbox nov">🆕 <b>Novedades:</b> ahora el juego te enseña a respirar, nadar pecho y mariposa (niveles 6, 7 y 8), te dice qué te faltó cuando no pasás un nivel, y las cosas rojas ya no se encadenan: después de una tenés un respiro.
+        <div class="row">${lv > 6 ? `<button id="repasar">🎓 REPASAR LOS CONTROLES</button>` : ""}<button class="link" id="novOk">Entendido</button></div></div>` : ""}
       ${stageBox()}${pathHtml()}
       <button class="go big" id="play">▶ NIVEL ${lv}<small>${L.learn}</small></button>
       <div class="modes">
@@ -279,6 +317,10 @@ const store = {
     };
     document.getElementById("mQuick").onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
     document.getElementById("opinar").onclick = () => feedbackScreen(homeScreen);
+    const novOk = document.getElementById("novOk"), repasar = document.getElementById("repasar");
+    if (novOk) novOk.onclick = () => { store.set(NOV, "visto"); homeScreen(); };
+    // repasar es jugar el nivel 6 de nuevo: no cambia tu nivel
+    if (repasar) repasar.onclick = () => { store.set(NOV, "visto"); if (noAlias("nadar")) return; Sound.unlock(); goFull(); levelScreen(6); };
     const lvNow = myLevel();
     shareBtn(`Estoy jugando Nadar por la gloria, el juego de los locos por la natación${lvNow > 1 ? ` (voy por el nivel ${lvNow}, ${stageOf(lvNow).name} ${stageOf(lvNow).icon})` : ""}. ¿Te sumás?`, "shareHome");
     scr.querySelectorAll("[data-b]").forEach((b) => b.onclick = () => {
@@ -422,6 +464,10 @@ const store = {
     startGuide(); setPaused(false);
     pad.querySelector(".fly").style.display = race.fly ? "" : "none";
     pad.querySelector(".pe").style.display = race.pecho ? "" : "none";
+    // el botón que enseña el nivel lleva el cartel de NUEVO toda la carrera
+    const NEW_BTN = { breath: "#bbr", pecho: ".pe", fly: ".fly" };
+    for (const b of pad.querySelectorAll(".btn")) b.classList.remove("nuevo");
+    if (mode === "level" && level.teach) pad.querySelector(NEW_BTN[level.teach]).classList.add("nuevo");
     scr.style.display = "none"; pad.style.display = "block"; keepAwake(true);
   }
 
@@ -488,11 +534,13 @@ const store = {
     const now = myLevel(), newStage = up && stageOf(now) !== stageOf(before) ? stageOf(now) : null, cupNow = up && now === CUP_LEVEL, retoNow = up && now === RETO_LEVEL;
     if (passed) pushProgress();
     const checks = [["Terminaste la carrera", true], [goalText(L.two), res.checks[1]], [goalText(L.three), res.checks[2]]];
+    const why = passed ? "" : whyNot(L, player, res.pos);
     const st = standings(race);
     show(split(`<p class="sub">${stageOf(L.n).icon} NIVEL ${L.n} · ${L.learn}</p>
       <div class="bigstars">${[1, 2, 3].map((k) => `<span class="${k <= res.n ? "on" : ""}" style="animation-delay:${0.2 + k * 0.35}s">★</span>`).join("")}</div>
       <h1 class="${passed ? "win" : "lose"}">${passed ? (res.n === 3 ? "¡PERFECTO!" : "¡NIVEL SUPERADO!") : "¡CASI!"}</h1>
       ${up ? `<p class="cheer">${CHEERS[Math.floor(Math.random() * CHEERS.length)]}${alias() ? ", " + esc(alias()) : ""}! Ya estás en el nivel ${now}.</p>` : ""}
+      ${why ? `<div class="tipbox">💡 ${why}</div>` : ""}
       <div class="checks">${checks.map(([t, ok], i) => `<span class="${ok ? "ok" : "no"}">${ok ? "✔" : "✘"} ${t}${i === 1 && !passed ? " <em>(para pasar)</em>" : ""}</span>`).join("")}</div>
       ${newStage ? `<div class="levelup">${confetti()}<b>${newStage.icon} ¡AHORA SOS ${newStage.name}!</b>${cupNow ? `<span>🏆 Se abrió la COPA: jugala desde el inicio.</span>` : ""}${retoNow ? `<span>⚔️ Se abrieron los DESAFÍOS: al terminar una carrera, desafiá a un amigo a nadar contra tu reflejo.</span>` : ""}</div>` : ""}
       <div class="row">${passed ? `<button class="go" id="next">SIGUIENTE: NIVEL ${L.n + 1}</button><button id="change">REPETIR</button>` : `<button class="go" id="again">OTRA VEZ</button>`}${homeBtn}</div>`, `
@@ -600,6 +648,27 @@ const store = {
     document.getElementById("home").onclick = homeScreen;
   }
 
+  // Qué le faltó para pasar, en criollo y con qué botón se arregla.
+  function whyNot(L, p, pos) {
+    const g = L.two[0], ranOut = p.ranOut && race.air;
+    const AIR = say2("Te quedaste sin aire: cuando la pila se pone roja, mantené RESPIRAR", "Te quedaste sin aire: cuando la pila se pone roja, mantené ESPACIO") + (race.pecho ? " (o pasate a PECHO, que casi no gasta)." : ".");
+    if (g === "breaths") return say2("Mantené apretado RESPIRAR (el botón grande de abajo a la derecha) cuando la pila baje.", "Mantené apretada la barra espaciadora cuando la pila baje.");
+    if (g === "pechoT") return say2("Mantené apretado PECHO (el botón verde) un rato largo.", "Mantené apretada la Z un rato largo.");
+    if (g === "flyT") return say2("Mantené apretado MARIPOSA (el botón amarillo) un rato largo.", "Mantené apretada la flecha → un rato largo.");
+    if (!p.finished) return ranOut ? AIR : "No llegaste a terminar. Agarrá lo verde y esquivá lo rojo para ir más rápido.";
+    if (g === "air") return AIR;
+    if (g === "goods") return say2("Tocá arriba o abajo de la izquierda para moverte y pasar por encima de las cosas verdes.", "Usá las flechas ↑ ↓ para pasar por encima de las cosas verdes.");
+    if (g === "bads") return say2("Las cosas rojas te frenan: tocá arriba o abajo de la izquierda para esquivarlas.", "Las cosas rojas te frenan: usá ↑ ↓ para esquivarlas.");
+    if (g === "dive") return "En la salida, tocá cuando la barrita llega arriba, al verde.";
+    if (g === "buoys") return "Apuntá al hueco que brilla en verde. En PECHO doblás el doble de rápido.";
+    if (g === "turns") return "Llegando a la pared aparece la barrita: tocá cuando está en el verde.";
+    // ganar o llegar entre los primeros: lo que más le costó
+    if (ranOut) return AIR;
+    if (p.bads >= 2) return `Tocaste ${p.bads} cosas rojas y te frenaron. Esquivalas moviéndote arriba o abajo.`;
+    if ((p.qs || [])[0] < 0.55) return "Tu salida fue lenta: tocá cuando la barrita llega al verde y salís con turbo.";
+    if (race.fly && (p.flyT || 0) < 3) return "Usá MARIPOSA cuando tengas la pila llena: es lo que más rápido te lleva.";
+    return "Te faltó poco. Agarrá más cosas verdes: cada una te acelera unos segundos.";
+  }
   function cupOrder() { return [chosen, ...cup.rivals].sort((a, b) => (cup.pts[b.id] || 0) - (cup.pts[a.id] || 0)); }
   function cupTable() {
     return `<div class="rank"><b>TABLA DE LA COPA</b><table>${cupOrder().map((c, i) => `<tr class="${c === chosen ? "me" : ""}"><td>${i + 1}º</td><td>${faceImg(c, 24)} ${c.name}</td><td>${cup.pts[c.id] || 0} puntos</td></tr>`).join("")}</table></div>`;
@@ -641,7 +710,8 @@ const store = {
     ctx.clearRect(0, 0, W, H);
     if (race) {
       if (!paused) {
-        stepRace(race, dt, input); ghostStep(race);
+        coachStep();
+        stepRace(race, coach && coach.on ? dt * 0.12 : dt, input); ghostStep(race);
         const events = race.events; race.events = [];
         input.tap = false;
         playEvents(events); guideStep(dt, events);
