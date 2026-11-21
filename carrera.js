@@ -345,7 +345,7 @@ function stepRace(race, dt, input) {
       r.fly = race.fly && !!input.fly; r.pecho = race.pecho && !!input.pecho && !r.fly; r.steer = (input.down ? 1 : 0) - (input.up ? 1 : 0);
       if (r.wallBar && r.turnQ === null && pressed) r.turnQ = barAt(r.barT0, race.t);
       const wantB = race.air && !!input.breathe && !r.wallBar; // llegando a la pared no se respira
-      if (wantB && !r.breathing) emit(race, r, "breath");
+      if (wantB && !r.breathing) { emit(race, r, "breath"); r.breaths = (r.breaths || 0) + 1; }
       r.breathing = wantB;
     } else {
       aiThink(race, r);
@@ -370,6 +370,8 @@ function stepRace(race, dt, input) {
     else if (!r.plancha) r.air -= dt * (flying ? AIR_FLY * flyCost(ch) : pecho ? AIR_PECHO : AIR_CROL) * (drill === "kick" ? KICK_AIR : 1) * drain / airCap(ch);
     if (r.air <= 0) { if (!r.noAir) { say(r, "¡SIN AIRE!", 1.2); emit(race, r, "noAir"); r.ranOut = true; } r.air = 0; r.noAir = 1; } else r.noAir = 0;
 
+    if (flying) r.flyT = (r.flyT || 0) + dt; // para los niveles que enseñan: cuánto usó cada estilo
+    if (pecho) r.pechoT = (r.pechoT || 0) + dt;
     mult *= (flying ? (drill === "kick" ? KICK_FLY : flyMult(ch)) : pecho ? PECHO_V : 1) * speedMult(ch) * DRILLS[drill].v * (1 - tiredLoss(r));
     if (r.noAir) mult *= 0.45;
     if (r.walk > 0) mult *= 0.7;
