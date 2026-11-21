@@ -197,7 +197,8 @@ function autoLevel(n) {
   return { r: 2, ...def, skill: 3, pace: Math.min(1.07, 1.04 + k * 0.0008) + extraPace,
     two: n % 5 ? ["win"] : ["top", 2] };
 }
-function levelDef(n) { return { ...BASE, ...(HAND_MADE[n - 1] || autoLevel(n)), n }; }
+// en los primeros 10 niveles hay la mitad de cosas rojas: el que aprende no queda atrapado
+function levelDef(n) { return { ...BASE, ...(n <= 10 ? { reds: 0.5 } : {}), ...(HAND_MADE[n - 1] || autoLevel(n)), n }; }
 
 // La carrera de un nivel: con los rivales elegidos (vs) si el nivel los tiene; si vos sos uno de ellos, toca el otro.
 // extra: más opciones para newRace (la semilla de un reto).
@@ -208,7 +209,7 @@ function levelRace(ch, L, extra = {}) {
     if (rivals.length < L.r) rivals.push(...drawRivals(ch, 3).filter((c) => !rivals.includes(c)).slice(0, L.r - rivals.length));
   }
   return newRace(ch, CIRCUITS[L.c], rivals, L.len, { pool: L.pool, rivals: L.r, skill: L.skill, pace: L.pace, fly: L.fly, pecho: L.pecho,
-    air: L.air, items: L.items, quirks: L.quirks, gap: L.gap, river: L.river, drill: L.drill, buoys: L.buoys, ...extra });
+    air: L.air, items: L.items, quirks: L.quirks, gap: L.gap, river: L.river, drill: L.drill, buoys: L.buoys, reds: L.reds, ...extra });
 }
 
 // Lo que aprendiste hasta el nivel n (para la práctica libre): el pecho en el 7 y la mariposa en el 8.

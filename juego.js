@@ -267,7 +267,11 @@ const store = {
     race = null; cup = null; level = null; challenge = null;
     if (/[?&](desafio|reto)=/.test(location.search)) try { history.replaceState(null, "", location.pathname); } catch (e) {} // si recarga, no vuelve al reto
     const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL, retoOpen = lv >= RETO_LEVEL;
+    // novedades: a los que ya venían jugando, una vez, con un botón para repasar los controles
+    const NOV = "npg-novedades-49", nov = lv > 1 && store.get(NOV) !== "visto";
     show(split(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Locos por la natación</p>
+      ${nov ? `<div class="tipbox nov">🆕 <b>Novedades:</b> ahora el juego te enseña a respirar, nadar pecho y mariposa (niveles 6, 7 y 8), te dice qué te faltó cuando no pasás un nivel, y las cosas rojas ya no se encadenan: después de una tenés un respiro.
+        <div class="row">${lv > 6 ? `<button id="repasar">🎓 REPASAR LOS CONTROLES</button>` : ""}<button class="link" id="novOk">Entendido</button></div></div>` : ""}
       ${stageBox()}${pathHtml()}
       <button class="go big" id="play">▶ NIVEL ${lv}<small>${L.learn}</small></button>
       <div class="modes">
@@ -313,6 +317,10 @@ const store = {
     };
     document.getElementById("mQuick").onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
     document.getElementById("opinar").onclick = () => feedbackScreen(homeScreen);
+    const novOk = document.getElementById("novOk"), repasar = document.getElementById("repasar");
+    if (novOk) novOk.onclick = () => { store.set(NOV, "visto"); homeScreen(); };
+    // repasar es jugar el nivel 6 de nuevo: no cambia tu nivel
+    if (repasar) repasar.onclick = () => { store.set(NOV, "visto"); if (noAlias("nadar")) return; Sound.unlock(); goFull(); levelScreen(6); };
     const lvNow = myLevel();
     shareBtn(`Estoy jugando Nadar por la gloria, el juego de los locos por la natación${lvNow > 1 ? ` (voy por el nivel ${lvNow}, ${stageOf(lvNow).name} ${stageOf(lvNow).icon})` : ""}. ¿Te sumás?`, "shareHome");
     scr.querySelectorAll("[data-b]").forEach((b) => b.onclick = () => {
@@ -456,6 +464,10 @@ const store = {
     startGuide(); setPaused(false);
     pad.querySelector(".fly").style.display = race.fly ? "" : "none";
     pad.querySelector(".pe").style.display = race.pecho ? "" : "none";
+    // el botón que enseña el nivel lleva el cartel de NUEVO toda la carrera
+    const NEW_BTN = { breath: "#bbr", pecho: ".pe", fly: ".fly" };
+    for (const b of pad.querySelectorAll(".btn")) b.classList.remove("nuevo");
+    if (mode === "level" && level.teach) pad.querySelector(NEW_BTN[level.teach]).classList.add("nuevo");
     scr.style.display = "none"; pad.style.display = "block"; keepAwake(true);
   }
 
