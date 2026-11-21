@@ -196,7 +196,7 @@ function newRace(playerCh, circ = CIRCUITS.sprint, rivals, len = circ.len, opts 
     ch, isPlayer: i === 0, x: 1.5, u: lanes[i], v: 0, air: 1, fly: false, pecho: false,
     onBlock: true, pp: 1.5, dir: 1, nextWall: laps > 1 ? pool : Infinity, wallBar: false, barT0: 0, turnQ: null, prevB: false, push: null, steer: 0,
     breathing: false, stun: 0, plancha: 0, noAir: 0, immune: 0, boost: 0, boostMult: 1, kick: 0,
-    objMult: 1, objT: 0, objKind: null, chaseSay: 0,
+    objMult: 1, objT: 0, objKind: null, extra: null, chaseSay: 0, // extra: una segunda roja con su propio reloj
     dive: 0, walk: 0, slow: 0, drop: null, bubble: null, finished: false, finishT: 0, mood: "normal", moodT: 0, gotDulce: false, ranOut: false,
     goods: 0, bads: 0, hits: 0, effort: 0, gate: 0, drill: null, quirked: false, quirkX: len * rnd(0.3, 0.75), aheadN: 0,
     ai: { wantU: lanes[i], diveAt: aiTap(skill), turnAt: 0 }
@@ -335,13 +335,17 @@ function stepRace(race, dt, input) {
     if (r.drill !== drill) { r.drill = drill; if (r.isPlayer && (race.drills.length > 1 || drill !== "full")) race.sign = { say: DRILLS[drill].say, at: race.t }; }
     const hadObj = r.objT > 0;
     for (const k of ["stun", "plancha", "immune", "boost", "kick", "dive", "walk", "slow", "objT", "moodT"]) r[k] = Math.max(0, r[k] - dt);
+    if (r.extra && (r.extra.t -= dt) <= 0) { r.drop = { kind: r.extra.kind, x: r.x, u: r.u, t: race.t }; r.extra = null; } // se terminó la segunda roja
     if (hadObj && r.objT <= 0) { // se terminó el objeto: se le cae y se nota el cambio de velocidad
       const good = ITEMS[r.objKind].good;
       r.drop = { kind: r.objKind, x: r.x, u: r.u, t: race.t };
-      r.v *= good ? 0.8 : 1.15;
-      r.mood = good ? "annoyed" : "happy"; r.moodT = 0.8;
-      if (!good) r.immune = Math.max(r.immune, 1.5); // se te terminó una roja: un respiro (titilás) antes de que otra te toque
-      emit(race, r, "itemEnd");
+      if (r.extra) { // quedaba otra roja: sigue esa, con lo que le queda de tiempo
+        r.objKind = r.extra.kind; r.objMult = r.extra.mult; r.objT = r.extra.t; r.extra = null;
+      } else {
+        r.v *= good ? 0.8 : 1.15;
+        r.mood = good ? "annoyed" : "happy"; r.moodT = 0.8;
+        emit(race, r, "itemEnd");
+      }
     }
 
     if (r.isPlayer) {
@@ -383,7 +387,8 @@ function stepRace(race, dt, input) {
     if (r.boost > 0) mult *= r.boostMult;
     if (r.dive > 0) mult *= 1.3;
     if (r.kick > 0) mult *= 1.18; // turbo por la salida o la vuelta perfecta
-    if (r.objT > 0) mult *= itemMult(r.objKind, r.objMult, drill);
+    // con dos rojas a la vez no se multiplican: frena la peor
+    if (r.objT > 0) mult *= Math.min(itemMult(r.objKind, r.objMult, drill), r.extra ? itemMult(r.extra.kind, r.extra.mult, drill) : Infinity);
     if (r.plancha > 0) mult *= 0.65;
     if (blocked) mult = 0.12;
     if (!r.isPlayer) mult *= race.pace; // en el camino, los rivales van más lentos o más rápidos según el nivel
@@ -411,16 +416,16 @@ function stepRace(race, dt, input) {
       if (o.gone || Math.abs(o.x - r.x) > 0.9 || Math.abs(o.u - r.u) > 0.1) continue;
       const it = ITEMS[o.kind];
       if (!it.good && r.immune > 0) continue;
-      // si ya venís frenado por una roja, otra no se suma: queda la peor, sin más tiempo ni otro frenazo
-      if (!it.good && r.objT > 0 && !ITEMS[r.objKind].good) {
-        o.gone = true; r.bads++; emit(race, r, "bad");
-        const m2 = ch.heavy ? 1 - (1 - it.mult) * 0.75 : it.mult;
-        if (m2 < r.objMult) { r.objKind = o.kind; r.objMult = m2; }
-        continue;
-      }
       // a Pablo, el torito, lo que frena le hace menos (no se cuenta: se descubre jugando)
       const mult = !it.good && ch.heavy ? 1 - (1 - it.mult) * 0.75 : it.mult;
-      o.gone = true; r.objKind = o.kind; r.objMult = mult; r.objT = it.secs; r.drop = null;
+      o.gone = true;
+      if (!it.good && r.objT > 0 && !ITEMS[r.objKind].good) {
+        // ya venías con una roja: cada una lleva su reloj. Quedan dos (la peor manda) y, si había tres, la que termina antes se cae
+        const all = [{ kind: r.objKind, mult: r.objMult, t: r.objT }, r.extra, { kind: o.kind, mult, t: it.secs }].filter(Boolean).sort((a, b) => a.mult - b.mult);
+        const [worst, ...rest] = all, other = rest.sort((a, b) => b.t - a.t)[0];
+        r.objKind = worst.kind; r.objMult = worst.mult; r.objT = worst.t; r.extra = other;
+      } else { r.objKind = o.kind; r.objMult = mult; r.objT = it.secs; r.extra = null; }
+      r.drop = null;
       r.v *= it.good ? 1 + (mult - 1) * 0.6 : 1 - (1 - mult) * 0.6; // el tirón (o el frenazo) se siente enseguida
       if (it.air) { r.air = Math.min(1, r.air + it.air); r.noAir = 0; }
       if (o.kind === "dulce") r.gotDulce = true;

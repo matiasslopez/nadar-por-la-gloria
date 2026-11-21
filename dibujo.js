@@ -605,9 +605,9 @@ function drawSwimmer(ctx, r, x, y, ppm, t) {
   ctx.fillStyle = "rgba(0,45,100,0.22)";
   ctx.beginPath(); ctx.ellipse(k * 0.12, k * 0.16, k * 0.95, k * 0.24, 0, 0, 7); ctx.fill();
 
-  const wear = r.objT > 0 ? r.objKind : null;
-  const board = wear === "tablita" || r.drill === "kick", buoy = r.drill === "pull"; // solo patada: con tabla · solo brazada: con pullbuoy
-  if (wear === "paracaidas") { // va arrastrando el paracaídas atrás de los pies
+  const wear = r.objT > 0 ? r.objKind : null, wear2 = r.objT > 0 && r.extra ? r.extra.kind : null; // wear2: la segunda roja
+  const board = wear === "tablita" || wear2 === "tablita" || r.drill === "kick", buoy = r.drill === "pull"; // solo patada: con tabla · solo brazada: con pullbuoy
+  if (wear === "paracaidas" || wear2 === "paracaidas") { // va arrastrando el paracaídas atrás de los pies
     const [px, py] = P(-1.55, 0), bil = 1 + Math.sin(t * 9) * 0.07;
     ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 1.5;
     for (const s of [-1, 0, 1]) { ctx.beginPath(); ctx.moveTo(...P(-0.2, 0)); ctx.lineTo(px + k * 0.08, py + s * k * 0.3 * bil); ctx.stroke(); }

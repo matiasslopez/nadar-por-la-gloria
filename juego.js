@@ -270,7 +270,7 @@ const store = {
     // novedades: a los que ya venían jugando, una vez, con un botón para repasar los controles
     const NOV = "npg-novedades-49", nov = lv > 1 && store.get(NOV) !== "visto";
     show(split(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Locos por la natación</p>
-      ${nov ? `<div class="tipbox nov">🆕 <b>Novedades:</b> ahora el juego te enseña a respirar, nadar pecho y mariposa (niveles 6, 7 y 8), te dice qué te faltó cuando no pasás un nivel, y las cosas rojas ya no se encadenan: después de una tenés un respiro.
+      ${nov ? `<div class="tipbox nov">🆕 <b>Novedades:</b> ahora el juego te enseña a respirar, nadar pecho y mariposa (niveles 6, 7 y 8), te dice qué te faltó cuando no pasás un nivel, y si agarrás dos cosas rojas, cada una dura su tiempo: no se multiplican, frena la peor.
         <div class="row">${lv > 6 ? `<button id="repasar">🎓 REPASAR LOS CONTROLES</button>` : ""}<button class="link" id="novOk">Entendido</button></div></div>` : ""}
       ${stageBox()}${pathHtml()}
       <button class="go big" id="play">▶ NIVEL ${lv}<small>${L.learn}</small></button>
