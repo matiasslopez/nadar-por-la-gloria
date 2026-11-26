@@ -226,7 +226,8 @@ const store = {
   // Inicio → camino (nivel → carrera → estrellas) · copa (desde Pre nadador) · práctica libre (no suma).
   // La copa son 3 carreras con los mismos rivales.
   let race = null, player = null, chosen = null, lastCount = 99, endShown = false, level = null, after = null;
-  let bdayRace = false; // la práctica que arma el botón del cumpleaños: con el cumpleañero de rival
+  let bdayRace = false; // la práctica que arma el botón del cumpleaños: nadás con el cumpleañero
+  let bdayPrev = null;   // { c }: el nadador que tenías antes, para devolvértelo al volver al inicio
   const bdayNames = (bd) => bd.map((c) => c.name.charAt(0) + c.name.slice(1).toLowerCase()).join(" y ");
   let challenge = null; // el reto que estás nadando: { id, alias, lvl, mode, dist, seed, time, ghost }
   let mode = "level", cup = null, quickCirc = store.get("npg-circ") || "sprint";
@@ -267,6 +268,7 @@ const store = {
 
   function homeScreen() {
     race = null; cup = null; level = null; challenge = null; bdayRace = false;
+    if (bdayPrev) { chosen = bdayPrev.c; bdayPrev = null; } // la práctica del cumpleaños no te cambia el nadador
     if (/[?&](desafio|reto)=/.test(location.search)) try { history.replaceState(null, "", location.pathname); } catch (e) {} // si recarga, no vuelve al reto
     const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL, retoOpen = lv >= RETO_LEVEL;
     // novedades: a los que ya venían jugando, una vez, con un botón para repasar los controles
@@ -324,7 +326,7 @@ const store = {
     document.getElementById("mQuick").onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
     document.getElementById("opinar").onclick = () => feedbackScreen(homeScreen);
     const bdGo = document.getElementById("bdayGo");
-    if (bdGo) bdGo.onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); mode = "quick"; bdayRace = true; if (chosen) drawScreen(); else selectScreen(); };
+    if (bdGo) bdGo.onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); mode = "quick"; bdayRace = true; bdayPrev = { c: chosen }; chosen = bdayToday()[0]; drawScreen(); }; // nadás con el cumpleañero (se cambia con ← Volver)
     const novOk = document.getElementById("novOk"), repasar = document.getElementById("repasar");
     if (novOk) novOk.onclick = () => { store.set(NOV, "visto"); homeScreen(); };
     // repasar es jugar el nivel 6 de nuevo: no cambia tu nivel
@@ -411,7 +413,7 @@ const store = {
       <button class="link" id="back">← Volver</button>`);
     scr.querySelectorAll(".circ[data-c]").forEach((b) => b.onclick = () => { quickCirc = b.dataset.c; store.set("npg-circ", quickCirc); selectScreen(); });
     scr.querySelectorAll(".ch").forEach((b) => b.onclick = () => {
-      Sound.unlock(); chosen = CHARS.find((c) => c.id === b.dataset.id); store.set("npg-char", chosen.id); pushProgress();
+      Sound.unlock(); chosen = CHARS.find((c) => c.id === b.dataset.id); store.set("npg-char", chosen.id); pushProgress(); bdayPrev = null;
       if (mode === "level") { levelScreen(after); return; }
       if (mode === "reto") { retoIntro(); return; }
       if (mode === "cup") cup = { rivals: drawRivals(chosen), i: 0, pts: {}, done: false };
@@ -461,7 +463,7 @@ const store = {
     const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
     show(split(`<p class="sub">${head}</p><h1 class="small">${circ.name} · ${shownLen(draft)} m</h1><p class="help">${circ.info}${draft.laps > 1 ? ` Son ${draft.laps} largos: ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}.` : ""}</p>
       ${cup ? "" : !can.pecho ? `<p class="help">El pecho se aprende en el nivel 7 y la mariposa en el 8.</p>` : !can.fly ? `<p class="help">La mariposa se aprende en el nivel 8.</p>` : ""}
-      <button class="go">¡AL AGUA!</button><button class="link" id="back">${cup ? "← Dejar la copa (volver al inicio)" : "← Volver"}</button>`, `
+      <button class="go">¡AL AGUA!</button><button class="link" id="back">${cup ? "← Dejar la copa (volver al inicio)" : bdayRace ? "← Cambiar nadador" : "← Volver"}</button>`, `
       <div class="vs">${draft.racers.map((r, i) => cardHtml(r, i, pts(r))).join("")}</div>
       ${controlsHelp(draft)}${legendHtml(false)}`));
     scr.querySelector(".go").onclick = () => startRace(draft);
