@@ -154,6 +154,17 @@ function drawFaceBadge(ctx, r, x, y, size, t) {
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(c, x - size / 2, y - size / 2, size, size);
   ctx.restore();
+  if (typeof isBday === "function" && isBday(r.ch.id)) partyHat(ctx, x + size * 0.4, y - size * 0.4, size * 0.75); // en la esquina, para no tapar el nombre
+}
+// El gorrito de cumpleaños, arriba de la cara: un cono a rayas con un pompón.
+function partyHat(ctx, x, y, h) {
+  ctx.save(); ctx.translate(x, y); ctx.rotate(0.55);
+  ctx.beginPath(); ctx.moveTo(-h * 0.38, 0); ctx.lineTo(h * 0.38, 0); ctx.lineTo(0, -h); ctx.closePath();
+  ctx.fillStyle = "#FF4FA0"; ctx.fill(); ctx.save(); ctx.clip();
+  ctx.fillStyle = "#FFD84A"; for (let i = 0; i < 3; i++) ctx.fillRect(-h, -h * (0.22 + i * 0.3), h * 2, h * 0.11);
+  ctx.restore(); ctx.strokeStyle = "#0008"; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = "#5FD0F5"; ctx.beginPath(); ctx.arc(0, -h, h * 0.14, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.restore();
 }
 
 // Para las pantallas de elegir y de resultado.

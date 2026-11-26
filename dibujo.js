@@ -1039,6 +1039,13 @@ function drawItem(ctx, kind, x, y, s) {
     ctx.beginPath(); ctx.arc(0, 0, s * 0.85, Math.PI, 0); ctx.closePath(); ctx.fill(); ctx.stroke();
     ctx.strokeStyle = "#fff"; ctx.lineWidth = Math.max(1, s * 0.08);
     for (const d of [-0.8, 0, 0.8]) { ctx.beginPath(); ctx.moveTo(d * s, 0); ctx.lineTo(0, s * 0.75); ctx.stroke(); }
+  } else if (kind === "torta") {
+    // torta de cumpleaños: dos pisos, glaseado rosa y una vela
+    ctx.fillStyle = "#F7D9A8"; ctx.beginPath(); ctx.roundRect(-s * 0.75, -s * 0.05, s * 1.5, s * 0.75, s * 0.12); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#FF8FC0"; ctx.beginPath(); ctx.roundRect(-s * 0.5, -s * 0.5, s * 1, s * 0.5, s * 0.1); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#FF8FC0"; ctx.fillRect(-s * 0.75, -s * 0.05, s * 1.5, s * 0.16);
+    ctx.fillStyle = "#5FD0F5"; ctx.fillRect(-s * 0.06, -s * 0.85, s * 0.12, s * 0.35);
+    ctx.fillStyle = "#FFB020"; ctx.beginPath(); ctx.ellipse(0, -s * 0.95, s * 0.09, s * 0.15, 0, 0, 7); ctx.fill();
   } else if (kind === "tablita") {
     ctx.fillStyle = "#3A6FE0";
     ctx.beginPath(); ctx.roundRect(-s * 0.6, -s * 0.85, s * 1.2, s * 1.7, [s * 0.6, s * 0.6, s * 0.2, s * 0.2]); ctx.fill(); ctx.stroke();

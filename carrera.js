@@ -46,8 +46,20 @@ const ITEMS = {
   latita:     { name: "LATITA",     mult: 1.5,  secs: 3.5, good: true,  weight: 16, air: 0.25 }, // energía: acelera y da un poco de aire
   dulce:      { name: "DULCE DE LECHE", mult: 1.4, secs: 3, good: true, weight: 7, air: 1 },  // premio raro: te llena el aire
   paracaidas: { name: "PARACAÍDAS", mult: 0.6,  secs: 3,   good: false, weight: 26 },
-  tablita:    { name: "TABLITA",    mult: 0.4,  secs: 3,   good: false, weight: 22 }
+  tablita:    { name: "TABLITA",    mult: 0.4,  secs: 3,   good: false, weight: 22 },
+  torta:      { name: "TORTA",      mult: 1.6,  secs: 3.5, good: true,  weight: 0, air: 1 } // solo el día de un cumpleaños
 };
+
+// Los cumpleaños del grupo (día/mes). Ese día el cumpleañero nada con gorrito y aparecen tortas en la pileta.
+const BIRTHDAYS = { luis: "08/01", pablo: "10/01", fer: "02/02", mica: "06/12", andre: "19/11", mati: "27/06", luchito: "26/11" };
+// quiénes cumplen hoy (con la fecha de Argentina); ?cumple=luchito lo fuerza para probar
+function bdayToday() {
+  let force = ""; try { force = new URLSearchParams(location.search).get("cumple") || ""; } catch (e) {}
+  if (force) return CHARS.filter((c) => c.id === force);
+  let d = ""; try { d = new Date().toLocaleDateString("en-GB", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" }); } catch (e) {}
+  return CHARS.filter((c) => BIRTHDAYS[c.id] === d);
+}
+const isBday = (id) => bdayToday().some((c) => c.id === id);
 
 const RACE_M = 100;       // largo de la carrera si no se dice otro, en metros
 
@@ -202,6 +214,8 @@ function newRace(playerCh, circ = CIRCUITS.sprint, rivals, len = circ.len, opts 
     ai: { wantU: lanes[i], diveAt: aiTap(skill), turnAt: 0 }
   }));
   RNG = Math.random;
+  // día de cumpleaños: algunas cosas verdes se vuelven tortas (sin tocar el sorteo, así la pileta de un desafío no cambia)
+  if (bdayToday().length) objs.forEach((o, i) => { if (i % 4 === 1 && ITEMS[o.kind].good) o.kind = "torta"; });
   return { seed, rng: seededRng(seed + 1), t: -3, len, pool, laps, circ, racers, objs, buoys, drills: makeDrills(len, pool, laps, opts.drill), sign: null, over: false, overT: 0, events: [], cur: 0, against: 0, curPlan: null,
     skill, pace: opts.pace || 1, river: opts.river || "mix", fly: opts.fly !== false, pecho: opts.pecho !== false, air: opts.air !== false, quirks: opts.quirks !== false };
 }

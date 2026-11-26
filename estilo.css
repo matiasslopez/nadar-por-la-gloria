@@ -202,7 +202,7 @@ input { user-select: text; -webkit-user-select: text; }
 .pc #steer .arr.up::after { content: "↑"; } .pc #steer .arr.down::after { content: "↓"; }
 .pc #steer .arr { font-size: 0; } .pc #steer .arr::after { font-size: 22px; }
 
-#scr button#share, #scr button#fb, #scr button#fbBack, #scr button#gNudge, #scr button#reto { margin-top: 4px; padding: 7px 16px; font: bold 13px system-ui, sans-serif; color: #fff; background: #ffffff22; border: 2px solid #ffffff55; border-radius: 22px; cursor: pointer; }
+#scr button#share, #scr button#fb, #scr button#fbBack, #scr button#gNudge, #scr button#reto, #scr button#bday { margin-top: 4px; padding: 7px 16px; font: bold 13px system-ui, sans-serif; color: #fff; background: #ffffff22; border: 2px solid #ffffff55; border-radius: 22px; cursor: pointer; }
 
 /* la intro: una sola vez por sesión, antes del inicio */
 #intro { position: fixed; inset: 0; z-index: 20; background: #0B3D63; touch-action: none; transition: opacity 0.3s; }
@@ -246,3 +246,9 @@ input { user-select: text; -webkit-user-select: text; }
 .tipbox.nov { text-align: left; max-width: 560px; }
 .tipbox.nov .row { margin-top: 6px; justify-content: flex-start; }
 #scr button#repasar { margin-top: 4px; padding: 7px 16px; font: bold 13px system-ui, sans-serif; color: #10324F; background: #FFD84A; border: 0; border-radius: 22px; cursor: pointer; }
+/* el día de un cumpleaños */
+.bday { flex-shrink: 0; position: relative; overflow: hidden; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; margin: 4px 0 6px; padding: 8px 12px; border-radius: 16px; background: linear-gradient(135deg, #FF6FB0, #FF9A3A); color: #fff; box-shadow: 0 4px 0 #0003; max-width: 600px; }
+.bday b { display: block; font-size: 17px; } .bday small { display: block; font-size: 12px; opacity: 0.95; max-width: 300px; }
+.bday .hat { position: relative; display: inline-block; } .bday .hat::before { content: "🥳"; position: absolute; top: -14px; right: -10px; font-size: 20px; }
+#scr button#bdayGo { padding: 8px 16px; font: bold 14px system-ui, sans-serif; color: #10324F; background: #FFD84A; border: 0; border-radius: 22px; cursor: pointer; box-shadow: 0 3px 0 #C0861E; }
+#scr button#bday { background: #FF4FA0; border-color: #FFD84A; }

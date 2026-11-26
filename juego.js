@@ -226,6 +226,8 @@ const store = {
   // Inicio → camino (nivel → carrera → estrellas) · copa (desde Pre nadador) · práctica libre (no suma).
   // La copa son 3 carreras con los mismos rivales.
   let race = null, player = null, chosen = null, lastCount = 99, endShown = false, level = null, after = null;
+  let bdayRace = false; // la práctica que arma el botón del cumpleaños: con el cumpleañero de rival
+  const bdayNames = (bd) => bd.map((c) => c.name.charAt(0) + c.name.slice(1).toLowerCase()).join(" y ");
   let challenge = null; // el reto que estás nadando: { id, alias, lvl, mode, dist, seed, time, ghost }
   let mode = "level", cup = null, quickCirc = store.get("npg-circ") || "sprint";
   if (!CIRCUITS[quickCirc]) quickCirc = "sprint";
@@ -264,12 +266,16 @@ const store = {
   }
 
   function homeScreen() {
-    race = null; cup = null; level = null; challenge = null;
+    race = null; cup = null; level = null; challenge = null; bdayRace = false;
     if (/[?&](desafio|reto)=/.test(location.search)) try { history.replaceState(null, "", location.pathname); } catch (e) {} // si recarga, no vuelve al reto
     const lv = myLevel(), L = levelDef(lv), cupOpen = lv >= CUP_LEVEL, retoOpen = lv >= RETO_LEVEL;
     // novedades: a los que ya venían jugando, una vez, con un botón para repasar los controles
     const NOV = "npg-novedades-49", nov = lv > 1 && store.get(NOV) !== "visto";
+    const bd = bdayToday();
     show(split(`<h1>NADAR POR LA GLORIA</h1><p class="sub">Locos por la natación</p>
+      ${bd.length ? `<div class="bday">${confetti()}<span class="pics">${bd.map((c) => `<span class="hat">${faceImg(c, 46, "happy")}</span>`).join("")}</span>
+        <div><b>🎂 ¡Hoy cumple ${bdayNames(bd)}!</b><small>Nadá una carrera con ${bd.length > 1 ? "ellos" : bd[0].fem ? "ella" : "él"} y mandale tu saludo. Hoy hay tortas en la pileta: aceleran y llenan el aire.</small></div>
+        <button id="bdayGo">🎉 NADAR CON ${bd.length > 1 ? "ELLOS" : bd[0].name}</button></div>` : ""}
       ${nov ? `<div class="tipbox nov">🆕 <b>Novedades:</b> ahora el juego te enseña a respirar, nadar pecho y mariposa (niveles 6, 7 y 8), te dice qué te faltó cuando no pasás un nivel, y si agarrás dos cosas rojas, cada una dura su tiempo: no se multiplican, frena la peor.
         <div class="row">${lv > 6 ? `<button id="repasar">🎓 REPASAR LOS CONTROLES</button>` : ""}<button class="link" id="novOk">Entendido</button></div></div>` : ""}
       ${stageBox()}${pathHtml()}
@@ -317,6 +323,8 @@ const store = {
     };
     document.getElementById("mQuick").onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); mode = "quick"; selectScreen(); };
     document.getElementById("opinar").onclick = () => feedbackScreen(homeScreen);
+    const bdGo = document.getElementById("bdayGo");
+    if (bdGo) bdGo.onclick = () => { if (noAlias("nadar")) return; Sound.unlock(); goFull(); mode = "quick"; bdayRace = true; if (chosen) drawScreen(); else selectScreen(); };
     const novOk = document.getElementById("novOk"), repasar = document.getElementById("repasar");
     if (novOk) novOk.onclick = () => { store.set(NOV, "visto"); homeScreen(); };
     // repasar es jugar el nivel 6 de nuevo: no cambia tu nivel
@@ -412,7 +420,7 @@ const store = {
     document.getElementById("back").onclick = mode === "reto" ? retoIntro : mode === "level" && chosen ? () => levelScreen(after) : homeScreen; // si todavía no eligió, vuelve al inicio
   }
 
-  const legendHtml = (goodOnly, air = true) => `<div class="legend">${Object.keys(ITEMS).filter((k) => !goodOnly || ITEMS[k].good).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air && air ? " +AIRE" : ""}</span>`).join("")}</div>`;
+  const legendHtml = (goodOnly, air = true) => `<div class="legend">${Object.keys(ITEMS).filter((k) => (!goodOnly || ITEMS[k].good) && (ITEMS[k].weight || (k === "torta" && bdayToday().length))).map((k) => `<span class="it">${itemIcon(k)} ${ITEMS[k].name} ${ITEMS[k].good ? "▲" : "▼"}${ITEMS[k].air && air ? " +AIRE" : ""}</span>`).join("")}</div>`;
   function controlsHelp(r) {
     const t = [say2("tocá arriba o abajo de la izquierda para moverte", "↑ ↓ moverte")];
     if (r.fly) t.push(say2("MARIPOSA va más rápido y gasta más pila", "→ mariposa"));
@@ -447,7 +455,8 @@ const store = {
   // La práctica libre y la copa: el sorteo y el circuito.
   function drawScreen() {
     const circ = cup ? CIRCUITS[CUP[cup.i]] : CIRCUITS[quickCirc], can = cup ? { fly: true, pecho: true } : learned(myLevel());
-    const draft = newRace(chosen, circ, cup ? cup.rivals : undefined, circ.len, can);
+    const bdRivals = bdayRace && !cup ? bdayToday().filter((c) => c !== chosen) : [];
+    const draft = newRace(chosen, circ, cup ? cup.rivals : bdRivals.length ? [...bdRivals, ...drawRivals(chosen, 3).filter((c) => !bdRivals.includes(c))].slice(0, 2) : undefined, circ.len, can);
     const head = cup ? `🏆 COPA · CARRERA ${cup.i + 1} DE ${CUP.length}` : "PRÁCTICA LIBRE · NO SUMA NIVEL";
     const pts = (r) => cup && cup.i ? `<small class="pts">${cup.pts[r.ch.id] || 0} puntos</small>` : "";
     show(split(`<p class="sub">${head}</p><h1 class="small">${circ.name} · ${shownLen(draft)} m</h1><p class="help">${circ.info}${draft.laps > 1 ? ` Son ${draft.laps} largos: ${draft.laps - 1 === 1 ? "1 vuelta americana" : draft.laps - 1 + " vueltas americanas"}.` : ""}</p>
@@ -460,6 +469,7 @@ const store = {
   }
   function startRace(draft) {
     race = draft; player = race.racers[0]; lastCount = 99; endShown = false;
+    for (const r of race.racers) if (isBday(r.ch.id)) say(r, "¡HOY CUMPLO! 🎂", 4); // el cumpleañero lo avisa en la largada
     if (!cup) ghostRec(race); // se graba por si después quiere retar a alguien
     startGuide(); setPaused(false);
     pad.querySelector(".fly").style.display = race.fly ? "" : "none";
@@ -504,8 +514,8 @@ const store = {
       show(split(`<p class="sub">PRÁCTICA LIBRE</p>${placeTitle(pos)}<p class="sub">${win ? "La gloria es tuya." : "Sin gloria esta vez. ¿La revancha?"}</p>
         ${record}<div class="row"><button class="go" id="again">OTRA VEZ</button><button id="change">CAMBIAR</button>${homeBtn}</div>`,
         `${podium(st.map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) })))}
-        <div class="row">${retoHtml()}<button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
-      shareBtn(shareText); retoBtn(); document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
+        <div class="row">${bdayHtml()}${retoHtml()}<button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
+      shareBtn(shareText); retoBtn(); bdayBtn(); document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
       document.getElementById("again").onclick = drawScreen;
       document.getElementById("change").onclick = selectScreen;
       document.getElementById("home").onclick = homeScreen;
@@ -548,8 +558,8 @@ const store = {
       ${L.r ? podium(st.slice(0, 3).map((r) => ({ ch: r.ch, isPlayer: r.isPlayer, sub: timeOf(r) }))) : `<p class="sub">Tu tiempo: ${timeOf(player)}</p>`}
       ${passed && !alias() ? `<label class="alias">TU APODO <input id="alias2" maxlength="16" autocomplete="off" placeholder="Para aparecer en el ranking"></label>` : ""}
       ${up ? googleNudge(now) : ""}
-      <div class="row">${retoHtml()}<button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
-    aliasField("alias2"); nudgeBtn(); retoBtn();
+      <div class="row">${bdayHtml()}${retoHtml()}<button id="share">📣 COMPARTIR</button><button id="fb">💬 OPINAR</button></div>`));
+    aliasField("alias2"); nudgeBtn(); retoBtn(); bdayBtn();
     const st2 = stageOf(now);
     shareBtn(passed ? `Pasé el nivel ${L.n} de Nadar por la gloria con ${res.n} estrella${res.n > 1 ? "s" : ""}: ya soy ${st2.name} ${st2.icon}. ¿Me alcanzás?` : `Estoy en el nivel ${now} de Nadar por la gloria (${st2.name} ${st2.icon}). ¿Me alcanzás?`);
     document.getElementById("fb").onclick = () => feedbackScreen(homeScreen);
@@ -557,6 +567,16 @@ const store = {
     const ag = document.getElementById("again") || document.getElementById("change"); ag.onclick = () => levelScreen(L.n);
     document.getElementById("home").onclick = homeScreen;
   }
+  // ---------- los cumpleaños ----------
+  // Si en la carrera nadó el cumpleañero (de rival o elegido), al final se le manda el saludo.
+  const bdayIn = () => race ? race.racers.map((r) => r.ch).filter((c) => isBday(c.id)) : [];
+  const bdayHtml = () => bdayIn().length ? `${confetti()}<button id="bday">🎉 MANDALE TU SALUDO</button>` : "";
+  function bdayBtn() {
+    const b = document.getElementById("bday"); if (!b) return;
+    const bd = bdayIn(), who = bdayNames(bd), mine = bd.includes(player.ch);
+    shareBtn(`Hoy cumple ${who} 🎂 y ${mine ? "le nadé una carrera con su personaje" : "le nadé una carrera"} en Nadar por la gloria. ¡Feliz cumple, ${who}! 🎉`, "bday");
+  }
+
   // ---------- el reto ----------
   // Retar a un amigo: se guarda tu carrera (el reflejo) y se comparte el link; el que lo abre nada la misma pileta contra vos.
   // Para mandar un desafío hay que entrar con Google (el que lo recibe lo juega sin cuenta).
