@@ -27,7 +27,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0B3D63; col
 #scr button#home { margin-top: 6px; padding: 10px 18px; font: bold 15px system-ui, sans-serif; color: #fff; border: 2px solid #ffffff70; border-radius: 30px; cursor: pointer; }
 #scr button#change, #scr button#home { background: #ffffff30; color: #fff; box-shadow: 0 4px 0 #0003; }
 #scr button.link { background: none; border: 0; color: #8FE3FF; font: 13px system-ui, sans-serif; text-decoration: underline; margin-top: 6px; cursor: pointer; }
-.row { display: flex; gap: 10px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; } /* si no entran los botones, bajan de renglón centrados */
 .podio { text-align: left; font-size: 16px; margin: 4px 0; }
 .podio { list-style: none; padding: 0; }
 .podio li { margin: 6px 0; display: flex; align-items: center; gap: 8px; font-weight: bold; }

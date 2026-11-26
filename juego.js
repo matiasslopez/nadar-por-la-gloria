@@ -572,7 +572,7 @@ const store = {
   // ---------- los cumpleaños ----------
   // Si en la carrera nadó el cumpleañero (de rival o elegido), al final se le manda el saludo.
   const bdayIn = () => race ? race.racers.map((r) => r.ch).filter((c) => isBday(c.id)) : [];
-  const bdayHtml = () => bdayIn().length ? `${confetti()}<button id="bday">🎉 MANDALE TU SALUDO</button>` : "";
+  const bdayHtml = () => bdayIn().length ? `<button id="bday">🎉 MANDALE TU SALUDO</button>` : "";
   function bdayBtn() {
     const b = document.getElementById("bday"); if (!b) return;
     const bd = bdayIn(), who = bdayNames(bd), mine = bd.includes(player.ch);
